@@ -95,6 +95,7 @@ int nsfifo_get_len(nsfifo_t *fifo);
  */
 int nsfifo_close(nsfifo_t *fifo);
 
+__END_DECLS__
 
 #endif /* __NAMED_STRAIGHTFIFO_H__ */
 

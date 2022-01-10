@@ -1,11 +1,13 @@
-/**
- * @file k_time.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_TIME_H
 #define K_TIME_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino time
  *  Time management
@@ -59,6 +61,10 @@ tick_t krhino_ms_to_ticks(sys_time_t ms);
 sys_time_t krhino_ticks_to_ms(tick_t ticks);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_TIME_H */
 

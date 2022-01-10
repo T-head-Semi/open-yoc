@@ -35,8 +35,10 @@
 #  include "custom_support.h"
 #endif
 
+#ifndef __linux__
 #include <aos/kernel.h>
 #include <aos/debug.h>
+#endif
 #include "opus_types.h"
 #include "opus_defines.h"
 
@@ -46,9 +48,9 @@
 
 #if 1
 
-#define opus_alloc(size) aos_malloc(size)
-#define opus_free(ptr) aos_free(ptr)
-#define opus_alloc_scratch(size) aos_malloc(size)
+#define opus_alloc(size) malloc(size)
+#define opus_free(ptr) free(ptr)
+#define opus_alloc_scratch(size) malloc(size)
 
 #else
 /** Opus wrapper for malloc(). To do your own dynamic allocation, all you need to do is replace this function and opus_free */

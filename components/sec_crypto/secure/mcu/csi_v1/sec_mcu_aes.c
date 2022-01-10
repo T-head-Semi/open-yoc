@@ -78,8 +78,11 @@ static uint32_t aes_csi_config(sc_aes_t *aes, aes_mode_e mode, aes_crypto_mode_e
     } else {
         return SC_PARAM_INV;
     }
-
+#if defined(CONFIG_SEC_CRYPTO_AES_ENDIAN_BIG) &&  (CONFIG_SEC_CRYPTO_AES_ENDIAN_BIG> 0)
+    ret = csi_aes_config(aes->handle, mode, bits, AES_ENDIAN_BIG);
+#else
     ret = csi_aes_config(aes->handle, mode, bits, AES_ENDIAN_LITTLE);
+#endif
     if (ret) {
         return SC_DRV_FAILED;
     }

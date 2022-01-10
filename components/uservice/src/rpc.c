@@ -5,8 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#ifndef __linux__
 #include <aos/kernel.h>
 #include <aos/debug.h>
+#endif
 
 #include "internal.h"
 
@@ -17,7 +19,7 @@ static void rpc_buffer_free(rpc_buffer_t *data)
         data->buffer = NULL;
     }
 
-    if (aos_sem_is_valid(&data->sem))
+    if (data->timeout_ms)
         aos_sem_free(&data->sem);
 
     aos_free(data);
@@ -53,7 +55,7 @@ int rpc_wait(rpc_t *rpc)
 {
     aos_assert(rpc);
     int ret = 0;
-    if (rpc->data && aos_sem_is_valid(&rpc->data->sem))
+    if (rpc->data && rpc->data->timeout_ms)
         ret = aos_sem_wait(&rpc->data->sem, rpc->data->timeout_ms);
     return ret;
 }
@@ -104,7 +106,7 @@ void rpc_reply(rpc_t *rpc)
     aos_assert(rpc->srv->task);
 
     if (rpc->data) {
-        if (aos_sem_is_valid(&rpc->data->sem)) {
+        if (rpc->data->timeout_ms) {
             aos_sem_signal(&(rpc->data->sem));
         } else {
             // is async call, free this data.

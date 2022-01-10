@@ -18,7 +18,7 @@ static int _atempo_sonic_init(atempo_t *atempo)
     sonicStream stream = NULL;
     struct atempo_sonic_priv *priv = NULL;
 
-    priv   = aos_zalloc(sizeof(struct atempo_sonic_priv));
+    priv   = av_zalloc(sizeof(struct atempo_sonic_priv));
     stream = sonicCreateStream(atempo->rate, 1);
     CHECK_RET_TAG_WITH_GOTO(priv && stream, err);
     sonicSetSpeed(stream, atempo->speed);
@@ -29,7 +29,7 @@ static int _atempo_sonic_init(atempo_t *atempo)
 err:
     if (stream)
         sonicDestroyStream(stream);
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -81,7 +81,7 @@ static int _atempo_sonic_uninit(atempo_t *atempo)
     sonicStream stream             = priv->stream;
 
     sonicDestroyStream(stream);
-    aos_free(priv);
+    av_free(priv);
     atempo->priv = NULL;
     return 0;
 }

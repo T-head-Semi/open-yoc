@@ -113,7 +113,7 @@ named_fifo_t *named_fifo_open(const char *name, size_t fifo_size)
         return NULL;
     }
 
-    fifo =(named_fifo_t*)aos_zalloc(sizeof(named_fifo_t));
+    fifo =(named_fifo_t*)av_zalloc(sizeof(named_fifo_t));
     if (!fifo) {
         LOGE(TAG, "oom2");
         goto err;
@@ -332,7 +332,7 @@ int named_fifo_close(named_fifo_t *fifo)
         aos_mutex_unlock(&g_fifo_list.lock);
 
         aos_mutex_free(&fifo->lock);
-        aos_free(fifo);
+        av_free(fifo);
         return ret;
     }
     unlock();

@@ -64,7 +64,7 @@ eq_icore_t* eq_icore_new(uint32_t rate, uint8_t eq_segments)
     eq_icore_new_t *inp;
 
     CHECK_PARAM(rate && eq_segments, NULL);
-    hdl = aos_zalloc(sizeof(eq_icore_t));
+    hdl = av_zalloc(sizeof(eq_icore_t));
     CHECK_RET_TAG_WITH_RET(hdl, NULL);
 
     in_mb = mblock_new(EQ_MB_SIZE_DEFAULT, 16);
@@ -74,7 +74,7 @@ eq_icore_t* eq_icore_new(uint32_t rate, uint8_t eq_segments)
     msg_new = icore_msg_new(ICORE_CMD_EQ_NEW, sizeof(eq_icore_new_t));
     CHECK_RET_TAG_WITH_GOTO(msg_new, err);
 
-    priv = aos_zalloc(sizeof(struct eq_icore_ap_priv));
+    priv = av_zalloc(sizeof(struct eq_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(priv, err);
 
     inp = icore_get_msg(msg_new, eq_icore_new_t);
@@ -97,8 +97,8 @@ err:
     mblock_free(in_mb);
     mblock_free(out_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -226,8 +226,8 @@ int eq_icore_free(eq_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

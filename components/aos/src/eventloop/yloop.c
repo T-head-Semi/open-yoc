@@ -6,6 +6,7 @@
 
 #include "aos/yloop.h"
 #include "aos/kernel.h"
+#include <k_config.h>
 
 #ifdef CONFIG_KERNEL_WORKQUEUE
 typedef struct work_para {

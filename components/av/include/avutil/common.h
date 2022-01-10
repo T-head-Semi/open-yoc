@@ -5,13 +5,13 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-//#include <string.h>
-//#include <stdlib.h>
-//#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <ctype.h>
-//#include <errno.h>
+#include <stdint.h>
 //#include <sys/stat.h>
 //#include <sys/types.h>
 //#include <stdarg.h>
@@ -23,11 +23,20 @@
 //#include <sys/socket.h>
 //#include <fcntl.h>
 
+#ifdef __linux__
+#include <errno.h>
+#include <pthread.h>
+#include "ulog/ulog.h"
+#else
 #include <aos/types.h>
 #include <aos/aos.h>
 #include <aos/debug.h>
 #include <aos/kernel.h>
+#include <aos/list.h>
+#endif
+
 #include "avutil/av_errno.h"
+#include "avutil/av_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,6 +82,10 @@ typedef int handle_t;
 #define SEEK_END 2
 #endif
 
+#ifndef AV_EPSINON
+#define AV_EPSINON  (0.000001)
+#endif
+
 #ifndef AV_ALIGN_SIZE
 #define AV_ALIGN_SIZE(size, align) (((size) + align - 1U) & (~(align - 1U)))
 #endif
@@ -82,7 +95,23 @@ typedef int handle_t;
 #endif
 
 #ifndef AV_ALIGN
-#define AV_ALIGN(addr, align) ((void *)(((uint32_t)(addr) + align - 1U) & (~(uint32_t)(align - 1U))))
+#define AV_ALIGN(addr, align) ((void *)(((unsigned long)(addr) + align - 1U) & (~(unsigned long)(align - 1U))))
+#endif
+
+#ifdef __linux__
+#define av_malloc          malloc
+#define av_realloc         realloc
+#define av_calloc          calloc
+#define av_zalloc(size)    calloc(1, size)
+#define av_free            free
+#define av_freep           freep
+#else
+#define av_malloc      aos_malloc
+#define av_realloc     aos_realloc
+#define av_calloc      aos_calloc
+#define av_zalloc      aos_zalloc
+#define av_free        aos_free
+#define av_freep       aos_freep
 #endif
 
 #ifdef __cplusplus

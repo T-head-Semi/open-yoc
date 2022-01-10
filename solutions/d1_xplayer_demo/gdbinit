@@ -1,0 +1,4 @@
+target remote localhost:1025
+#target remote 30.225.208.97:1025
+reset
+reset

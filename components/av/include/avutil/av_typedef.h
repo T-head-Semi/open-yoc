@@ -2,8 +2,8 @@
  * Copyright (C) 2018-2020 Alibaba Group Holding Limited
  */
 
-#ifndef __PLAYER_TYPEDEF_H__
-#define __PLAYER_TYPEDEF_H__
+#ifndef __AV_TYPEDEF_H__
+#define __AV_TYPEDEF_H__
 
 #include "avutil/common.h"
 #include "avutil/sf.h"
@@ -14,6 +14,12 @@ __BEGIN_DECLS__
 #define AV_FLICK_BASE          (705600000)
 //#define POST_PROC_SAMPLES_MAX  (48000 / 1000 * 100)  ///< 0.1s 48k
 #define POST_PROC_SAMPLES_MAX  (512)
+
+#define AO_ONE_PERIOD_MS       (5)
+#define AO_TOTAL_PERIOD_NUM    (20)
+
+#define VOL_SCALE_DB_MAX       (14)     ///< for digital volume 
+#define VOL_SCALE_DB_MIN       (-60)    ///< for digital volume 
 
 /**
  * @brief  read bytes from opaque
@@ -114,7 +120,19 @@ typedef struct track_info {
     }                         t;
 } track_info_t;
 
+typedef struct {
+    uint64_t                  duration;      ///< ms, maybe a dynamic time
+    uint64_t                  curtime;       ///< ms, current time
+} play_time_t;
+
+typedef struct {
+    track_info_t              *tracks;       ///< for fulture use, don't need free for user
+    uint64_t                  size;          ///< media file size
+    uint64_t                  bps;
+    uint64_t                  duration;      ///< ms, media duration
+} media_info_t;
+
 __END_DECLS__
 
-#endif /* __PLAYER_TYPEDEF_H__ */
+#endif /* __AV_TYPEDEF_H__ */
 

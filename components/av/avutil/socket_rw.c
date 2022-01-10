@@ -6,7 +6,13 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#ifdef __linux__
+#include <unistd.h>
+#include <fcntl.h>
+#include <netdb.h>
+#else
 #include <lwip/netdb.h>
+#endif
 #include <arpa/inet.h>
 
 #include "avutil/socket_rw.h"

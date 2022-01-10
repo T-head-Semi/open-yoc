@@ -56,12 +56,21 @@ void console_deinit(void)
     return;
 }
 
-int uart_putc(int ch)
+int uart_write(void *buf, size_t size)
 {
-    if (g_console_handle == NULL) {
-        return -1;
+    CHECK_PARAM(g_console_handle, -1);
+    if (!aos_irq_context()) {
+        hal_uart_send(g_console_handle, buf, size, AOS_WAIT_FOREVER);
+    } else {
+        hal_uart_send_poll(g_console_handle, buf, size);
     }
 
+    return size;
+}
+
+int uart_putc(int ch)
+{
+    CHECK_PARAM(g_console_handle, -1);
     if (ch == '\n') {
         int data = '\r';
         if (!aos_irq_context()) {
@@ -97,6 +106,7 @@ int uart_getc(void)
 __attribute__((weak)) int os_critical_enter(unsigned int *lock)
 {
     int ret;
+    CHECK_PARAM(g_console_handle, -1);
     ret = aos_mutex_lock(&g_console_mutex_handle,10000);
     return ret;
 }
@@ -104,6 +114,7 @@ __attribute__((weak)) int os_critical_enter(unsigned int *lock)
 __attribute__((weak)) int os_critical_exit(unsigned int *lock)
 {
     int ret;
+    CHECK_PARAM(g_console_handle, -1);
     ret = aos_mutex_unlock(&g_console_mutex_handle);
     return ret;
 }

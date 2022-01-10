@@ -24,10 +24,10 @@ static int _ad_tmall_open(ad_cls_t *o)
     struct ad_tmall_priv *priv = NULL;
     void *hdl;
 
-    priv = aos_zalloc(sizeof(struct ad_tmall_priv));
+    priv = av_zalloc(sizeof(struct ad_tmall_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
-    pool = aos_zalloc(ADTMALL_FRAME_POOL_SIZE);
+    pool = av_zalloc(ADTMALL_FRAME_POOL_SIZE);
     CHECK_RET_TAG_WITH_GOTO(pool, err);
 
     if (o->ash.id == AVCODEC_ID_MP3) {
@@ -50,7 +50,7 @@ static int _ad_tmall_open(ad_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
 
     return -1;
 }
@@ -108,9 +108,9 @@ static int _ad_tmall_close(ad_cls_t *o)
     struct ad_tmall_priv *priv = o->priv;
 
     ad_adapter_close(priv->hdl);
-    aos_free(priv->pool);
+    av_free(priv->pool);
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

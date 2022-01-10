@@ -69,7 +69,7 @@ res_icore_t *res_icore_new(uint32_t irate, uint32_t orate, uint8_t channels, uin
     res_icore_new_t *inp;
 
     CHECK_PARAM(irate && orate && (channels == 1) && bits, NULL);
-    hdl = aos_zalloc(sizeof(res_icore_t));
+    hdl = av_zalloc(sizeof(res_icore_t));
     CHECK_RET_TAG_WITH_RET(hdl, NULL);
 
     in_mb = mblock_new(RES_MB_SIZE_DEFAULT, 16);
@@ -79,7 +79,7 @@ res_icore_t *res_icore_new(uint32_t irate, uint32_t orate, uint8_t channels, uin
     msg_new = icore_msg_new(ICORE_CMD_RES_NEW, sizeof(res_icore_new_t));
     CHECK_RET_TAG_WITH_GOTO(msg_new, err);
 
-    priv = aos_zalloc(sizeof(struct res_icore_ap_priv));
+    priv = av_zalloc(sizeof(struct res_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(priv, err);
 
     inp = icore_get_msg(msg_new, res_icore_new_t);
@@ -106,8 +106,8 @@ err:
     mblock_free(in_mb);
     mblock_free(out_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -205,8 +205,8 @@ int res_icore_free(res_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

@@ -150,10 +150,10 @@ demux_cls_t* demux_open(stream_cls_t *s)
     const struct demux_ops *ops;
 
     CHECK_PARAM(s, NULL);
-    buf = aos_malloc(CONFIG_AV_PROBE_SIZE_MAX);
+    buf = av_malloc(CONFIG_AV_PROBE_SIZE_MAX);
     CHECK_RET_TAG_WITH_RET(buf, NULL);
-    track = track_info_new(AVMEDIA_TYPE_AUDIO);
-    CHECK_RET_TAG_WITH_GOTO(track, err);
+    track = track_info_new();
+    track->type = AVMEDIA_TYPE_AUDIO;
 
     memset(&pd, 0, sizeof(avprobe_data_t));
     format_size = sizeof(pd.avformat);
@@ -185,7 +185,7 @@ demux_cls_t* demux_open(stream_cls_t *s)
     LOGI(TAG, "find a demux, name = %s, url = %s", ops->name, stream_get_url(s));
 
     stream_seek(s, isize, SEEK_SET);
-    o = aos_zalloc(sizeof(demux_cls_t));
+    o = av_zalloc(sizeof(demux_cls_t));
     CHECK_RET_TAG_WITH_GOTO(o, err);
     avpacket_init(&o->fpkt);
     slist_init(&o->list_free);
@@ -207,16 +207,16 @@ demux_cls_t* demux_open(stream_cls_t *s)
     track->t.a.sf     = o->ash.sf;
     tracks_info_add(&o->tracks, track);
     aos_mutex_new(&o->lock);
-    aos_free(buf);
+    av_free(buf);
 
     return o;
 err:
     track_info_free(track);
-    aos_free(buf);
+    av_free(buf);
     if (o) {
         avparser_close(o->psr);
         avpacket_free(&o->fpkt);
-        aos_free(o);
+        av_free(o);
     }
     return NULL;
 }
@@ -265,7 +265,7 @@ read_try:
                 CHECK_RET_TAG_WITH_GOTO(rc == 0, err);
 
                 if (slist_empty(&o->list_free)) {
-                    psr_pkt = aos_zalloc(sizeof(avpacket_t));
+                    psr_pkt = av_zalloc(sizeof(avpacket_t));
                     rc = avpacket_new(psr_pkt, osize);
                     CHECK_RET_TAG_WITH_GOTO(rc == 0, err);
                 } else {
@@ -319,7 +319,7 @@ static void _free_psr_packets(demux_cls_t *o)
         slist_for_each_entry_safe(&o->list_ready, tmp, psr_pkt, avpacket_t, node) {
             slist_del(&psr_pkt->node, &o->list_ready);
             avpacket_free(psr_pkt);
-            aos_free(psr_pkt);
+            av_free(psr_pkt);
         }
     }
 
@@ -327,7 +327,7 @@ static void _free_psr_packets(demux_cls_t *o)
         slist_for_each_entry_safe(&o->list_free, tmp, psr_pkt, avpacket_t, node) {
             slist_del(&psr_pkt->node, &o->list_free);
             avpacket_free(psr_pkt);
-            aos_free(psr_pkt);
+            av_free(psr_pkt);
         }
     }
 }
@@ -399,8 +399,8 @@ int demux_close(demux_cls_t *o)
     avparser_close(o->psr);
     avpacket_free(&o->fpkt);
     tracks_info_freep(&o->tracks);
-    aos_free(o->ash.extradata);
-    aos_free(o);
+    av_free(o->ash.extradata);
+    av_free(o);
 
     return ret;
 }

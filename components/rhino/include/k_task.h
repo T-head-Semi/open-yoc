@@ -1,11 +1,13 @@
-/**
- * @file k_task.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_TASK_H
 #define K_TASK_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino task
  *  Task management
@@ -61,7 +63,7 @@ typedef struct {
      *  start 'task_stack_base', len 'stack_size * sizeof(cpu_stack_t)'
      */
     cpu_stack_t     *task_stack_base;
-    uint32_t         stack_size;
+    size_t           stack_size;
     /**<
      *  Put task into different linked lists according to the status:
      *  1. ready queue. The list hade is g_ready_queue->cur_list_item[prio]
@@ -98,6 +100,11 @@ typedef struct {
 
     /* Task block on mutex, queue, semphore, event */
     blk_obj_t       *blk_obj;
+
+    uint32_t         task_id;
+#if (RHINO_CONFIG_MM_DEBUG > 0)
+    uint32_t         task_alloc_size;
+#endif
 
 #if (RHINO_CONFIG_TASK_SEM > 0)
     /**< Task semaphore  */
@@ -155,6 +162,8 @@ typedef struct {
     uint8_t          b_prio;
     /**< buffer from internal malloc or caller input */
     uint8_t          mm_alloc_flag;
+
+    void            *ptcb;  /* pthread control block */
 } ktask_t;
 
 /**
@@ -477,6 +486,10 @@ void krhino_task_deathbed(void);
 ktask_t *krhino_task_find(name_t *name);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_TASK_H */
 

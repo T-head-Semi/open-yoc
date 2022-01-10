@@ -21,7 +21,7 @@ static int _stream_fifo_open(stream_cls_t *o, int mode)
     struct sfifo_priv *priv = NULL;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct sfifo_priv));
+    priv = av_zalloc(sizeof(struct sfifo_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     fifo = nsfifo_open(o->url, O_RDONLY);
@@ -39,7 +39,7 @@ static int _stream_fifo_open(stream_cls_t *o, int mode)
 err:
     if (fifo)
         nsfifo_close(fifo);
-    aos_free(priv);
+    av_free(priv);
 
     return -1;
 }
@@ -52,7 +52,7 @@ static int _stream_fifo_close(stream_cls_t *o)
     nsfifo_set_eof(fifo, 1, 0);
     nsfifo_close(fifo);
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;
@@ -116,7 +116,7 @@ static int _stream_fifo_control(stream_cls_t *o, int cmd, void *arg, size_t *arg
 const struct stream_ops stream_ops_fifo = {
     .name            = "fifo",
     .type            = STREAM_TYPE_FIFO,
-    .protocols       = { "fifo", NULL },
+    .protocols       = { "fifo", "ififo", NULL },
 
     .open            = _stream_fifo_open,
     .close           = _stream_fifo_close,

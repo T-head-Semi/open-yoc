@@ -20,8 +20,8 @@ lcfifo_t* lcfifo_create(size_t len)
         return NULL;
     }
 
-    buf  = (char*)aos_zalloc(len);
-    fifo =(lcfifo_t*)aos_zalloc(sizeof(lcfifo_t));
+    buf  = (char*)av_zalloc(len);
+    fifo =(lcfifo_t*)av_zalloc(sizeof(lcfifo_t));
     if (!(buf && fifo)) {
         LOGE(TAG, "oom");
         goto err;
@@ -37,8 +37,8 @@ lcfifo_t* lcfifo_create(size_t len)
     return fifo;
 
 err:
-    aos_free(buf);
-    aos_free(fifo);
+    av_free(buf);
+    av_free(fifo);
     return NULL;
 }
 
@@ -55,8 +55,8 @@ int lcfifo_destroy(lcfifo_t* fifo)
 
     ringbuffer_destroy(&fifo->rb);
     aos_mutex_free(&fifo->lock);
-    aos_free(fifo->buf);
-    aos_free(fifo);
+    av_free(fifo->buf);
+    av_free(fifo);
 
     return 0;
 }

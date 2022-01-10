@@ -86,10 +86,23 @@ void soc_dcache_clean_invalid_all(void);
 void soc_dcache_invalid_range(unsigned long addr, uint32_t size);
 
 /**
+  \brief       SOC Dcache invalid all.
+  \return      None
+*/
+void soc_dcache_invalid(void);
+
+/**
   \brief       SOC Dcache clean all.
   \return      None
 */
 void soc_dcache_clean(void);
+
+
+/**
+  \brief       SOC Dcache clean by range.
+  \return      None
+*/
+void soc_dcache_clean_range(unsigned long addr, uint32_t size);
 
 /**
   \brief       SOC Icache invalid all.

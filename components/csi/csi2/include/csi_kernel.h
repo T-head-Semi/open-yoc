@@ -12,7 +12,7 @@
 #ifndef _CSI_KERNEL_
 #define _CSI_KERNEL_
 
-
+#include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
 
@@ -189,11 +189,11 @@ int32_t csi_kernel_sched_restore_lock(int32_t lock);
 
 /// Suspend the scheduler.
 /// \return time in ticks, for how long the system can sleep or power-down.
-uint32_t aos_kernel_sched_suspend(void);
+uint32_t csi_kernel_sched_suspend(void);
 
 /// Resume the scheduler.
 /// \param[in]     sleep_ticks   time in ticks for how long the system was in sleep or power-down mode.
-void aos_kernel_sched_resume(uint32_t sleep_ticks);
+void csi_kernel_sched_resume(uint32_t sleep_ticks);
 
 
 /* =================================================================================== */
@@ -289,11 +289,11 @@ uint32_t csi_kernel_task_list(k_task_handle_t *task_array, uint32_t array_items)
 
 /// System enter interrupt status.
 /// \return execution status code. \ref k_status_t
-k_status_t aos_kernel_intrpt_enter(void);
+k_status_t csi_kernel_intrpt_enter(void);
 
 /// System exit interrupt status.
 /// \return execution status code. \ref k_status_t
-k_status_t aos_kernel_intrpt_exit(void);
+k_status_t csi_kernel_intrpt_exit(void);
 
 /* =================================================================================== */
 /*                                Generic time Functions                               */
@@ -412,7 +412,7 @@ k_status_t csi_kernel_event_get(k_event_handle_t ev_handle, uint32_t *ret_flags)
 /// \return execution status code. \ref k_status_t
 k_status_t csi_kernel_event_wait(k_event_handle_t ev_handle, uint32_t flags,
                         k_event_opt_t options, uint8_t clr_on_exit,
-                        uint32_t *actl_flags, int32_t timeout);
+                        uint32_t *actl_flags, long timeout);
 
 
 /* =================================================================================== */
@@ -432,7 +432,7 @@ k_status_t csi_kernel_mutex_del(k_mutex_handle_t mutex_handle);
 /// \param[in]     mutex_handle      mutex handle to operate.
 /// \param[in]     timeout       time out value in ticks if > 0, 0 in case of no time-out, negative in case of wait forever
 /// \return execution status code. \ref k_status_t
-k_status_t csi_kernel_mutex_lock(k_mutex_handle_t mutex_handle, int32_t timeout);
+k_status_t csi_kernel_mutex_lock(k_mutex_handle_t mutex_handle, long timeout);
 
 /// Release a Mutex that was acquired by \ref csi_kernel_mutex_new.
 /// \param[in]     mutex_handle      mutex handle to operate.
@@ -463,7 +463,7 @@ k_status_t csi_kernel_sem_del(k_sem_handle_t sem_handle);
 /// \param[in]     sem_handle  semaphore handle to operate.
 /// \param[in]     timeout       time out value in ticks if > 0, 0 in case of no time-out, negative in case of wait forever
 /// \return execution status code. \ref k_status_t
-k_status_t csi_kernel_sem_wait(k_sem_handle_t sem_handle, int32_t timeout);
+k_status_t csi_kernel_sem_wait(k_sem_handle_t sem_handle, long timeout);
 
 /// Release a Semaphore token that was acquired by \ref csi_kernel_sem_wait.
 /// \param[in]     sem_handle  semaphore handle to operate.
@@ -494,9 +494,9 @@ k_status_t csi_kernel_mpool_del(k_mpool_handle_t mp_handle);
 
 /// Allocate a memory block from a Memory Pool.
 /// \param[in]     mp_handle     memory pool handle to operate.
-/// \param[in]     timeout       time out value in ticks if > 0, 0 in case of no time-out, negative in case of wait forever
+/// \param[in]     size       alloc size < 
 /// \return address of the allocated memory block or NULL in case of no memory is available.
-void *csi_kernel_mpool_alloc(k_mpool_handle_t mp_handle, int32_t timeout);
+void *csi_kernel_mpool_alloc(k_mpool_handle_t mp_handle, uint32_t size);
 
 /// Return an allocated memory block back to a Memory Pool.
 /// \param[in]     mp_handle     memory pool handle to operate.
@@ -540,14 +540,14 @@ k_status_t csi_kernel_msgq_del(k_msgq_handle_t mq_handle);
 /// \param[in]     front_or_back specify this msg to be put to front or back.   1 - front, 0 -back
 /// \param[in]     timeout       time out value in ticks if > 0, 0 in case of no time-out, negative in case of wait forever
 /// \return execution status code. \ref k_status_t
-k_status_t csi_kernel_msgq_put(k_msgq_handle_t mq_handle, const void *msg_ptr, uint8_t front_or_back, int32_t timeout);
+k_status_t csi_kernel_msgq_put(k_msgq_handle_t mq_handle, const void *msg_ptr, uint8_t front_or_back, long timeout);
 
 /// Get a Message from a Queue or timeout if Queue is empty.
 /// \param[in]     mq_handle     message queue handle to operate.
 /// \param[out]    msg_ptr       pointer to buffer for message to get from a queue.
 /// \param[in]     timeout       time out value in ticks if > 0, 0 in case of no time-out, negative in case of wait forever
 /// \return execution status code. \ref k_status_t
-k_status_t csi_kernel_msgq_get(k_msgq_handle_t mq_handle, void *msg_ptr, int32_t timeout);
+k_status_t csi_kernel_msgq_get(k_msgq_handle_t mq_handle, void *msg_ptr, long timeout);
 
 /// Get number of queued messages in a message queue.
 /// \param[in]     mq_handle         message queue handle to operate.
@@ -578,7 +578,7 @@ k_status_t csi_kernel_msgq_flush(k_msgq_handle_t mq_handle);
 /// \param[in]     size     Allocates size bytes.
 /// \param[in]     caller   the function who call this interface or NULL.
 /// \return  a pointer to the allocated memory.
-void *csi_kernel_malloc(int32_t size, void *caller);
+void *csi_kernel_malloc(size_t size, void *caller);
 
 /// Frees the memory space pointed to by ptr
 /// \param[in]     ptr      a pointer to memory block, return by csi_kernel_malloc or csi_kernel_realloc.
@@ -591,7 +591,7 @@ void csi_kernel_free(void *ptr, void *caller);
 /// \param[in]     size     Allocates size bytes.
 /// \param[in]     caller   the function who call this interface or NULL.
 /// \return  a pointer to the allocated memory.
-void *csi_kernel_realloc(void *ptr, int32_t size, void *caller);
+void *csi_kernel_realloc(void *ptr, size_t size, void *caller);
 
 /// Get csi memory used info.
 /// \param[out]     total    the total memory can be use.

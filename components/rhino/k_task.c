@@ -11,8 +11,7 @@ static void task_policy_change(ktask_t *task, uint8_t new_pri)
         if (task->sched_policy == KSCHED_CFS) {
             task->sched_policy = KSCHED_FIFO;
         }
-    }
-    else {
+    } else {
         task->sched_policy = KSCHED_CFS;
     }
 }
@@ -33,7 +32,7 @@ static kstat_t task_policy_check(uint8_t prio, uint8_t policy)
             break;
         case KSCHED_CFS:
             if (prio <= RT_MAX_PRI) {
-                err = RHINO_INV_PARAM;;
+                err = RHINO_INV_PARAM;
             }
             break;
         default:
@@ -52,9 +51,11 @@ static kstat_t task_create(ktask_t *task, const name_t *name, void *arg,
                            uint8_t sched_policy)
 {
     CPSR_ALLOC();
-
     cpu_stack_t *tmp;
     uint8_t      i = 0;
+
+    (void)cpu_binded;
+    (void)i;
 
     NULL_PARA_CHK(task);
     NULL_PARA_CHK(name);
@@ -106,7 +107,7 @@ static kstat_t task_create(ktask_t *task, const name_t *name, void *arg,
     task->sched_policy = sched_policy;
 
     if (autorun > 0u) {
-        task->task_state = K_RDY;
+        task->task_state    = K_RDY;
     } else {
         task->task_state    = K_SUSPENDED;
         task->suspend_count = 1u;
@@ -119,12 +120,16 @@ static kstat_t task_create(ktask_t *task, const name_t *name, void *arg,
     memset(tmp, 0, stack_size * sizeof(cpu_stack_t));
 
     klist_init(&task->tick_list);
-    task->task_name     = name;
-    task->prio          = prio;
-    task->b_prio        = prio;
-    task->stack_size    = stack_size;
-    task->mm_alloc_flag = mm_alloc_flag;
-    task->cpu_num       = cpu_num;
+    task->task_name        = name;
+    task->prio             = prio;
+    task->b_prio           = prio;
+    task->stack_size       = stack_size;
+    task->mm_alloc_flag    = mm_alloc_flag;
+    task->cpu_num          = cpu_num;
+    task->task_id          = ++g_task_id;
+#if (RHINO_CONFIG_MM_DEBUG > 0)
+    task->task_alloc_size  = 0;
+#endif
 #if (RHINO_CONFIG_USER_SPACE > 0)
     task->mode             = 0;
     task->pid              = 0;
@@ -132,21 +137,18 @@ static kstat_t task_create(ktask_t *task, const name_t *name, void *arg,
     task->task_group       = 0;
 #endif
 
-    cpu_binded = cpu_binded;
-    i = i;
-
 #if (RHINO_CONFIG_CPU_NUM > 1)
     task->cpu_binded = cpu_binded;
 #endif
 
 #if (RHINO_CONFIG_TASK_STACK_OVF_CHECK > 0)
 #if (RHINO_CONFIG_CPU_STACK_DOWN > 0)
-    tmp  = task->task_stack_base;
+    tmp = task->task_stack_base;
     for (i = 0; i < RHINO_CONFIG_STK_CHK_WORDS; i++) {
         *tmp++ = RHINO_TASK_STACK_OVF_MAGIC;
     }
 #else
-    tmp  = (cpu_stack_t *)(task->task_stack_base) + task->stack_size - RHINO_CONFIG_STK_CHK_WORDS;
+    tmp = (cpu_stack_t *)(task->task_stack_base) + task->stack_size - RHINO_CONFIG_STK_CHK_WORDS;
     for (i = 0; i < RHINO_CONFIG_STK_CHK_WORDS; i++) {
         *tmp++ = RHINO_TASK_STACK_OVF_MAGIC;
     }
@@ -194,8 +196,8 @@ kstat_t krhino_task_create(ktask_t *task, const name_t *name, void *arg,
 
 #if (RHINO_CONFIG_SCHED_CFS > 0)
 kstat_t krhino_cfs_task_create(ktask_t *task, const name_t *name, void *arg,
-                                         uint8_t prio, cpu_stack_t *stack_buf, size_t stack_size,
-                                         task_entry_t entry, uint8_t autorun)
+                               uint8_t prio, cpu_stack_t *stack_buf, size_t stack_size,
+                               task_entry_t entry, uint8_t autorun)
 {
     return task_create(task, name, arg, prio, 0, stack_buf, stack_size, entry,
                        autorun, K_OBJ_STATIC_ALLOC, 0, 0, KSCHED_CFS);
@@ -214,8 +216,8 @@ kstat_t krhino_task_cpu_create(ktask_t *task, const name_t *name, void *arg,
 
 #if (RHINO_CONFIG_SCHED_CFS > 0)
 kstat_t krhino_cfs_task_cpu_create(ktask_t *task, const name_t *name, void *arg,
-                                               uint8_t prio, cpu_stack_t *stack_buf,size_t stack_size,
-                                               task_entry_t entry, uint8_t cpu_num, uint8_t autorun)
+                                   uint8_t prio, cpu_stack_t *stack_buf, size_t stack_size,
+                                   task_entry_t entry, uint8_t cpu_num, uint8_t autorun)
 {
     return task_create(task, name, arg, prio, 0, stack_buf, stack_size, entry,
                        autorun, K_OBJ_STATIC_ALLOC, cpu_num, 1, KSCHED_CFS);
@@ -225,7 +227,6 @@ kstat_t krhino_cfs_task_cpu_create(ktask_t *task, const name_t *name, void *arg,
 kstat_t krhino_task_cpu_bind(ktask_t *task, uint8_t cpu_num)
 {
     CPSR_ALLOC();
-
     ktask_t *task_cur;
 
     RHINO_CRITICAL_ENTER();
@@ -244,7 +245,6 @@ kstat_t krhino_task_cpu_bind(ktask_t *task, uint8_t cpu_num)
 kstat_t krhino_task_cpu_unbind(ktask_t *task)
 {
     CPSR_ALLOC();
-
     ktask_t *task_cur;
 
     RHINO_CRITICAL_ENTER();
@@ -309,8 +309,8 @@ kstat_t krhino_task_dyn_create(ktask_t **task, const name_t *name, void *arg,
 
 #if (RHINO_CONFIG_SCHED_CFS > 0)
 kstat_t krhino_cfs_task_dyn_create(ktask_t **task, const name_t *name, void *arg,
-                                               uint8_t pri, size_t stack, task_entry_t entry,
-                                               uint8_t autorun)
+                                   uint8_t pri, size_t stack, task_entry_t entry,
+                                   uint8_t autorun)
 {
     return task_dyn_create(task, name, arg, pri, 0, stack, entry, 0, 0, autorun, KSCHED_CFS);
 }
@@ -326,8 +326,8 @@ kstat_t krhino_task_cpu_dyn_create(ktask_t **task, const name_t *name, void *arg
 
 #if (RHINO_CONFIG_SCHED_CFS > 0)
 kstat_t krhino_cfs_task_cpu_dyn_create(ktask_t **task, const name_t *name, void *arg,
-                                                     uint8_t pri, size_t stack,task_entry_t entry,
-                                                     uint8_t cpu_num, uint8_t autorun)
+                                       uint8_t pri, size_t stack, task_entry_t entry,
+                                       uint8_t cpu_num, uint8_t autorun)
 {
     return task_dyn_create(task, name, arg, pri, 0, stack, entry, cpu_num, 1, autorun, KSCHED_CFS);
 }
@@ -339,9 +339,7 @@ kstat_t krhino_cfs_task_cpu_dyn_create(ktask_t **task, const name_t *name, void 
 kstat_t krhino_task_sleep(tick_t ticks)
 {
     CPSR_ALLOC();
-
     uint8_t cur_cpu_num;
-
     kstat_t ret;
 
     if (ticks == 0u) {
@@ -384,9 +382,7 @@ kstat_t krhino_task_yield(void)
 
     /* make current task to the end of ready list */
     RHINO_CRITICAL_ENTER();
-
     ready_list_head_to_tail(&g_ready_queue, g_active_task[cpu_cur_get()]);
-
     RHINO_CRITICAL_EXIT_SCHED();
 
     return RHINO_SUCCESS;
@@ -407,7 +403,6 @@ ktask_t *krhino_cur_task_get(void)
 kstat_t task_suspend(ktask_t *task)
 {
     CPSR_ALLOC();
-
     uint8_t cur_cpu_num;
 
     RHINO_CRITICAL_ENTER();
@@ -446,7 +441,7 @@ kstat_t task_suspend(ktask_t *task)
         case K_SUSPENDED:
         case K_SLEEP_SUSPENDED:
         case K_PEND_SUSPENDED:
-            if (task->suspend_count == (suspend_nested_t) - 1) {
+            if (task->suspend_count == (suspend_nested_t) -1) {
                 RHINO_CRITICAL_EXIT();
                 return RHINO_SUSPENDED_COUNT_OVF;
             }
@@ -482,7 +477,6 @@ kstat_t krhino_task_suspend(ktask_t *task)
 kstat_t task_resume(ktask_t *task)
 {
     CPSR_ALLOC();
-
     RHINO_CRITICAL_ENTER();
 
     switch (task->task_state) {
@@ -583,8 +577,7 @@ kstat_t task_pri_change(ktask_t *task, uint8_t new_pri)
                         if (task->sched_policy != KSCHED_CFS) {
                             ready_list_rm(&g_ready_queue, task);
                         }
-                    }
-                    else {
+                    } else {
                         ready_list_rm(&g_ready_queue, task);
                     }
 #if (RHINO_CONFIG_SCHED_CFS > 0)
@@ -596,8 +589,7 @@ kstat_t task_pri_change(ktask_t *task, uint8_t new_pri)
                         if (task->sched_policy != KSCHED_CFS) {
                             ready_list_add_head(&g_ready_queue, task);
                         }
-                    }
-                    else {
+                    } else {
                         ready_list_add_tail(&g_ready_queue, task);
                     }
 
@@ -664,7 +656,6 @@ kstat_t task_pri_change(ktask_t *task, uint8_t new_pri)
 kstat_t krhino_task_pri_change(ktask_t *task, uint8_t pri, uint8_t *old_pri)
 {
     CPSR_ALLOC();
-
     uint8_t pri_limit;
     kstat_t error;
 
@@ -775,7 +766,7 @@ static void task_mutex_free(ktask_t *task)
     kmutex_t *mutex;
     kmutex_t *next_mutex;
     ktask_t  *next_task;
-    klist_t *blk_list_head;
+    klist_t  *blk_list_head;
 
     next_mutex = task->mutex_list;
 
@@ -804,16 +795,14 @@ static void task_mutex_free(ktask_t *task)
 kstat_t krhino_task_del(ktask_t *task)
 {
     CPSR_ALLOC();
-
-    uint8_t    cur_cpu_num;
-
+    uint8_t     cur_cpu_num;
 #if (RHINO_CONFIG_USER_HOOK > 0)
     res_free_t *res_free;
 #endif
 
     RHINO_CRITICAL_ENTER();
-    cur_cpu_num = cpu_cur_get();
 
+    cur_cpu_num = cpu_cur_get();
     INTRPT_NESTED_LEVEL_CHK();
 
     if (task == NULL) {
@@ -906,9 +895,8 @@ kstat_t krhino_task_del(ktask_t *task)
 kstat_t krhino_task_dyn_del(ktask_t *task)
 {
     CPSR_ALLOC();
-
-    kstat_t    ret;
-    uint8_t    cur_cpu_num;
+    kstat_t     ret;
+    uint8_t     cur_cpu_num;
     res_free_t *res_free;
 
     RHINO_CRITICAL_ENTER();
@@ -1042,16 +1030,14 @@ kstat_t krhino_task_cancel(ktask_t *task)
 RHINO_BOOL krhino_task_cancel_chk(void)
 {
     CPSR_ALLOC();
-
     ktask_t   *cur_task;
     RHINO_BOOL ret;
 
-    cur_task= krhino_cur_task_get();
+    cur_task = krhino_cur_task_get();
     RHINO_CRITICAL_ENTER();
     if (cur_task->cancel == 1u) {
         ret = RHINO_TRUE;
-    }
-    else {
+    } else {
         ret = RHINO_FALSE;
     }
     RHINO_CRITICAL_EXIT();
@@ -1200,7 +1186,6 @@ void krhino_task_deathbed(void)
 ktask_t *krhino_task_find(name_t *name)
 {
     CPSR_ALLOC();
-
     klist_t *listnode;
     ktask_t *task;
 

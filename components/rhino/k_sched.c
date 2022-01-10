@@ -129,8 +129,7 @@ void core_sched(void)
         if (preferred_task == 0) {
             preferred_task = &g_idle_task[cur_cpu_num];
         }
-    }
-    else {
+    } else {
         if (g_active_task[cur_cpu_num]->sched_policy == KSCHED_CFS) {
             if (g_active_task[cur_cpu_num]->task_state == K_RDY) {
                 cur_task_exec_time = g_active_task[cur_cpu_num]->task_time_this_run +
@@ -200,8 +199,7 @@ void core_sched(void)
         if (preferred_task == 0) {
             preferred_task = &g_idle_task[cur_cpu_num];
         }
-    }
-    else {
+    } else {
         if (g_active_task[cur_cpu_num]->sched_policy == KSCHED_CFS) {
             if (g_active_task[cur_cpu_num]->task_state == K_RDY) {
                 cur_task_exec_time = g_active_task[cur_cpu_num]->task_time_this_run +
@@ -308,7 +306,7 @@ static void task_sched_to_cpu(runqueue_t *rq, ktask_t *task, uint8_t cur_cpu_num
             }
 
             if (task->prio <= low_pri) {
-                if (low_pri_cpu_num != cur_cpu_num ) {
+                if (low_pri_cpu_num != cur_cpu_num) {
                     if (task->prio < g_active_task[cur_cpu_num]->prio) {
                         g_per_cpu[cur_cpu_num].dis_sched = 1u;
                     }
@@ -324,8 +322,7 @@ void ready_list_add_head(runqueue_t *rq, ktask_t *task)
 #if (RHINO_CONFIG_SCHED_CFS > 0)
     if (task->sched_policy == KSCHED_CFS) {
         cfs_node_insert(&task->node, cfs_node_min_get());
-    }
-    else {
+    } else {
         _ready_list_add_head(rq, task);
     }
     task_sched_to_cpu(rq, task, cpu_cur_get());
@@ -340,8 +337,7 @@ void ready_list_add_tail(runqueue_t *rq, ktask_t *task)
 #if (RHINO_CONFIG_SCHED_CFS > 0)
     if (task->sched_policy == KSCHED_CFS) {
         cfs_node_insert(&task->node, cfs_node_min_get());
-    }
-    else {
+    } else {
         _ready_list_add_tail(rq, task);
     }
     task_sched_to_cpu(rq, task, cpu_cur_get());
@@ -357,8 +353,7 @@ void ready_list_add_head(runqueue_t *rq, ktask_t *task)
 #if (RHINO_CONFIG_SCHED_CFS > 0)
     if (task->sched_policy == KSCHED_CFS) {
         cfs_node_insert(&task->node, cfs_node_min_get());
-    }
-    else {
+    } else {
         _ready_list_add_head(rq, task);
     }
 #else
@@ -384,12 +379,15 @@ void ready_list_add_tail(runqueue_t *rq, ktask_t *task)
 void ready_list_add(runqueue_t *rq, ktask_t *task)
 {
     ready_list_add_tail(rq, task);
+    TRACE_TASK_START_READY(task);
 }
 
 void ready_list_rm(runqueue_t *rq, ktask_t *task)
 {
     int32_t  i;
     uint8_t  pri = task->prio;
+
+    TRACE_TASK_STOP_READY(task);
 
 #if (RHINO_CONFIG_SCHED_CFS > 0)
     if (task->sched_policy == KSCHED_CFS) {
@@ -422,7 +420,7 @@ void ready_list_rm(runqueue_t *rq, ktask_t *task)
     }
 
     /* find the highest ready task */
-    i = krhino_find_first_bit(rq->task_bit_map);
+    i = krhino_bitmap_first(rq->task_bit_map);
 
     /* update the next highest prio task */
     if (i >= 0) {
@@ -472,7 +470,7 @@ ktask_t *preferred_cpu_ready_task_get(runqueue_t *rq, uint8_t cpu_num)
 
         if (iter->next == rq->cur_list_item[highest_pri]) {
             krhino_bitmap_clear(task_bit_map, highest_pri);
-            highest_pri = krhino_find_first_bit(task_bit_map);
+            highest_pri = krhino_bitmap_first(task_bit_map);
             iter = rq->cur_list_item[highest_pri];
         } else {
             iter = iter->next;
@@ -492,7 +490,6 @@ ktask_t *preferred_cpu_ready_task_get(runqueue_t *rq, uint8_t cpu_num)
 void time_slice_update(void)
 {
     CPSR_ALLOC();
-
     ktask_t *task;
     klist_t *head;
     uint8_t  task_pri;

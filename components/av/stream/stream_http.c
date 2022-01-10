@@ -21,7 +21,7 @@ static int _stream_http_open(stream_cls_t *o, int mode)
     struct http_priv *priv;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct http_priv));
+    priv = av_zalloc(sizeof(struct http_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     session = wsession_create();
@@ -44,7 +44,7 @@ static int _stream_http_open(stream_cls_t *o, int mode)
     return 0;
 err:
     wsession_destroy(session);
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -58,7 +58,7 @@ static int _stream_http_close(stream_cls_t *o)
         wsession_destroy(session);
     }
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

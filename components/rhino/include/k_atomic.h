@@ -1,12 +1,6 @@
 /*
- * Copyright (C) 2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
-
-/*
-modification history
---------------------
-2017_12_27,WangMin(Rocky) created.
-*/
 
 #ifndef K_ATOMIC_H
 #define K_ATOMIC_H

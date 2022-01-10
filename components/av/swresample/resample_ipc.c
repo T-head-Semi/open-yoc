@@ -22,7 +22,7 @@ static int _resample_ipc_init(resx_t *r)
     rc = res_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct res_ipc_priv));
+    priv = av_zalloc(sizeof(struct res_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     hdl = res_icore_new(r->irate, r->orate, r->channels, r->bits);
@@ -33,7 +33,7 @@ static int _resample_ipc_init(resx_t *r)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -54,7 +54,7 @@ static int _resample_ipc_uninit(resx_t *r)
     res_icore_t *hdl           = priv->hdl;
 
     res_icore_free(hdl);
-    aos_free(priv);
+    av_free(priv);
     r->priv = NULL;
     return 0;
 }

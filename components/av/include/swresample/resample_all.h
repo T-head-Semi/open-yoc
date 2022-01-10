@@ -5,7 +5,7 @@
 #ifndef __RESAMPLE_ALL_H__
 #define __RESAMPLE_ALL_H__
 
-#include <aos/aos.h>
+#include "avutil/common.h"
 #include "avutil/av_config.h"
 #include "swresample/resample.h"
 #include "swresample/resample_all.h"

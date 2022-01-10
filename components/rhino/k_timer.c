@@ -7,24 +7,22 @@
 #if (RHINO_CONFIG_TIMER > 0)
 static void timer_list_pri_insert(klist_t *head, ktimer_t *timer)
 {
-    klist_t    *q;
-    klist_t    *start;
-    klist_t    *end;
-    ktimer_t   *timer_iter_temp = NULL;
+    tick_t    val;
+    klist_t  *q;
+    klist_t  *start;
+    klist_t  *end;
+    ktimer_t *task_iter_temp;
 
     start = head;
     end   = head;
 
-    /* sort by 'match' time */
+    val   = timer->remain;
+
     for (q = start->next; q != end; q = q->next) {
-        timer_iter_temp = krhino_list_entry(q, ktimer_t, timer_list);
-        if (timer_iter_temp->match > timer->match) {
+        task_iter_temp = krhino_list_entry(q, ktimer_t, timer_list);
+        if ((task_iter_temp->match - g_timer_count) > val) {
             break;
         }
-    }
-
-    if (timer_iter_temp != NULL && timer_iter_temp->timer_list.next != start && timer_iter_temp->match <= timer->match) {
-        // asm("bkpt");
     }
 
     klist_insert(q, &timer->timer_list);
@@ -54,11 +52,11 @@ static kstat_t timer_create(ktimer_t *timer, const name_t *name, timer_cb_t cb, 
         return RHINO_INV_PARAM;
     }
 
-    if (first > MAX_TIMER_TICKS) {
+    if (first > RHINO_MAX_TICKS) {
         return RHINO_INV_PARAM;
     }
 
-    if (round > MAX_TIMER_TICKS) {
+    if (round > RHINO_MAX_TICKS) {
         return RHINO_INV_PARAM;
     }
 
@@ -66,6 +64,7 @@ static kstat_t timer_create(ktimer_t *timer, const name_t *name, timer_cb_t cb, 
     timer->cb            = cb;
     timer->init_count    = first;
     timer->round_ticks   = round;
+    timer->remain        = 0u;
     timer->match         = 0u;
     timer->timer_state   = TIMER_DEACTIVE;
     timer->to_head       = NULL;
@@ -111,14 +110,6 @@ kstat_t krhino_timer_dyn_create(ktimer_t **timer, const name_t *name, timer_cb_t
     ktimer_t *timer_obj;
 
     NULL_PARA_CHK(timer);
-
-    if (first >= MAX_TIMER_TICKS) {
-        return RHINO_INV_PARAM;
-    }
-
-    if (round >= MAX_TIMER_TICKS) {
-        return RHINO_INV_PARAM;
-    }
 
     timer_obj = krhino_mm_alloc(sizeof(ktimer_t));
     if (timer_obj == NULL) {
@@ -183,11 +174,11 @@ kstat_t krhino_timer_change(ktimer_t *timer, tick_t first, tick_t round)
         return RHINO_INV_PARAM;
     }
 
-    if (first > MAX_TIMER_TICKS) {
+    if (first > RHINO_MAX_TICKS) {
         return RHINO_INV_PARAM;
     }
 
-    if (round > MAX_TIMER_TICKS) {
+    if (round > RHINO_MAX_TICKS) {
         return RHINO_INV_PARAM;
     }
 
@@ -225,6 +216,39 @@ kstat_t krhino_timer_arg_change_auto(ktimer_t *timer, void *arg)
     return krhino_buf_queue_send(&g_timer_queue, &cb, sizeof(k_timer_queue_cb));
 }
 
+static void timer_cb_proc(void)
+{
+    klist_t  *q;
+    klist_t  *start;
+    klist_t  *end;
+    ktimer_t *timer;
+
+    tick_i_t delta;
+
+    start = end = &g_timer_head;
+
+    for (q = start->next; q != end; q = q->next) {
+        timer = krhino_list_entry(q, ktimer_t, timer_list);
+        delta = (tick_i_t)timer->match - (tick_i_t)g_timer_count;
+
+        if (delta <= 0) {
+            timer->cb(timer, timer->timer_cb_arg);
+            timer_list_rm(timer);
+
+            if (timer->round_ticks > 0u) {
+                timer->remain  =  timer->round_ticks;
+                timer->match   =  g_timer_count + timer->remain;
+                timer->to_head = &g_timer_head;
+                timer_list_pri_insert(&g_timer_head, timer);
+            } else {
+                timer->timer_state = TIMER_DEACTIVE;
+            }
+        } else {
+            break;
+        }
+    }
+}
+
 static void cmd_proc(k_timer_queue_cb *cb, uint8_t cmd)
 {
     ktimer_t *timer = cb->timer;
@@ -239,7 +263,9 @@ static void cmd_proc(k_timer_queue_cb *cb, uint8_t cmd)
                 break;
             }
 
-            timer->match   =  krhino_sys_tick_get() + timer->init_count;
+            timer->match   =  g_timer_count + timer->init_count;
+            /* sort by remain time */
+            timer->remain  =  timer->init_count;
             /* used by timer delete */
             timer->to_head = &g_timer_head;
             timer_list_pri_insert(&g_timer_head, timer);
@@ -312,68 +338,55 @@ static void timer_cmd_proc(k_timer_queue_cb *cb)
         cmd_proc(cb, TIMER_CMD_STOP);
         cmd_proc(cb, TIMER_ARG_CHG);
         cmd_proc(cb, TIMER_CMD_START);
-    }
-    else {
+    } else {
         cmd_proc(cb, cb->cb_num);
     }
 }
 
 static void timer_task(void *pa)
 {
-    ktimer_t         *first_timer;
+    ktimer_t         *timer;
     k_timer_queue_cb  cb_msg;
-    kstat_t           ret;
+    kstat_t           err;
+    tick_t            tick_start;
+    tick_t            tick_end;
+    tick_i_t          delta;
     size_t            msg_size;
-    tick_t            tick_now;
 
     (void)pa;
 
     while (RHINO_TRUE) {
-        /* no first_timer is pending, waiting for first_timer operation */
-        ret = krhino_buf_queue_recv(&g_timer_queue, RHINO_WAIT_FOREVER, &cb_msg, &msg_size);
-        if (ret != RHINO_SUCCESS) {
+        err      = krhino_buf_queue_recv(&g_timer_queue, RHINO_WAIT_FOREVER, &cb_msg, &msg_size);
+        tick_end = krhino_sys_tick_get();
+
+        if (err == RHINO_SUCCESS) {
+            g_timer_count = tick_end;
+        } else {
             k_err_proc(RHINO_SYS_FATAL_ERR);
         }
 
-        /* handle timer operations */
         timer_cmd_proc(&cb_msg);
 
-        /* check if there is timer pending */
         while (!is_klist_empty(&g_timer_head)) {
-
-            /* get this first coming timer */
-            first_timer = krhino_list_entry(g_timer_head.next, ktimer_t, timer_list);
-            tick_now = krhino_sys_tick_get();
-
-            /* check if first_timer run out */
-            if (first_timer->match > tick_now) {
-
-                /* first_timer not run out, waiting for timer operation */
-                ret = krhino_buf_queue_recv(&g_timer_queue, first_timer->match - tick_now, &cb_msg, &msg_size);
-                if (ret == RHINO_SUCCESS) {
-                    /* handle timer operations */
+            timer = krhino_list_entry(g_timer_head.next, ktimer_t, timer_list);
+            tick_start = krhino_sys_tick_get();
+            delta = (tick_i_t)timer->match - (tick_i_t)tick_start;
+            if (delta > 0) {
+                err = krhino_buf_queue_recv(&g_timer_queue, (tick_t)delta, &cb_msg, &msg_size);
+                tick_end = krhino_sys_tick_get();
+                if (err == RHINO_BLK_TIMEOUT) {
+                    g_timer_count = tick_end;
+                } else if (err == RHINO_SUCCESS) {
+                    g_timer_count = tick_end;
+                    timer_cb_proc();
                     timer_cmd_proc(&cb_msg);
-                    continue;
-                }
-
-                if (ret != RHINO_BLK_TIMEOUT) {
+                } else {
                     k_err_proc(RHINO_SYS_FATAL_ERR);
                 }
-
-                /* TIMEOUT, first_timer run out */
-            }
-
-            /* handle the first run out timer */
-            first_timer->cb(first_timer, first_timer->timer_cb_arg);
-            timer_list_rm(first_timer);
-
-            if (first_timer->round_ticks > 0u) {
-                first_timer->match   = first_timer->match + first_timer->round_ticks;
-                first_timer->to_head = &g_timer_head;
-                timer_list_pri_insert(&g_timer_head, first_timer);
             } else {
-                first_timer->timer_state = TIMER_DEACTIVE;
+                g_timer_count = tick_start;
             }
+                timer_cb_proc();
         }
     }
 }

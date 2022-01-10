@@ -4,14 +4,14 @@
 
 #include "k_api.h"
 
-#ifdef AOS_COMP_DEBUG
-#include "debug_api.h"
+#if defined (AOS_COMP_DEBUG) && AOS_COMP_DEBUG
+#include "debug/dbg.h"
 #endif
 
 void k_err_proc_debug(kstat_t err, char *file, int line)
 {
-#ifdef AOS_COMP_DEBUG
-    debug_fatal_error(err, file, line);
+#if defined (AOS_COMP_DEBUG) && AOS_COMP_DEBUG
+    aos_debug_fatal_error(err, file, line);
 #endif
 
     if (g_err_proc != NULL) {

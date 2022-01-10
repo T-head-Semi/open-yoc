@@ -5,8 +5,7 @@
 #ifndef __BYTE_RW_H__
 #define __BYTE_RW_H__
 
-#include <aos/kernel.h>
-#include <aos/aos.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

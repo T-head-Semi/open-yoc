@@ -117,7 +117,7 @@ tspend_handler:
     sw      t0, 120(sp)
 
     la      a0, g_sched_lock
-    lw      a1, (a0)
+    lbu     a1, (a0)
     bnez    a1, .L_not_switch
 
     la      a1, g_active_task

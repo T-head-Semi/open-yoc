@@ -710,8 +710,8 @@ static uint8_t dhcps_check_msg_and_handle_options(struct pbuf *packet_buffer)
 {
     int dhcp_message_option_offset;
     dhcp_message_repository = (struct dhcp_msg *)packet_buffer->payload;
-    dhcp_message_option_offset = ((int)dhcp_message_repository->options
-                                  - (int)packet_buffer->payload);
+    dhcp_message_option_offset = ((long)dhcp_message_repository->options
+                                  - (long)packet_buffer->payload);
     dhcp_message_total_options_lenth = (packet_buffer->len
                                         - dhcp_message_option_offset);
     memcpy(client_addr, dhcp_message_repository->chaddr, 6);

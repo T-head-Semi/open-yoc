@@ -24,7 +24,7 @@ int dync_buf_init(dync_buf_t *dbuf, size_t capacity, size_t max_capacity)
         return -1;
     }
 
-    data = (char*)aos_zalloc(capacity);
+    data = (char*)av_zalloc(capacity);
     if (data) {
         dbuf->data         = data;
         dbuf->capacity     = capacity;
@@ -59,7 +59,7 @@ int dync_buf_increase(dync_buf_t *dbuf, size_t inc)
             return ret;
         }
 
-        data = aos_realloc(dbuf->data, capacity);
+        data = av_realloc(dbuf->data, capacity);
         if (data) {
             dbuf->data     = data;
             dbuf->capacity = capacity;
@@ -284,7 +284,7 @@ int dync_buf_uninit(dync_buf_t *dbuf)
         return -1;
     }
 
-    aos_free(dbuf->data);
+    av_free(dbuf->data);
     memset(dbuf, 0, sizeof(dync_buf_t));
 
     return 0;

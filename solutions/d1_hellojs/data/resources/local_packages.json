@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "PackageList": [
+    {
+      "id": "801000",
+      "Name": "hello_falcon",
+      "Category": "HOME",
+      "Path": "resources/presetpkgs/801000.1_0_0.amr"
+    }
+  ]
+}
+

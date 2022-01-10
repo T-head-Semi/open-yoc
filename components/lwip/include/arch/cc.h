@@ -52,6 +52,9 @@
 #include <limits.h>
 #include <sys/time.h>
 #include <time.h>
+#if defined(ULOG_CONFIG_ASYNC) && (ULOG_CONFIG_ASYNC == 1)
+#include <ulog/ulog.h>
+#endif
 
 #define LWIP_MAILBOX_QUEUE  0
 
@@ -88,7 +91,14 @@
 
 void sys_arch_assert(const char * f,const int l);
 
+#if defined(ULOG_CONFIG_ASYNC) && (ULOG_CONFIG_ASYNC == 1)
+#define LWIP_ULOG_DIAG(x, ...)  LOGI("LWIP", x, ##__VA_ARGS__)
+
+#define LWIP_PLATFORM_DIAG(x) do {LWIP_ULOG_DIAG x;} while(0)
+#else
 #define LWIP_PLATFORM_DIAG(x)	do {printf x;} while(0)
+#endif
+
 #define LWIP_PLATFORM_ASSERT(x) do {sys_arch_assert(__FILE__, __LINE__);} while(0)
 
 #ifdef LWIP_NOASSERT_ON_ERROR

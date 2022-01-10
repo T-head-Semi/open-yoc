@@ -22,7 +22,7 @@ static int _avparser_adts_open(avparser_t *psr, uint8_t *extradata, size_t extra
     mblock_t *mb = NULL;
     struct adts_psr_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct adts_psr_priv));
+    priv = av_zalloc(sizeof(struct adts_psr_priv));
 
     if (extradata_size && extradata) {
         uint32_t value;
@@ -43,7 +43,7 @@ static int _avparser_adts_open(avparser_t *psr, uint8_t *extradata, size_t extra
     psr->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -52,7 +52,7 @@ static int _avparser_adts_close(avparser_t *psr)
     struct adts_psr_priv *priv = psr->priv;
 
     mblock_free(priv->mb);
-    aos_free(priv);
+    av_free(priv);
 
     return 0;
 }

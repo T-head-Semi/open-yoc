@@ -5,9 +5,7 @@
 #ifndef __SOCKET_RW_H__
 #define __SOCKET_RW_H__
 
-#include <aos/types.h>
-#include <aos/kernel.h>
-#include <aos/debug.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

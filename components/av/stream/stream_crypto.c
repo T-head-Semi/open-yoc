@@ -39,7 +39,7 @@ static int _stream_crypto_open(stream_cls_t *o, int mode)
     struct crypto_priv *priv = NULL;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct crypto_priv));
+    priv = av_zalloc(sizeof(struct crypto_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     memset(&s_iv, 0, sizeof(s_iv));
@@ -71,7 +71,7 @@ static int _stream_crypto_open(stream_cls_t *o, int mode)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -84,7 +84,7 @@ static int _stream_crypto_close(stream_cls_t *o)
         priv->rs = NULL;
     }
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

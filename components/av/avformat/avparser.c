@@ -67,7 +67,7 @@ avparser_t* avparser_open(avcodec_id_t id, uint8_t *extradata, size_t extradata_
     avparser_t *psr = NULL;
 
     CHECK_PARAM(id, NULL);
-    psr = aos_zalloc(sizeof(avparser_t));
+    psr = av_zalloc(sizeof(avparser_t));
     CHECK_RET_TAG_WITH_GOTO(psr, err);
 
     psr->ops = _get_avparser_ops_by_id(id);
@@ -83,7 +83,7 @@ avparser_t* avparser_open(avcodec_id_t id, uint8_t *extradata, size_t extradata_
 
     return psr;
 err:
-    aos_free(psr);
+    av_free(psr);
     return NULL;
 }
 
@@ -128,7 +128,7 @@ int avparser_close(avparser_t *psr)
         rc = psr->ops->close(psr);
 
     aos_mutex_free(&psr->lock);
-    aos_free(psr);
+    av_free(psr);
 
     return rc;
 }

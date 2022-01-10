@@ -1,11 +1,13 @@
-/**
- * @file k_mm_debug.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_MM_DEBUG_H
 #define K_MM_DEBUG_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino mm
  *  Memory debug includes buffer over flow check, memory usage statistics, etc.
@@ -16,6 +18,8 @@
 #if (RHINO_CONFIG_MM_DEBUG > 0)
 
 #define AOS_UNSIGNED_INT_MSB    (1u << (sizeof(unsigned int) * 8 - 1))
+
+extern uint8_t g_mmlk_cnt;
 
 /**
  * Add owner info to the memory buffer.
@@ -37,15 +41,19 @@ void krhino_owner_attach(void *addr, size_t allocator);
 /**
  * Show heap information.
  *
- * @param[in]  len  useless anymore
+ * @param[in]  mm status
  *
  * @return  RHINO_SUCCESS
  */
-uint32_t dumpsys_mm_info_func(uint32_t len);
+uint32_t dumpsys_mm_info_func(uint32_t mm_status);
 
 #endif /* RHINO_CONFIG_MM_DEBUG */
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_MM_DEBUG_H */
 

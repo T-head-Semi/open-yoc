@@ -98,7 +98,7 @@ ad_cls_t* ad_open(avcodec_id_t id, const ad_conf_t *ad_cnf)
     uint8_t  *data = NULL;
 
     CHECK_PARAM(id && ad_cnf, NULL);
-    o = aos_zalloc(sizeof(ad_cls_t));
+    o = av_zalloc(sizeof(ad_cls_t));
     CHECK_RET_TAG_WITH_GOTO(o, err);
 
     o->ops = _get_ad_ops_by_id(id);
@@ -108,7 +108,7 @@ ad_cls_t* ad_open(avcodec_id_t id, const ad_conf_t *ad_cnf)
     }
 
     if (ad_cnf->extradata_size) {
-        data = aos_zalloc(ad_cnf->extradata_size);
+        data = av_zalloc(ad_cnf->extradata_size);
         CHECK_RET_TAG_WITH_GOTO(data, err);
         memcpy(data, ad_cnf->extradata, ad_cnf->extradata_size);
         o->ash.extradata = data;
@@ -126,8 +126,8 @@ ad_cls_t* ad_open(avcodec_id_t id, const ad_conf_t *ad_cnf)
 
     return o;
 err:
-    aos_free(data);
-    aos_free(o);
+    av_free(data);
+    av_free(o);
     return NULL;
 }
 
@@ -222,8 +222,8 @@ int ad_close(ad_cls_t *o)
     ret = o->ops->close(o);
 
     aos_mutex_free(&o->lock);
-    aos_free(o->ash.extradata);
-    aos_free(o);
+    av_free(o->ash.extradata);
+    av_free(o);
 
     return ret;
 }

@@ -5,11 +5,13 @@
 #ifndef __AV_ERRNO_H__
 #define __AV_ERRNO_H__
 
-#include <aos/aos.h>
+#include <stdio.h>
 
 /* attention: interface design is ugly for special use in this file, Not recommended */
 
-__BEGIN_DECLS__
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define AV_ERRNO_OK                       (0)
 #define AV_ERRNO_UNKNOWN_ERROR            (-1)
@@ -55,7 +57,9 @@ int av_errno_get();
 #define AV_ERRNO_SET(errno)
 #endif
 
-__END_DECLS__
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __AV_ERRNO_H__ */
 

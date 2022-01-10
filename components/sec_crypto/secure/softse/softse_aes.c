@@ -152,6 +152,7 @@ uint32_t sc_aes_cbc_encrypt(sc_aes_t *aes, void *in, void *out, uint32_t size, v
     CHECK_PARAM(aes, SC_PARAM_INV);
     CHECK_PARAM(in, SC_PARAM_INV);
     CHECK_PARAM(out, SC_PARAM_INV);
+    CHECK_PARAM(iv, SC_PARAM_INV);
     uint8_t temp[16];
 
     if (size % 16) {
@@ -176,6 +177,7 @@ uint32_t sc_aes_cbc_decrypt(sc_aes_t *aes, void *in, void *out, uint32_t size, v
     CHECK_PARAM(aes, SC_PARAM_INV);
     CHECK_PARAM(in, SC_PARAM_INV);
     CHECK_PARAM(out, SC_PARAM_INV);
+    CHECK_PARAM(iv, SC_PARAM_INV);
     uint8_t temp[16];
 
     if (size % 16) {

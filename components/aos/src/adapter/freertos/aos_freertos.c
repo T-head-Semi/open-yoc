@@ -137,15 +137,14 @@ void aos_task_exit(int code)
 // #endif
 }
 
-// aos_status_t aos_task_delete(aos_task_t *task)
-// {
-//     TaskHandle_t *ptask = (TaskHandle_t *)task;
+aos_status_t aos_task_delete(aos_task_t *task)
+{
+    TaskHandle_t *ptask = (TaskHandle_t *)task;
 
-//     vTaskDelete(ptask);
+    vTaskDelete(ptask);
 
-//     return 0;
-// }
-
+    return 0;
+}
 const char *aos_task_name(void)
 {
     TaskHandle_t *task = (TaskHandle_t *)xTaskGetCurrentTaskHandle();
@@ -232,35 +231,18 @@ void aos_task_key_delete(aos_task_key_t key)
 
 int aos_task_setspecific(aos_task_key_t key, void *vp)
 {
-    //todo
-    /*
     AosStaticTask_t *task = (AosStaticTask_t *)xTaskGetCurrentTaskHandle();
-    if (key >= 4)
-        return -1;
 
-    if (task->magic != AOS_MAGIC)
-        return -1;
-
-    task->keys[key] = vp;
-    */
+	vTaskSetThreadLocalStoragePointer(task, key, vp);
 
     return 0;
 }
 
 void *aos_task_getspecific(aos_task_key_t key)
 {
-    //todo
-    /*
     AosStaticTask_t *task = (AosStaticTask_t *)xTaskGetCurrentTaskHandle();
-    if (key >= 4)
-        return NULL;
-
-    if (task->magic != AOS_MAGIC)
-        return NULL;
-
-    return task->keys[key];
-    */
-    return NULL;
+    
+    return (void *)pvTaskGetThreadLocalStoragePointer(task, key);;
 }
 
 void aos_task_wdt_attach(void (*will)(void *), void *args)
@@ -792,7 +774,7 @@ void *aos_malloc_check(size_t size)
     return p;
 }
 
-void *aos_calloc_check(unsigned int size, int num)
+void *aos_calloc_check(size_t size, size_t num)
 {
     return aos_zalloc_check(size * num);
 }

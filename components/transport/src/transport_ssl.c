@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #if defined(CONFIG_USING_TLS)
+#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/select.h>
@@ -76,24 +77,62 @@ static int ssl_connect(transport_handle_t t, const char *host, int port, int tim
 static int ssl_poll_read(transport_handle_t t, int timeout_ms)
 {
     transport_ssl_t *ssl = transport_get_context_data(t);
-    fd_set readset;
-    FD_ZERO(&readset);
-    FD_SET(ssl->tls->sockfd, &readset);
+    int ret = -1;
+    int remain = 0;
     struct timeval timeout;
-    transport_utils_ms_to_timeval(timeout_ms, &timeout);
+    fd_set readset;
+    fd_set errset;
+    FD_ZERO(&readset);
+    FD_ZERO(&errset);
+    FD_SET(ssl->tls->sockfd, &readset);
+    FD_SET(ssl->tls->sockfd, &errset);
 
-    return select(ssl->tls->sockfd + 1, &readset, NULL, NULL, &timeout);
+    if ((remain = tls_get_bytes_avail(ssl->tls)) > 0) {
+        LOGD(TAG, "remain data in cache, need to read again");
+        return remain;
+    }
+    transport_utils_ms_to_timeval(timeout_ms, &timeout);
+    ret = select(ssl->tls->sockfd + 1, &readset, NULL, &errset, &timeout);
+    if (ret == 0) {
+        LOGE(TAG, "ssl_poll_read, select ret:%d, timeout", ret);
+        return -1;
+    }
+    if (ret > 0 && FD_ISSET(ssl->tls->sockfd, &errset)) {
+        int sock_errno = 0;
+        uint32_t optlen = sizeof(sock_errno);
+        getsockopt(ssl->tls->sockfd, SOL_SOCKET, SO_ERROR, &sock_errno, &optlen);
+        LOGE(TAG, "ssl_poll_read select error %d, fd = %d", sock_errno, ssl->tls->sockfd);
+        ret = -1;
+    }
+    return ret;
 }
 
 static int ssl_poll_write(transport_handle_t t, int timeout_ms)
 {
     transport_ssl_t *ssl = transport_get_context_data(t);
-    fd_set writeset;
-    FD_ZERO(&writeset);
-    FD_SET(ssl->tls->sockfd, &writeset);
+    int ret = -1;
     struct timeval timeout;
+    fd_set writeset;
+    fd_set errset;
+
+    FD_ZERO(&writeset);
+    FD_ZERO(&errset);
+    FD_SET(ssl->tls->sockfd, &writeset);
+    FD_SET(ssl->tls->sockfd, &errset);
     transport_utils_ms_to_timeval(timeout_ms, &timeout);
-    return select(ssl->tls->sockfd + 1, NULL, &writeset, NULL, &timeout);
+    ret = select(ssl->tls->sockfd + 1, NULL, &writeset, &errset, &timeout);
+    if (ret == 0) {
+        LOGE(TAG, "ssl_poll_write, select ret:%d, timeout", ret);
+        return -1;
+    }
+    if (ret > 0 && FD_ISSET(ssl->tls->sockfd, &errset)) {
+        int sock_errno = 0;
+        uint32_t optlen = sizeof(sock_errno);
+        getsockopt(ssl->tls->sockfd, SOL_SOCKET, SO_ERROR, &sock_errno, &optlen);
+        LOGE(TAG, "ssl_poll_write select error %d, fd = %d", sock_errno, ssl->tls->sockfd);
+        ret = -1;
+    }
+    return ret;
 }
 
 static int ssl_write(transport_handle_t t, const char *buffer, int len, int timeout_ms)
@@ -118,10 +157,9 @@ static int ssl_read(transport_handle_t t, char *buffer, int len, int timeout_ms)
     transport_ssl_t *ssl = transport_get_context_data(t);
 
     LOGD(TAG, "ssl read...");
-    if (tls_get_bytes_avail(ssl->tls) <= 0) {
-        if ((poll = transport_poll_read(t, timeout_ms)) <= 0) {
-            return poll;
-        }
+    if ((poll = transport_poll_read(t, timeout_ms)) <= 0) {
+        LOGD(TAG, "poll read ret:%d", poll);
+        return poll;
     }
     ret = tls_conn_read(ssl->tls, (unsigned char *)buffer, len, timeout_ms);
     if (ret < 0) {

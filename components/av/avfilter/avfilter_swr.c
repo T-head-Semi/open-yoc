@@ -72,7 +72,7 @@ avfilter_t *avf_swr_open(const char *inst_name, const swr_avfp_t *swrp)
 
     CHECK_PARAM(inst_name && swrp, NULL);
     CHECK_PARAM(swrp->isf != swrp->osf, NULL);
-    dobj = aos_zalloc(sizeof(struct avfilter_swr));
+    dobj = av_zalloc(sizeof(struct avfilter_swr));
     CHECK_RET_TAG_WITH_RET(dobj, NULL);
     f       = (avfilter_t*)dobj;
     f->ops  = &avf_ops_swr;
@@ -94,7 +94,7 @@ avfilter_t *avf_swr_open(const char *inst_name, const swr_avfp_t *swrp)
     return (avfilter_t*)dobj;
 err:
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

@@ -1,11 +1,13 @@
-/**
- * @file k_list.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_LIST_H
 #define K_LIST_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino list
  *  List operations
@@ -116,6 +118,10 @@ RHINO_INLINE void klist_rm_init(klist_t *element)
 }
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_LIST_H */
 

@@ -6,7 +6,7 @@
 
 #include "avutil/common.h"
 #include "avcodec/ad_cls.h"
-#include "pvmp3decoder_api.h"
+#include "pvmp3dec/pvmp3decoder_api.h"
 
 #define TAG                    "ad_pvmp3"
 #define PVMP3DEC_OBUF_SIZE     (4608 * 1.2)
@@ -24,13 +24,13 @@ static int _ad_pvmp3_open(ad_cls_t *o)
     tPVMP3DecoderExternal *config;
     struct ad_pvmp3_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct ad_pvmp3_priv));
+    priv = av_zalloc(sizeof(struct ad_pvmp3_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     config = &priv->config;
     msize  = pvmp3_decoderMemRequirements();
-    dbuf   = aos_malloc(msize);
-    obuf   = aos_malloc(PVMP3DEC_OBUF_SIZE);
+    dbuf   = av_malloc(msize);
+    obuf   = av_malloc(PVMP3DEC_OBUF_SIZE);
     CHECK_RET_TAG_WITH_GOTO(dbuf && obuf, err);
 
     pvmp3_InitDecoder(config, dbuf);
@@ -44,9 +44,9 @@ static int _ad_pvmp3_open(ad_cls_t *o)
     return 0;
 
 err:
-    aos_free(obuf);
-    aos_free(dbuf);
-    aos_free(priv);
+    av_free(obuf);
+    av_free(dbuf);
+    av_free(priv);
     return -1;
 }
 
@@ -116,9 +116,9 @@ static int _ad_pvmp3_close(ad_cls_t *o)
 {
     struct ad_pvmp3_priv *priv = o->priv;
 
-    aos_free(priv->obuf);
-    aos_free(priv->dbuf);
-    aos_free(priv);
+    av_free(priv->obuf);
+    av_free(priv->dbuf);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

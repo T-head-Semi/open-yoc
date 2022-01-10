@@ -1,11 +1,13 @@
-/**
- * @file k_task_sem.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_TASK_SEM_H
 #define K_TASK_SEM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino task_sem
  *  Task-semaphore can be used for tasks synchronize.
@@ -73,6 +75,10 @@ kstat_t krhino_task_sem_count_set(ktask_t *task, sem_count_t count);
 kstat_t krhino_task_sem_count_get(ktask_t *task, sem_count_t *count);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_TASK_SEM_H */
 

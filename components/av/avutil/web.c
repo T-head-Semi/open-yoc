@@ -6,7 +6,13 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#ifdef __linux__
+#include <unistd.h>
+#include <fcntl.h>
+#include <netdb.h>
+#else
 #include <lwip/netdb.h>
+#endif
 #include <arpa/inet.h>
 
 #include "avutil/common.h"
@@ -24,7 +30,10 @@
 #endif
 
 #define TAG                   "WEB"
+#ifndef __linux__
 #define close                 lwip_close
+#define fcntl                 lwip_fcntl
+#endif
 
 extern int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset, struct timeval *timeout);
 
@@ -247,7 +256,7 @@ static int _parse_resp_hdr(wsession_t *session, char *str)
     return 0;
 err:
     if (session->phrase) {
-        aos_freep(&session->phrase);
+        av_freep(&session->phrase);
     }
     dict_uninit(d);
 
@@ -264,13 +273,13 @@ static int _dict_add_basic_auth(dict_t *c, const char *header, const char *user,
     snprintf(buf, sizeof(buf), "%s:%s", user, passwd);
     slen = strlen(buf);
     dlen = slen * 3 / 2 + 4;
-    b64  = aos_zalloc(dlen);
+    b64  = av_zalloc(dlen);
     CHECK_RET_WITH_RET(b64, -1);
 
     mbedtls_base64_encode((unsigned char*)b64, dlen, &olen, (unsigned char *)buf, slen);
 
     snprintf(buf, sizeof(buf), "Basic %s", b64);
-    aos_free(b64);
+    av_free(b64);
 
     return dict_add(c, header, buf);
 #else
@@ -288,8 +297,8 @@ wsession_t* wsession_create()
     wsession_t *session    = NULL;
     struct mtls_session *mtls = NULL;
 
-    session = aos_zalloc(sizeof(wsession_t));
-    mtls    = aos_zalloc(sizeof(struct mtls_session));
+    session = av_zalloc(sizeof(wsession_t));
+    mtls    = av_zalloc(sizeof(struct mtls_session));
     CHECK_RET_WITH_GOTO(session && mtls, err);
 
     session->tls = mtls;
@@ -297,13 +306,13 @@ wsession_t* wsession_create()
 
     return session;
 err:
-    aos_free(mtls);
-    aos_free(session);
+    av_free(mtls);
+    av_free(session);
     return NULL;
 #else
     wsession_t *session;
 
-    session = aos_zalloc(sizeof(wsession_t));
+    session = av_zalloc(sizeof(wsession_t));
     if (session) {
         _wsession_init(session);
     }
@@ -319,15 +328,20 @@ static int _http_open(wsession_t *session, web_url_t *wurl, int timeout_ms)
         .ai_socktype = SOCK_STREAM
     };
     fd_set fds;
-    int rc, flags, fd = -1;
     char port[16];
     struct sockaddr sa;
     struct timeval tv;
+    int rc, flags, fd = -1, recnt = 0;
 
     snprintf(port, sizeof(port), "%d", wurl->port);
+retry:
     rc = getaddrinfo(wurl->host, port, &hints, &res);
     if (rc != 0) {
-        LOGE(TAG, "getaddrinfo fail. rc = %d, host = %s, port = %s\n", rc, wurl->host, port);
+        LOGE(TAG, "getaddrinfo fail, may be retry again later. rc = %d, host = %s, port = %s\n", rc, wurl->host, port);
+        if (rc == EAI_AGAIN && recnt++ < 2) {
+            aos_msleep(20);
+            goto retry;
+        }
         AV_ERRNO_SET(AV_ERRNO_DNS_FAILD);
         goto err;
     }
@@ -366,13 +380,14 @@ static int _http_open(wsession_t *session, web_url_t *wurl, int timeout_ms)
             rc = select(fd + 1, NULL, &fds, NULL, &tv);
             if (rc == -1) {
                 if ((errno == EINTR) || (errno == EAGAIN)) {
+                    aos_msleep(20);
                     continue;
                 }
                 LOGE(TAG, "wsession_open select fail. errno = %d", errno);
                 AV_ERRNO_SET(AV_ERRNO_CONNECT_FAILD);
                 goto err;
             } else if (rc == 1) {
-                break;
+                goto conn;
             } else if (rc == 0) {
                 LOGE(TAG, "wsession_open select timeout. errno = %d", errno);
                 AV_ERRNO_SET(AV_ERRNO_CONNECT_FAILD);
@@ -381,6 +396,7 @@ static int _http_open(wsession_t *session, web_url_t *wurl, int timeout_ms)
         }
     }
 
+conn:
     fcntl(session->fd, F_SETFL, flags);
     freeaddrinfo(res);
 
@@ -607,7 +623,7 @@ int wsession_close(wsession_t *session)
     if (session) {
         dict_uninit(&session->hdrs);
         web_url_free(session->url);
-        aos_free(session->phrase);
+        av_free(session->phrase);
 
 #ifdef CONFIG_USING_TLS
         _mtls_session_deinit((struct mtls_session*)session->tls);
@@ -633,9 +649,9 @@ int wsession_destroy(wsession_t *session)
     if (session) {
         wsession_close(session);
 #ifdef CONFIG_USING_TLS
-        aos_free(session->tls);
+        av_free(session->tls);
 #endif
-        aos_free(session);
+        av_free(session);
         return 0;
     }
 
@@ -743,7 +759,7 @@ int wsession_get_range(wsession_t *session, const char *url, int redirect, int r
 
         rc = wsession_get_range(session, r_url, redirect, range_s, range_e);
 
-        aos_free(r_url);
+        av_free(r_url);
         return rc;
     case 404:
         AV_ERRNO_SET(AV_ERRNO_FILE_NOT_FOUND);

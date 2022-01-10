@@ -20,7 +20,6 @@ void idle_count_set(idle_count_t value)
 idle_count_t idle_count_get(void)
 {
     CPSR_ALLOC();
-
     idle_count_t idle_count;
 
     RHINO_CPU_INTRPT_DISABLE();
@@ -36,8 +35,6 @@ idle_count_t idle_count_get(void)
 void idle_task(void *arg)
 {
     uint8_t cpu_num;
-    CPSR_ALLOC();
-
 #if (RHINO_CONFIG_CPU_NUM > 1)
     CPSR_ALLOC();
     klist_t *head;
@@ -62,18 +59,15 @@ void idle_task(void *arg)
                 klist_rm(&task_del->task_del_item);
                 if (task_del->mm_alloc_flag == K_OBJ_DYN_ALLOC) {
                     krhino_task_dyn_del(task_del);
-                }
-                else {
+                } else {
                     krhino_task_del(task_del);
                 }
             }
         }
         RHINO_CPU_INTRPT_ENABLE();
 #endif
-        RHINO_CPU_INTRPT_DISABLE();
         /* type conversion is used to avoid compiler optimization */
-        *(volatile idle_count_t*)(&g_idle_count[cpu_num]) = g_idle_count[cpu_num] + 1;
-        RHINO_CPU_INTRPT_ENABLE();
+        *(volatile idle_count_t *)(&g_idle_count[cpu_num]) = g_idle_count[cpu_num] + 1;
 
 #if (RHINO_CONFIG_USER_HOOK > 0)
         krhino_idle_hook();

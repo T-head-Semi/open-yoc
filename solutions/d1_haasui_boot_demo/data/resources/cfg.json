@@ -1,0 +1,11 @@
+{
+	"screen": {
+		"width": 800,
+		"height": 480
+	},
+	"device": {
+		"fb": "/dev/fb0",
+		"tp": "/dev/input/event0",
+		"mouse": "/dev/input/mouse0"
+	}
+}

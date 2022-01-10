@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #include "lwip/sockets.h"
 #include "mbedtls/base64.h"
@@ -129,7 +130,7 @@ char *http_auth_digest(const char *username, const char *password, http_auth_dat
         }
     }
     asprintf(&auth_str, "Digest username=\"%s\", realm=\"%s\", nonce=\"%s\", uri=\"%s\", algorithm=\"MD5\", "
-             "response=\"%s\", opaque=\"%s\", qop=%s, nc=%08x, cnonce=\"%016llx\"",
+             "response=\"%s\", opaque=\"%s\", qop=%s, nc=%08x, cnonce=\"%016" PRIx64 "\"",
              username, auth_data->realm, auth_data->nonce, auth_data->uri, digest, auth_data->opaque, auth_data->qop, auth_data->nc, auth_data->cnonce);
 _digest_exit:
     free(ha1);

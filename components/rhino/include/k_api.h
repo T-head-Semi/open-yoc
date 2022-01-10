@@ -1,15 +1,9 @@
-/**
- * @file k_api.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_API_H
 #define K_API_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /** @addtogroup rhino API
  *  All rhino header files.
@@ -47,7 +41,9 @@ extern "C" {
 #include "k_time.h"
 #include "k_event.h"
 #include "k_stats.h"
+#if RHINO_CONFIG_MM_DEBUG
 #include "k_mm_debug.h"
+#endif
 #include "k_mm_blk.h"
 #include "k_mm_region.h"
 #include "k_mm.h"
@@ -62,10 +58,6 @@ extern "C" {
 #include "port.h"
 
 /** @} */
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* K_API_H */
 

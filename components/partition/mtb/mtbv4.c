@@ -36,7 +36,7 @@ int mtbv4_init(void)
     partition_flash_info_get(handle, &flash_info);
     partition_flash_close(handle);
 
-    MTB_LOGD("imtb using:0x%x, valid:0x%x", mtb->using_addr, mtb->prim_addr);
+    MTB_LOGD("imtb using:0x%lx, valid:0x%lx", mtb->using_addr, mtb->prim_addr);
 
     if (mtbv4_get_partition_info(MTB_IMAGE_NAME_IMTB, &part_info)) {
         MTB_LOGE("mtb f `imtb` e");
@@ -48,7 +48,7 @@ int mtbv4_init(void)
     } else {
         mtb->backup_addr = part_info.start_addr;
     }
-    MTB_LOGD("imtb backup:0x%x", mtb->backup_addr);
+    MTB_LOGD("imtb backup:0x%lx", mtb->backup_addr);
     MTB_LOGD("imtb one-size:0x%x", mtb->one_size);
     MTB_LOGD("mtb init over");
     return 0;
@@ -128,7 +128,6 @@ int mtbv4_get_partition_info_with_index(int index, mtb_partition_info_t *part_in
 
 int mtbv4_crc_check(void)
 {
-#if (CONFIG_MTB_CRC_NO_CHECK == 0)
     mtb_t *mtb;
     imtb_head_v4_t *m_head;
     int crc_content_len;
@@ -157,7 +156,6 @@ int mtbv4_crc_check(void)
         return -1;
     }
     MTB_LOGD("imtb crc verify ok");
-#endif
     return 0;
 }
 

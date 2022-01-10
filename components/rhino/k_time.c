@@ -20,7 +20,6 @@ void krhino_tick_proc(void)
 tick_t krhino_sys_tick_get(void)
 {
     CPSR_ALLOC();
-
     tick_t tick_tmp;
 
     RHINO_CPU_INTRPT_DISABLE();
@@ -43,7 +42,7 @@ tick_t krhino_ms_to_ticks(sys_time_t ms)
     padding = 1000 / RHINO_CONFIG_TICKS_PER_SECOND;
     padding = (padding > 0) ? (padding - 1) : 0;
 
-    ticks = ((ms + padding) * RHINO_CONFIG_TICKS_PER_SECOND) / 1000;
+    ticks   = ((ms + padding) * RHINO_CONFIG_TICKS_PER_SECOND) / 1000;
 
     return ticks;
 }
@@ -56,7 +55,7 @@ sys_time_t krhino_ticks_to_ms(tick_t ticks)
     padding = RHINO_CONFIG_TICKS_PER_SECOND / 1000;
     padding = (padding > 0) ? (padding - 1) : 0;
 
-    time = ((ticks + padding) * 1000) / RHINO_CONFIG_TICKS_PER_SECOND;
+    time    = ((ticks + padding) * 1000) / RHINO_CONFIG_TICKS_PER_SECOND;
 
     return time;
 }

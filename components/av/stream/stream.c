@@ -2,7 +2,7 @@
  * Copyright (C) 2018-2020 Alibaba Group Holding Limited
  */
 
-#include <aos/debug.h>
+#include "avutil/common.h"
 #include "avutil/misc.h"
 #include "avutil/path.h"
 #include "avutil/byte_rw.h"
@@ -10,7 +10,9 @@
 
 #define TAG                    "stream"
 
+#ifndef __linux__
 #define CACHE_TASK_QUIT_EVT  (0x01)
+#endif
 
 #define STREAM_EVENT_CALL(s, type, data, len) \
 	do { \
@@ -258,7 +260,9 @@ quit:
     LOGD(TAG, "scache task quit");
     sfifo_set_eof(fifo, 0, 1);
     o->cache_status = CACHE_STATUS_STOPED;
+#ifndef __linux__
     aos_event_set(&o->cache_quit, CACHE_TASK_QUIT_EVT, AOS_EVENT_OR);
+#endif
     return;
 }
 
@@ -307,7 +311,7 @@ stream_cls_t* stream_open(const char *url, const stm_conf_t *stm_cnf)
         ops = _get_stream_ops_by_url(name);
     CHECK_RET_TAG_WITH_GOTO(ops, err);
 
-    o = aos_zalloc(sizeof(stream_cls_t));
+    o = av_zalloc(sizeof(stream_cls_t));
     CHECK_RET_TAG_WITH_GOTO(o, err);
     o->url                   = name;
     o->ops                   = ops;
@@ -335,20 +339,22 @@ stream_cls_t* stream_open(const char *url, const stm_conf_t *stm_cnf)
             goto err;
         }
         CHECK_RET_TAG_WITH_GOTO(fifo, err);
+#ifndef __linux__
         aos_event_new(&o->cache_quit, 0);
+#endif
         o->fifo         = fifo;
         o->cache_status = CACHE_STATUS_RUNNING;
-        aos_task_new("scache", _scache_task, (void *)o, CONFIG_WEB_CACHE_TASK_STACK_SIZE);
+        aos_task_new_ext(&o->cache_task, "scache", _scache_task, (void *)o, CONFIG_WEB_CACHE_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI);
     }
 
     return o;
 err:
-    aos_free(name);
+    av_free(name);
     if (fifo)
         sfifo_destroy(fifo);
     if (o) {
         aos_mutex_free(&o->lock);
-        aos_free(o);
+        av_free(o);
     }
     return NULL;
 }
@@ -447,14 +453,24 @@ int stream_write(stream_cls_t *o, const uint8_t *buf, size_t count)
 static int _inner_stream_seek(stream_cls_t *o, int32_t pos)
 {
     int rc;
-    unsigned int flag;
 
     if (o->enable_cache) {
         sfifo_set_eof(o->fifo, 1, 1);
         if (o->cache_status == CACHE_STATUS_RUNNING) {
             o->cache_status = CACHE_STATUS_STOPED;
-            aos_event_get(&o->cache_quit, CACHE_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+#ifndef __linux__
+            {
+                unsigned int flag;
+                aos_event_get(&o->cache_quit, CACHE_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+            }
+#endif
         }
+#ifdef __linux__
+        if (o->cache_task) {
+            pthread_join(o->cache_task, NULL);
+            o->cache_task = 0;
+        }
+#endif
         /* clear the fifo, reuse for seeking */
         sfifo_reset(o->fifo);
     }
@@ -466,10 +482,12 @@ static int _inner_stream_seek(stream_cls_t *o, int32_t pos)
         o->pos     = pos;
         if (o->enable_cache) {
             o->cache_status = CACHE_STATUS_RUNNING;
+#ifndef __linux__
             aos_event_set(&o->cache_quit, 0, AOS_EVENT_AND);
+#endif
             o->stat.rsize = pos;
             o->cache_pos  = pos;
-            aos_task_new("scache", _scache_task, (void *)o, CONFIG_WEB_CACHE_TASK_STACK_SIZE);
+            aos_task_new_ext(&o->cache_task, "scache", _scache_task, (void *)o, CONFIG_WEB_CACHE_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI);
         }
     }
 
@@ -587,7 +605,6 @@ int stream_is_interrupt(stream_cls_t *o)
 int stream_close(stream_cls_t *o)
 {
     int ret = -1;
-    unsigned int flag;
 
     CHECK_PARAM(o, -1);
     o->quit = 1;
@@ -596,8 +613,19 @@ int stream_close(stream_cls_t *o)
         sfifo_set_eof(o->fifo, 1, 1);
         if (o->cache_status == CACHE_STATUS_RUNNING) {
             o->cache_status = CACHE_STATUS_STOPED;
-            aos_event_get(&o->cache_quit, CACHE_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+#ifndef __linux__
+            {
+                unsigned int flag;
+                aos_event_get(&o->cache_quit, CACHE_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+            }
+#endif
         }
+#ifdef __linux__
+        if (o->cache_task) {
+            pthread_join(o->cache_task, NULL);
+            o->cache_task = 0;
+        }
+#endif
     }
 
     ret = o->ops->close(o);
@@ -612,10 +640,12 @@ int stream_close(stream_cls_t *o)
     aos_mutex_free(&o->lock);
     if (o->enable_cache) {
         sfifo_destroy(o->fifo);
+#ifndef __linux__
         aos_event_free(&o->cache_quit);
+#endif
     }
-    aos_free(o->url);
-    aos_free(o);
+    av_free(o->url);
+    av_free(o);
 
     return ret;
 }

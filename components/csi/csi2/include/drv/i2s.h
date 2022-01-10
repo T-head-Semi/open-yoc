@@ -17,7 +17,7 @@
 #include <stdbool.h>
 #include <drv/common.h>
 #include <drv/dma.h>
-#include "drv/ringbuffer.h"
+#include "drv/ringbuf.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,8 +105,8 @@ struct csi_i2s {
     csi_dev_t               dev;                ///< I2S hw-device info
     void (*callback)(csi_i2s_t *i2s, csi_i2s_event_t event, void *arg); ///< I2S event callback for user
     void                    *arg;               ///< user private param passed to user callback
-    ringbuffer_t            *tx_buf;            ///< I2S send buffer
-    ringbuffer_t            *rx_buf;            ///< I2S receive buffer
+    csi_ringbuf_t            *tx_buf;            ///< I2S send buffer
+    csi_ringbuf_t            *rx_buf;            ///< I2S receive buffer
     csi_dma_ch_t            *tx_dma;            ///< send dma channel handle
     csi_dma_ch_t            *rx_dma;            ///< receive dma channel handle
     uint32_t                tx_period;          ///< I2S send period num data will callback
@@ -184,7 +184,7 @@ csi_error_t csi_i2s_tx_link_dma(csi_i2s_t *i2s, csi_dma_ch_t *tx_dma);
   \param[in]   buffer    I2s rx buffer
   \return      None
 */
-void csi_i2s_rx_set_buffer(csi_i2s_t *i2s, ringbuffer_t *buffer);
+void csi_i2s_rx_set_buffer(csi_i2s_t *i2s, csi_ringbuf_t *buffer);
 
 /**
   \brief       I2s tx buffer config
@@ -192,7 +192,7 @@ void csi_i2s_rx_set_buffer(csi_i2s_t *i2s, ringbuffer_t *buffer);
   \param[in]   buffer    I2s tx buffer
   \return      None
 */
-void csi_i2s_tx_set_buffer(csi_i2s_t *i2s, ringbuffer_t *buffer);
+void csi_i2s_tx_set_buffer(csi_i2s_t *i2s, csi_ringbuf_t *buffer);
 
 /**
   \brief       I2s rx set period.The value of period is to report a receive completion event
@@ -213,42 +213,42 @@ csi_error_t csi_i2s_rx_set_period(csi_i2s_t *i2s, uint32_t period);
 csi_error_t csi_i2s_tx_set_period(csi_i2s_t *i2s, uint32_t period);
 
 /**
-  \brief       Get rx ringbuffer buffer free space
+  \brief       Get rx csi_ringbuf buffer free space
   \param[in]   i2s    I2s handle to operate
   \return      Buffer free space (bytes)
 */
 uint32_t csi_i2s_rx_buffer_avail(csi_i2s_t *i2s);
 
 /**
-  \brief       Get rx ringbuffer buffer used space
+  \brief       Get rx csi_ringbuf buffer used space
   \param[in]   i2s    I2s handle to operate
   \return      Buffer used space (bytes)
 */
 uint32_t csi_i2s_rx_buffer_remain(csi_i2s_t *i2s);
 
 /**
-  \brief       Reset the rx ringbuffer, discard all data in the buffer
+  \brief       Reset the rx csi_ringbuf, discard all data in the buffer
   \param[in]   i2s    I2s handle to operate
   \return      error code \ref csi_error_t
 */
 csi_error_t csi_i2s_rx_buffer_reset(csi_i2s_t *i2s);
 
 /**
-  \brief        Get tx ringbuffer buffer free space
+  \brief        Get tx csi_ringbuf buffer free space
   \param[in]    i2s    I2s handle to operate
   \return       Buffer free space (bytes)
 */
 uint32_t    csi_i2s_tx_buffer_avail(csi_i2s_t *i2s);
 
 /**
-  \brief        Get tx ringbuffer buffer used space
+  \brief        Get tx csi_ringbuf buffer used space
   \param[in]    i2s    I2s handle to operate
   \return       Buffer used space (bytes)
 */
 uint32_t    csi_i2s_tx_buffer_remain(csi_i2s_t *i2s);
 
 /**
-  \brief       Reset the tx ringbuffer, discard all data in the buffer
+  \brief       Reset the tx csi_ringbuf, discard all data in the buffer
   \param[in]   i2s    Handle to operate
   \return      error code \ref csi_error_t
 */

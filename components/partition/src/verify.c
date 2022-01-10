@@ -84,10 +84,10 @@ static int copy_data(void *dst, void *src, size_t size, int from_mem)
 #ifdef CONFIG_NON_ADDRESS_FLASH
     int flashid = 0;
 #if CONFIG_MULTI_FLASH_SUPPORT
-    flashid = get_flashid_by_abs_addr((uint32_t)src);
+    flashid = get_flashid_by_abs_addr((unsigned long)src);
 #endif
     void *handle = partition_flash_open(flashid);
-    ret = partition_flash_read(handle, (uint32_t)src, dst, size);
+    ret = partition_flash_read(handle, (unsigned long)src, dst, size);
     partition_flash_close(handle);
 #else
     memcpy(dst, src, size);
@@ -448,7 +448,7 @@ __attribute__((weak)) int signature_verify_start(digest_sch_e ds, signature_sch_
 __attribute__((weak)) int crc32_calc_start(const uint8_t *input, uint32_t ilen, uint32_t *output)
 {
     if (input && ilen > 0 && output) {
-        *output = crc32(0, (uint8_t *)input, ilen);
+        *output = pcrc32(0, (uint8_t *)input, ilen);
         return 0;
     }
 

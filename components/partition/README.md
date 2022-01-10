@@ -354,7 +354,7 @@ partition_info_t *partition_info_get(partition_t partition);
 | sector_count | sector_count | 扇区计数 |
 
 ### partition_flash_read
-`int partition_flash_read(void *handle, uint32_t addr, void *data, size_t data_len);`
+`int partition_flash_read(void *handle, unsigned long addr, void *data, size_t data_len);`
 
 - 功能描述:
    - 读取FLASH指定地址的数据。
@@ -370,7 +370,7 @@ partition_info_t *partition_info_get(partition_t partition);
    - 小于0: 读取失败。
    
 ### partition_flash_write
-`int partition_flash_write(void *handle, uint32_t addr, void *data, size_t data_len);`
+`int partition_flash_write(void *handle, unsigned long addr, void *data, size_t data_len);`
 
 - 功能描述:
    - 往FLASH指定地址写入数据。
@@ -386,7 +386,7 @@ partition_info_t *partition_info_get(partition_t partition);
    - 小于0: 写入失败。
 
 ### partition_flash_erase
-`int partition_flash_erase(void *handle, uint32_t addr, size_t len);`
+`int partition_flash_erase(void *handle, unsigned long addr, size_t len);`
 
 - 功能描述:
    - 擦除FLASH指定地址的数据。
@@ -574,7 +574,7 @@ partition_info_t *partition_info_get(partition_t partition);
 | son_type | son_type | 描述段子类型 |
 
 ### mtb_get_img_scn_addr
-`int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, uint32_t *scn_addr);`
+`int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, unsigned long *scn_addr);`
 
 - 功能描述:
    - 获取映像段地址。

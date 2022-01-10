@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: pvmp3dec                                      # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.4                                     # <必选项> 组件版本号
+version: v7.5.0                                    # <必选项> 组件版本号
 description: pvmp3dec是一个开源的mp3解码库，其遵循apache协议 # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 tag: 多媒体播放器                                   # <可选项> 组件分类，缺省值： ''
@@ -40,6 +40,8 @@ build_config:
   cflag: '-Wno-nonnull-compare'
   define:
     - OSCL_UNUSED_ARG\(x\)=\(void\)\(x\)
+  internal_include:
+    - include/pvmp3dec
   include:
     - include
 

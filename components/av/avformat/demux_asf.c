@@ -136,7 +136,7 @@ static int _asf_read_stream_properties(demux_cls_t *o, int size)
             cbsize = stream_r16le(o->s);
             cbsize = MIN(spec_size - 18, cbsize);
             if (cbsize > 0) {
-                o->ash.extradata = aos_malloc(cbsize);
+                o->ash.extradata = av_malloc(cbsize);
                 CHECK_RET_TAG_WITH_RET(o->ash.extradata, -1);
                 stream_read(s, o->ash.extradata, cbsize);
                 o->ash.extradata_size = cbsize;
@@ -167,7 +167,7 @@ static int _demux_asf_open(demux_cls_t *o)
     uint8_t guid[ASF_GUID_SIZE];
     int fsize, hsize, size, nb_subobjs, pos;
 
-    priv = aos_zalloc(sizeof(struct asf_priv));
+    priv = av_zalloc(sizeof(struct asf_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     o->priv = priv;
 
@@ -231,7 +231,7 @@ static int _demux_asf_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return -1;
 }
@@ -240,7 +240,7 @@ static int _demux_asf_close(demux_cls_t *o)
 {
     struct asf_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

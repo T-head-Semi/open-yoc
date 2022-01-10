@@ -30,7 +30,7 @@ web_url_t* web_url_new(const char *url)
         return NULL;
     }
 
-    wurl = aos_zalloc(sizeof(web_url_t));
+    wurl = av_zalloc(sizeof(web_url_t));
     CHECK_RET_WITH_GOTO(wurl, err);
 
     wurl->port     = port;
@@ -96,13 +96,13 @@ web_url_t* web_url_new(const char *url)
 
 err:
     if (wurl) {
-        aos_free(wurl->url);
-        aos_free(wurl->host);
-        aos_free(wurl->path);
-        aos_free(wurl->user);
-        aos_free(wurl->passwd);
+        av_free(wurl->url);
+        av_free(wurl->host);
+        av_free(wurl->path);
+        av_free(wurl->user);
+        av_free(wurl->passwd);
 
-        aos_free(wurl);
+        av_free(wurl);
     }
     return NULL;
 }
@@ -118,14 +118,14 @@ int web_url_free(web_url_t *url)
         return -1;
     }
 
-    aos_freep(&url->url);
-    aos_freep(&url->host);
-    aos_freep(&url->path);
+    av_freep(&url->url);
+    av_freep(&url->host);
+    av_freep(&url->path);
 
-    aos_freep(&url->user);
-    aos_freep(&url->passwd);
+    av_freep(&url->user);
+    av_freep(&url->passwd);
 
-    aos_free(url);
+    av_free(url);
 
     return 0;
 }

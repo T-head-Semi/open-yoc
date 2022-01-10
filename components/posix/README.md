@@ -1,120 +1,96 @@
-## Contents
+# 概述
+POSIX (Portable Operating System Interface) 是IEEE组织为了维护应用在不同操作系统之间的兼容性而制定的标准。 主要包括API，Shell和Utility等一整套应用环境。主要应用于Unix/Linux操作系统之间， 也有其他的操作系统为了兼容Unix/Linux的应用生态而支持POSIX标准， 如Zephyr, VxWorks, QNX, Fuchsia等。
+组件支持以下功能：
+- pthread 线程及其属性管理
+- pthread 条件变量及其属性管理
+- pthread 互斥及其属性管理
+- 文件系统类接口
+- 环境变量管理
+- POSIX信号量
+- POSIX定时器
+- POSIX消息队列
 
-## Introduction
-**POSIX** The Portable Operating System Interface (POSIX) is a family of standards specified by the IEEE Computer Society for maintaining compatibility between operating systems. POSIX defines the application programming interface (API), along with command line shells and utility interfaces, for software compatibility with variants of Unix and other operating systems.
+## 版权信息
+> Apache license v2.0
 
-### Features
-- pthread
-- semaphore
-- mutex
-- cond
-- timer
-- mutex
-- device IO
-- file system
-
-### Directories
-
-```sh
+## 目录结构
+```tree
 posix
-├── aos.mk                       # makefile of posix
-├── dirent.c                     # implement of device IO and file system
-├── enviro.c                     # implement of environ variable
-├── posix_init.c                 # implement of posix init
-├── mqueue.c                     # implement of queue
-├── prctl.h                      # implement of prctl
-├── semaphore.c                  # implement of semaphore
-├── timer.c                      # implement of timer
-├── pthread.c                    # implement of pthread
-├── pthread_attr.h               # implement of pthread attribute
-├── pthread_cond.c               # implement of cond
-├── pthread_mutex.c              # implement of mutex
-├── pthread_sched.c              # implement of pthread sched
-├── pthread_tsd.h                # implement of thread specific data
+|-- example
+|   |-- pthread_example.c #示例代码
+|-- include
+|   |-- dirent.h         #文件系统类接口声明
+|   |-- enviro.h         #环境变量接口声明
+|   |-- mqueue.h         #POSIX消息队列接口声明
+|   |-- poll.h           #poll接口声明
+|   |-- posix
+|   |   |-- timer.h      #POSIX定时器接口声明
+|   |-- pthread.h        #pthread接口声明
+|   |-- sched.h          #调度接口声明
+|   |-- semaphore.h      #POSIX信号量接口声明
+|   |-- signal.h         #signal结构体声明
+|   |-- sys
+|       |-- prctl.h      #prctl接口声明
+|       |-- select.h     #select接口声明
+|       |-- _pthreadtypes.h
+|-- package.yaml         #编译及配置文件
+|-- README.md            #组件说明文档
+|-- src
+    |-- dirent.c         #文件系统接口实现
+    |-- enviro.c         #环境变量接口实现
+    |-- internal
+    |   |-- common.h     #通用接口内部定义
+    |   |-- pthread.h    #pthread内部定义
+    |   |-- sched.h      #调度功能内部定义
+    |-- mqueue.c         #POSIX消息队列实现
+    |-- poll.c           #poll接口实现
+    |-- prctl.c          #prctl实现
+    |-- pthread_attr.c   #pthread线程属性实现
+    |-- pthread.c        #pthread线程实现
+    |-- pthread_cond.c   #pthread条件变量及其属性的实现
+    |-- pthread_mutex.c  #pthread互斥锁及其属性的实现
+    |-- pthread_tsd.c    #pthread互斥锁及其属性的实现
+    |-- sched.c          #调度类接口实现
+    |-- select.c         #select接口实现
+    |-- semaphore.c      #POSIX信号量的实现
+    |-- timer.c          #POSIX定时器及时间函数的实现
 ```
-### How to use POSIX
-#### step1. Add POSIX component to the project
-    For example, if you want to use POSIX in board developerkit, you can add the following code to "board/developerkit/aos.mk"
+
+## 依赖组件
+无
+
+# 常用配置
+无
+
+# API说明
+本组件实现POSIX标准的API，API的使用方式遵循POSIX.1-2017标准的定义，与Unix/Linux上POSIX API使用方式一致。具体使用方法可以参考POSIX标准的官方文档[POSIX.1-2017标准](https://pubs.opengroup.org/onlinepubs/9699919799/idx/functions.html)。
+
+# 使用示例
+
+请参考example/pthread_example.c文件，加到工程之后，并且加上posix的依赖。编译烧录到板子。在串口输入以下命令：
+
+**CLI命令行输入：**
+```shell
+
+pthread_example # 执行pthread示例
+
 ```
-$(NAME)_COMPONENTS  += osal_posix
+
+> 关键日志：
+```shell
+
+new thread:0x34038460, arg:10
+new thread hold the lock.
+Main thread hold the lock.
+retval:0x34003aa8, &ret_value:0x34003aa8
+New thread:0x34038460 exited with vaule: 100
+The count is 11
+pthread_example test success!
+
 ```
-#### step2. Config POSIX
-    open "include/posix/posix_config.h" to enable the features you need, all of features are enabled by default.
-    note: 1.If you want to use function "tmpfile", ramfs must be added to the project.
-          2.If you want to use "pathconf/fpathconf", you must open "kernel/fs/vfs/include/vfs_conf.h" and set "VFS_CONFIG_CURRENT_DIRECTORY_ENABLE" to 1.
-          3.If you want to use Pthread, you must add the following code to "hook_impl.c" or "k_config.c".
-          For example, if you want to use Pthread in board developerkit, you must open "platform/mcu/stm32l4xx_cube/aos/hook_impl.c" and add the following code.
 
-```C
-void krhino_task_del_hook(ktask_t *task, res_free_t *arg)
-{
-    _pthread_tcb_t *ptcb;
-    _pthread_cleanup_t *cleanup;
-    pthread_key_list_t *pthread_key_list_s_c = NULL;
+# 注意事项
+1. POSIX API的使用方式虽然与POSIX标准一致，但相同API的子功能项可能是不支持的，此时注意判断API的异常处理（返回值和errno），如API有子功能项不支持，会设置errno为ENOTSUP并返回-1，或者直接返回ENOTSUP，具体需要查看不同API的标准定义。
 
-    g_sched_lock[cpu_cur_get()]++;
-
-    ptcb = _pthread_get_tcb(task);
-
-    if (ptcb == NULL) {
-        g_sched_lock[cpu_cur_get()]--;
-        return;
-    }
-
-    /* excute all cleanup function if existed */
-    do {
-        cleanup = ptcb->cleanup;
-        if (cleanup != NULL ) {
-            ptcb->cleanup = cleanup->prev;
-            cleanup->cleanup_routine(cleanup->para);
-            krhino_mm_free(cleanup);
-        }
-    } while(ptcb->cleanup != NULL);
-
-    /* call the destructor function of TSD */
-    pthread_key_list_s_c = &pthread_key_list_head;
-    while (pthread_key_list_s_c != NULL) {
-        if (pthread_key_list_s_c->head.fun != NULL){
-            pthread_key_list_s_c->head.fun(NULL);
-        }
-
-        pthread_key_list_s_c = pthread_key_list_s_c->next;
-    }
-
-    if (ptcb->attr.detachstate == PTHREAD_CREATE_JOINABLE) {
-        /* give join sem if is joinable */
-        if (ptcb->join_sem != NULL) {
-            krhino_sem_give(ptcb->join_sem);
-        }
-    }
-
-    if (arg == NULL) {
-        g_sched_lock[cpu_cur_get()]--;
-        return;
-    }
-
-    if (ptcb->attr.detachstate == PTHREAD_CREATE_DETACHED) {
-        if (ptcb->join_sem != NULL) {
-            krhino_sem_dyn_del(ptcb->join_sem);
-        }
-
-        klist_insert(&g_res_list, &arg->res_list);
-        arg->res[0] = task->task_stack_base;
-        arg->res[1] = task;
-        arg->res[2] = ptcb;
-        arg->cnt += 3;
-        krhino_sem_give(&g_res_sem);
-    }
-
-    g_sched_lock[cpu_cur_get()]--;
-}
-```
-#### step3. Init POSIX
-    Call function "posix_init" to initialize POSIX.
-
-You can use POSIX after completing these steps.
-
-### Dependencies
-
-## Reference
-- http://pubs.opengroup.org/
+# FAQ
+无

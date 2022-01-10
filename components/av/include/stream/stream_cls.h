@@ -78,7 +78,10 @@ struct stream_cls {
     stream_event_t            stream_event_cb;         ///< used for stream-event upload
 
     uint32_t                  rcv_timeout;             ///< ms. 0 use default & AOS_WAIT_FOREVER means wait forever
+    aos_task_t                cache_task;
+#ifndef __linux__
     aos_event_t               cache_quit;
+#endif
     uint32_t                  cache_size;              ///< size of the web cache. 0 use default
     uint32_t                  cache_start_threshold;   ///< (0~100)start read for player when up to cache_start_threshold. 0 use default
     uint8_t                   cache_start_upto;        ///<

@@ -7,12 +7,14 @@
 #include "avutil/av_typedef.h"
 #include "stream/stream.h"
 #include "avformat/avformat.h"
+#include "avformat/avformat_utils.h"
 #include "avformat/avparser_all.h"
 #include "avcodec/avcodec.h"
 #include "output/output.h"
 #include "avfilter/avfilter.h"
 #include "avfilter/avfilter_all.h"
 #include "player.h"
+#include <stdarg.h>
 
 #define TAG                    "player"
 
@@ -29,10 +31,12 @@ enum player_status {
 #define EVENT_CALL(player, type, data, len) \
 	do { \
 		if (player && player->event_cb) \
-			player->event_cb(player, type, data, len); \
+			player->event_cb(player->user_data, type, data, len); \
 	} while(0)
 
+#ifndef __linux__
 #define PLAYER_TASK_QUIT_EVT           (0x01)
+#endif
 
 struct player_cb {
     char                         *url;
@@ -59,12 +63,22 @@ struct player_cb {
     eqfp_t                       *eq_params;
     get_decrypt_cb_t             get_dec_cb;    ///< used for get decrypt info
 
+    int32_t                      db_min;        ///< min db for digital volume curve
+    int32_t                      db_max;        ///< max db for digital volume curve
+
     int64_t                      cur_pts;
     uint8_t                      status;
     uint8_t                      before_status;
+
+    aos_task_t                   ptask;
+#ifndef __linux__
     aos_event_t                  evt;
+#endif
+
     uint8_t                      evt_status;
     player_event_t               event_cb;
+    void                         *user_data;    ///< user data of the player event
+    uint8_t                      interrupt;
     uint8_t                      need_quit;
 
     aos_mutex_t                  lock;
@@ -90,6 +104,7 @@ static void _player_inner_init(player_t *player)
     player->demuxer       = NULL;
     player->ad            = NULL;
     player->ao            = NULL;
+    player->interrupt     = 0;
     player->need_quit     = 0;
     player->cur_pts       = 0;
     player->start_time    = 0;
@@ -97,7 +112,11 @@ static void _player_inner_init(player_t *player)
     player->before_status = PLAYER_STATUS_STOPED;
     player->evt_status    = PLAYER_EVENT_UNKNOWN;
 
+#ifdef __linux__
+    player->ptask         = 0;
+#else
     aos_event_set(&player->evt, ~PLAYER_TASK_QUIT_EVT, AOS_EVENT_AND);
+#endif
     memset(&player->stat, 0, sizeof(player->stat));
 }
 
@@ -144,6 +163,8 @@ int player_conf_init(ply_conf_t *ply_cnf)
     ply_cnf->cache_start_threshold = CONFIG_AV_STREAM_CACHE_THRESHOLD_DEFAULT;
     ply_cnf->period_ms             = AO_ONE_PERIOD_MS;
     ply_cnf->period_num            = AO_TOTAL_PERIOD_NUM;
+    ply_cnf->db_min                = VOL_SCALE_DB_MIN;
+    ply_cnf->db_max                = VOL_SCALE_DB_MAX;
 
     return 0;
 }
@@ -158,8 +179,9 @@ player_t* player_new(const ply_conf_t *ply_cnf)
     player_t *player = NULL;
 
     CHECK_PARAM(ply_cnf && ply_cnf->ao_name && ply_cnf->speed >= PLAY_SPEED_MIN && ply_cnf->speed <= PLAY_SPEED_MAX, NULL);
+    CHECK_PARAM(ply_cnf->db_min != ply_cnf->db_max, NULL);
     LOGI(TAG, "%s, %d enter.", __FUNCTION__, __LINE__);
-    player = (struct player_cb*)aos_zalloc(sizeof(struct player_cb));
+    player = (struct player_cb*)av_zalloc(sizeof(struct player_cb));
     CHECK_RET_TAG_WITH_RET(player, NULL);
     player->ao_name = strdup(ply_cnf->ao_name);
     CHECK_RET_TAG_WITH_GOTO(player->ao_name, err);
@@ -171,16 +193,17 @@ player_t* player_new(const ply_conf_t *ply_cnf)
     }
 #endif
     if (ply_cnf->eq_segments) {
-        player->eq_params = aos_zalloc(sizeof(eqfp_t) * ply_cnf->eq_segments);
+        player->eq_params = av_zalloc(sizeof(eqfp_t) * ply_cnf->eq_segments);
         CHECK_RET_TAG_WITH_GOTO(player->eq_params, err);
     }
     if (ply_cnf->aef_conf && ply_cnf->aef_conf_size) {
-        player->aef_conf = aos_malloc(ply_cnf->aef_conf_size);
+        player->aef_conf = av_malloc(ply_cnf->aef_conf_size);
         CHECK_RET_TAG_WITH_GOTO(player->aef_conf, err);
         memcpy(player->aef_conf, ply_cnf->aef_conf, ply_cnf->aef_conf_size);
         player->aef_conf_size = ply_cnf->aef_conf_size;
     }
 
+    player->user_data             = ply_cnf->user_data;
     player->event_cb              = ply_cnf->event_cb;
     player->get_dec_cb            = ply_cnf->get_dec_cb;
     player->resample_rate         = ply_cnf->resample_rate;
@@ -194,7 +217,11 @@ player_t* player_new(const ply_conf_t *ply_cnf)
     player->cache_start_threshold = ply_cnf->cache_start_threshold ? ply_cnf->cache_start_threshold : CONFIG_AV_STREAM_CACHE_THRESHOLD_DEFAULT;
     player->period_ms             = ply_cnf->period_ms ? ply_cnf->period_ms : AO_ONE_PERIOD_MS;
     player->period_num            = ply_cnf->period_num ? ply_cnf->period_num : AO_TOTAL_PERIOD_NUM;
+    player->db_min                = ply_cnf->db_min;
+    player->db_max                = ply_cnf->db_max;
+#ifndef __linux__
     aos_event_new(&player->evt, 0);
+#endif
     aos_mutex_new(&player->lock);
     _player_inner_init(player);
 
@@ -202,10 +229,10 @@ player_t* player_new(const ply_conf_t *ply_cnf)
     return player;
 err:
     if (player) {
-        aos_free(player->ao_name);
-        aos_free(player->eq_params);
-        aos_free(player->aef_conf);
-        aos_free(player);
+        av_free(player->ao_name);
+        av_free(player->eq_params);
+        av_free(player->aef_conf);
+        av_free(player);
     }
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
     return NULL;
@@ -225,7 +252,8 @@ int player_ioctl(player_t *player, int cmd, ...)
     va_list ap;
 
     CHECK_PARAM(player, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
+    player->interrupt = 1;
     LOGD(TAG, "%s, %d enter. player = %p, cmd = %d", __FUNCTION__, __LINE__, player, cmd);
     switch (cmd) {
     case PLAYER_CMD_SET_RESAMPLE_RATE:
@@ -300,7 +328,8 @@ int player_ioctl(player_t *player, int cmd, ...)
         break;
     }
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player->interrupt = 0;
+    player_unlock();
 
     return rc;
 }
@@ -331,6 +360,8 @@ static ao_cls_t* _player_ao_new(player_t *player, sf_t ao_sf)
     ao_cnf.speed          = player->speed;
     ao_cnf.period_ms      = player->period_ms;
     ao_cnf.period_num     = player->period_num;
+    ao_cnf.db_min         = player->db_min;
+    ao_cnf.db_max         = player->db_max;
     ao = ao_open(ao_sf, &ao_cnf);
     CHECK_RET_TAG_WITH_RET(ao, NULL);
 
@@ -490,6 +521,12 @@ loop:
             break;
         }
 
+        //FIXME: for scheduler reason
+        if (player->interrupt) {
+            aos_msleep(5);
+            continue;
+        }
+
         if (!pkt.len) {
             rc = demux_read_packet(demuxer, &pkt);
             if (rc < 0) {
@@ -501,18 +538,15 @@ loop:
             player->cur_pts = pkt.pts;
         }
 
-        player_lock();
         if (player->status == PLAYER_STATUS_PLAYING) {
             rc = ad_decode(ad, dframe, &got_frame, &pkt);
             if (rc <= 0) {
                 LOGE(TAG, "ad decode fail, rc = %d", rc);
                 AV_ERRNO_SET(AV_ERRNO_DECODE_FAILD);
-                player_unlock();
                 goto quit;
             }
             pkt.len = 0;
             if (!got_frame) {
-                player_unlock();
                 continue;
             }
 
@@ -524,15 +558,11 @@ loop:
                     play_first = 0;
                     LOGI(TAG, "first frame output");
                 }
-                player_unlock();
             } else {
                 LOGE(TAG, "ao write fail, rc = %d, pcm_size = %d", rc, dframe->linesize[0]);
                 AV_ERRNO_SET(AV_ERRNO_OUTPUT_FAILD);
-                player_unlock();
                 goto quit;
             }
-        } else {
-            player_unlock();
         }
     }
     rc = 0;
@@ -540,7 +570,9 @@ quit:
     LOGD(TAG, "cb run task quit");
     avpacket_free(&pkt);
     avframe_free(&dframe);
+#ifndef __linux__
     aos_event_set(&player->evt, PLAYER_TASK_QUIT_EVT, AOS_EVENT_OR);
+#endif
     if ((player->status != PLAYER_STATUS_STOPED) && (player->need_quit != 1)) {
         player->evt_status = (rc < 0) ? PLAYER_EVENT_ERROR : PLAYER_EVENT_FINISH;
         EVENT_CALL(player, player->evt_status, NULL, 0);
@@ -558,14 +590,13 @@ quit:
 int player_play(player_t *player, const char *url, uint64_t start_time)
 {
     int rc = -1;
-    aos_task_t ptask;
 
     if (!(player && url && strlen(url))) {
         LOGE(TAG, "param err, %s", __FUNCTION__);
         return -1;
     }
 
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
     LOGI(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->status != PLAYER_STATUS_STOPED) {
         LOGE(TAG, "the player: %p is not stopped!", player);
@@ -576,9 +607,9 @@ int player_play(player_t *player, const char *url, uint64_t start_time)
     player->url        = strdup(url);
     CHECK_RET_TAG_WITH_GOTO(player->url, quit);
     player->status = PLAYER_STATUS_PREPARING;
-    rc = aos_task_new_ext(&ptask, "player_task", _ptask, (void *)player, CONFIG_PLAYER_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI - 2);
+    rc = aos_task_new_ext(&player->ptask, "player_task", _ptask, (void *)player, CONFIG_PLAYER_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI - 2);
     if (rc != 0) {
-        aos_freep(&player->url);
+        av_freep(&player->url);
         player->status = PLAYER_STATUS_STOPED;
         LOGE(TAG, "player_task new create faild, may be oom, rc = %d", rc);
         AV_ERRNO_SET(AV_ERRNO_OOM);
@@ -587,7 +618,7 @@ int player_play(player_t *player, const char *url, uint64_t start_time)
 
 quit:
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player_unlock();
     return rc;
 }
 
@@ -601,7 +632,8 @@ int player_pause(player_t *player)
     int ret = -1;
 
     CHECK_PARAM(player, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
+    player->interrupt = 1;
     LOGI(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     switch (player->status) {
     case PLAYER_STATUS_PLAYING:
@@ -615,7 +647,8 @@ int player_pause(player_t *player)
         break;
     }
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player->interrupt = 0;
+    player_unlock();
 
     return ret;
 }
@@ -630,7 +663,8 @@ int player_resume(player_t *player)
     int ret = -1;
 
     CHECK_PARAM(player, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
+    player->interrupt = 1;
     LOGI(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->status == PLAYER_STATUS_PAUSED) {
         switch (player->before_status) {
@@ -646,7 +680,8 @@ int player_resume(player_t *player)
         }
     }
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player->interrupt = 0;
+    player_unlock();
 
     return ret;
 }
@@ -678,7 +713,7 @@ static int _player_stop(player_t *player)
     }
 
     ret = 0;
-    aos_freep(&player->url);
+    av_freep(&player->url);
 
     return ret;
 }
@@ -691,20 +726,29 @@ static int _player_stop(player_t *player)
 int player_stop(player_t *player)
 {
     int ret = 0;
-    unsigned int flag;
 
     CHECK_PARAM(player, -1);
     player->need_quit = 1;
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
     LOGI(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->status != PLAYER_STATUS_STOPED) {
         player->status = PLAYER_STATUS_STOPED;
-        aos_mutex_unlock(&player->lock);
-        aos_event_get(&player->evt, PLAYER_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+        player_unlock();
+#ifdef __linux__
+        if (player->ptask) {
+            pthread_join(player->ptask, NULL);
+            player->ptask = 0;
+        }
+#else
+        {
+            unsigned int flag;
+            aos_event_get(&player->evt, PLAYER_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+        }
+#endif
         ret = _player_stop(player);
         _player_inner_init(player);
     } else {
-        aos_mutex_unlock(&player->lock);
+        player_unlock();
     }
 
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
@@ -726,11 +770,13 @@ int player_free(player_t *player)
         rc = player_stop(player);
     }
 
+#ifndef __linux__
     aos_event_free(&player->evt);
+#endif
     aos_mutex_free(&player->lock);
-    aos_free(player->ao_name);
-    aos_free(player->aef_conf);
-    aos_free(player);
+    av_free(player->ao_name);
+    av_free(player->aef_conf);
+    av_free(player);
 
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
     return rc;
@@ -748,7 +794,8 @@ int player_seek(player_t *player, uint64_t timestamp)
     demux_cls_t *demuxer;
 
     CHECK_PARAM(player, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
+    player->interrupt = 1;
     LOGI(TAG, "%s, %d enter. player = %p, timestamp = %llu", __FUNCTION__, __LINE__, player, timestamp);
     demuxer = player->demuxer;
     if (player->status == PLAYER_STATUS_PLAYING
@@ -756,12 +803,14 @@ int player_seek(player_t *player, uint64_t timestamp)
         ao_stop(player->ao);
         rc = demux_seek(demuxer, timestamp);
         if (rc == 0) {
+            player->cur_pts = demuxer->time_scale ? timestamp * (demuxer->time_scale / 1000) : player->cur_pts;
             ad_reset(player->ad);
         }
         ao_start(player->ao);
     }
     LOGI(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player->interrupt = 0;
+    player_unlock();
 
     return rc;
 }
@@ -778,7 +827,7 @@ int player_get_cur_ptime(player_t *player, play_time_t *ptime)
     demux_cls_t *demuxer;
 
     CHECK_PARAM(player && ptime, -1);
-    //aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    //player_lock();
     LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     demuxer = player->demuxer;
     if ((player->status == PLAYER_STATUS_PLAYING || (player->status == PLAYER_STATUS_PAUSED && player->before_status != PLAYER_STATUS_PREPARING))
@@ -788,7 +837,7 @@ int player_get_cur_ptime(player_t *player, play_time_t *ptime)
         rc              = 0;
     }
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    //aos_mutex_unlock(&player->lock);
+    //player_unlock();
 
     return rc;
 }
@@ -796,7 +845,7 @@ int player_get_cur_ptime(player_t *player, play_time_t *ptime)
 /**
  * @brief  get media info
  * @param  [in] player
- * @param  [in/out] minfo
+ * @param  [in/out] minfo : need free by the caller(use media_info_uninit function)
  * @return 0/-1
  */
 int player_get_media_info(player_t *player, media_info_t *minfo)
@@ -805,13 +854,13 @@ int player_get_media_info(player_t *player, media_info_t *minfo)
     demux_cls_t *demuxer;
 
     CHECK_PARAM(player && minfo, -1);
-    //aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    //player_lock();
     LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     demuxer = player->demuxer;
     memset(minfo, 0, sizeof(media_info_t));
     if ((player->status == PLAYER_STATUS_PLAYING || (player->status == PLAYER_STATUS_PAUSED && player->before_status != PLAYER_STATUS_PREPARING))
         && demuxer && player->s) {
-        minfo->tracks   = demuxer->tracks;
+        minfo->tracks   = tracks_info_dup(demuxer->tracks);
         minfo->size     = stream_get_size(player->s);
         //TODO: just one track now for audio player
         minfo->bps      = demuxer->bps;
@@ -819,7 +868,7 @@ int player_get_media_info(player_t *player, media_info_t *minfo)
         rc              = 0;
     }
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    //aos_mutex_unlock(&player->lock);
+    //player_unlock();
 
     return rc;
 }
@@ -835,14 +884,14 @@ int player_get_vol(player_t *player, uint8_t *vol)
     int rc = -1;
 
     CHECK_PARAM(player && vol, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
     LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->vol_en) {
         *vol = player->vol_index;
         rc = 0;
     }
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player_unlock();
 
     return rc;
 }
@@ -858,8 +907,9 @@ int player_set_vol(player_t *player, uint8_t vol)
     int rc = -1;
 
     CHECK_PARAM(player, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
-    LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
+    player_lock();
+    player->interrupt = 1;
+    //LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->vol_en) {
         if (player->ao) {
             size_t size;
@@ -874,10 +924,22 @@ int player_set_vol(player_t *player, uint8_t vol)
             rc = 0;
         }
     }
-    LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    //LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
+    player->interrupt = 0;
+    player_unlock();
 
     return rc;
+}
+
+/**
+ * @brief  get play source url
+ * @param  [in] player
+ * @return NULL on error
+ */
+const char* player_get_url(player_t *player)
+{
+    CHECK_PARAM(player, NULL);
+    return player->url;
 }
 
 /**
@@ -888,19 +950,14 @@ int player_set_vol(player_t *player, uint8_t vol)
  */
 int player_get_speed(player_t *player, float *speed)
 {
-    int rc = -1;
-
     CHECK_PARAM(player && speed, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
     LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
-    if (player->atempo_play_en) {
-        *speed = player->speed;
-        rc = 0;
-    }
+    *speed = player->speed;
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player_unlock();
 
-    return rc;
+    return 0;
 }
 
 /**
@@ -914,7 +971,8 @@ int player_set_speed(player_t *player, float speed)
     int rc = -1;
 
     CHECK_PARAM(player && speed >= PLAY_SPEED_MIN && speed <= PLAY_SPEED_MAX, -1);
-    aos_mutex_lock(&player->lock, AOS_WAIT_FOREVER);
+    player_lock();
+    player->interrupt = 1;
     LOGD(TAG, "%s, %d enter. player = %p", __FUNCTION__, __LINE__, player);
     if (player->atempo_play_en) {
         if (player->ao) {
@@ -932,7 +990,8 @@ int player_set_speed(player_t *player, float speed)
         }
     }
     LOGD(TAG, "%s, %d leave. player = %p", __FUNCTION__, __LINE__, player);
-    aos_mutex_unlock(&player->lock);
+    player->interrupt = 0;
+    player_unlock();
 
     return rc;
 }

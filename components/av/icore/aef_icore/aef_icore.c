@@ -66,8 +66,8 @@ aef_icore_t* aef_icore_new(uint32_t rate, uint8_t *conf, size_t conf_size, size_
     aef_icore_new_t *inp;
 
     CHECK_PARAM(rate && nsamples_max, NULL);
-    hdl  = aos_zalloc(sizeof(aef_icore_t));
-    priv = aos_zalloc(sizeof(struct aef_icore_ap_priv));
+    hdl  = av_zalloc(sizeof(aef_icore_t));
+    priv = av_zalloc(sizeof(struct aef_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(hdl && priv, err);
 
     in_mb = mblock_new(AEF_MB_SIZE_DEFAULT, 16);
@@ -107,8 +107,8 @@ err:
     mblock_free(out_mb);
     mblock_free(conf_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -183,8 +183,8 @@ int aef_icore_free(aef_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

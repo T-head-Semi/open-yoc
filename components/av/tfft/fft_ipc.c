@@ -22,7 +22,7 @@ static int _fft_ipc_init(fftx_t *fft, size_t size)
     rc = fft_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct fft_ipc_priv));
+    priv = av_zalloc(sizeof(struct fft_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = fft_icore_new(size);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -31,7 +31,7 @@ static int _fft_ipc_init(fftx_t *fft, size_t size)
     fft->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -58,7 +58,7 @@ static int _fft_ipc_uninit(fftx_t *fft)
     struct fft_ipc_priv *priv = fft->priv;
 
     fft_icore_free(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     fft->priv = NULL;
     return 0;
 }

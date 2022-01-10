@@ -82,11 +82,12 @@ void k_cpu_spin_unlock(kspinlock_t *lock, const char *fnName, int32_t line)
 void k_cpu_spin_unlock(kspinlock_t *lock)
 #endif
 {
-    uint32_t res = 0;
-    uint32_t recCnt;
+    uint32_t    res = 0;
+    uint32_t    recCnt;
 #ifdef RHINO_CONFIG_SPINLOCK_DEBUG
     const char *lastLockedFn   = lock->last_lockfile;
     int         lastLockedLine = lock->last_lockline;
+
     lock->last_lockfile = fnName;
     lock->last_lockline = line;
 #endif
@@ -95,10 +96,12 @@ void k_cpu_spin_unlock(kspinlock_t *lock)
         DBG_PRINTF("ERROR: k_cpu_spin_unlock: spinlock %p is uninitialized (0x%X)!\n",
                                                                    lock, lock->owner);
     }
+
     /* Unlock if it's currently locked with a recurse count of 0 */
     res = KRHINO_SPINLOCK_FREE_VAL;
-    cpu_atomic_compare_set(&lock->owner, (cpu_cur_get() << KRHINO_SPINLOCK_VAL_SHIFT)
-                                                    | KRHINO_SPINLOCK_MAGIC_VAL, &res);
+    cpu_atomic_compare_set(&lock->owner,
+                           (cpu_cur_get() << KRHINO_SPINLOCK_VAL_SHIFT) | KRHINO_SPINLOCK_MAGIC_VAL,
+                           &res);
 
     if ( ((res & KRHINO_SPINLOCK_VAL_MASK) >> KRHINO_SPINLOCK_VAL_SHIFT) == cpu_cur_get() ) {
          if ( ((res & KRHINO_SPINLOCK_CNT_MASK) >> KRHINO_SPINLOCK_CNT_SHIFT) != 0) {
@@ -118,7 +121,6 @@ void k_cpu_spin_unlock(kspinlock_t *lock)
                         res, lock->owner);
     }
     return;
-
 }
 
 extern volatile uint64_t g_cpu_flag;

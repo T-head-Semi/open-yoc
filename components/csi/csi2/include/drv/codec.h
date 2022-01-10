@@ -16,7 +16,7 @@
 #include <stdbool.h>
 #include <drv/common.h>
 #include <drv/dma.h>
-#include "drv/ringbuffer.h"
+#include "drv/ringbuf.h"
 
 typedef enum {
     CODEC_EVENT_PERIOD_READ_COMPLETE        = 0U,  ///< A peroid data read completed
@@ -36,7 +36,7 @@ struct csi_codec_output {
     uint32_t                  ch_idx;            ///< Codec output channel idx
     void (*callback)(csi_codec_output_t *output, csi_codec_event_t event, void *arg);
     void                      *arg;
-    ringbuffer_t              *ring_buf;         ///< The ringbuffer used to save audio data
+    csi_ringbuf_t              *ring_buf;         ///< The csi_ringbuf used to save audio data
     uint32_t                  period;            ///< When the period data is sent, the callback function will be called
     uint32_t                  sound_channel_num; ///< Number of sound channel
     csi_dma_ch_t              *dma;              ///< Dma channel handle
@@ -51,7 +51,7 @@ struct csi_codec_input {
     uint32_t                  ch_idx;             ///< Codec input channel idx
     void (*callback)(csi_codec_input_t *input, csi_codec_event_t event, void *arg);
     void                      *arg;
-    ringbuffer_t              *ring_buf;          ///< The ringbuffer used to save audio data
+    csi_ringbuf_t              *ring_buf;          ///< The csi_ringbuf used to save audio data
     uint32_t                  period;             ///< When the period data is received, the callback function will be called
     uint32_t                  sound_channel_num;  ///< Number of sound channel
     csi_dma_ch_t              *dma;               ///< Codec input channel current state

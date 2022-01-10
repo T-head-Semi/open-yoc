@@ -1,244 +1,86 @@
 /*
- * Copyright (C) 2015-2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2021 Alibaba Group Holding Limited
  */
 
-#ifndef PTHREAD_H
-#define PTHREAD_H
+#ifndef _PTHREAD_H
+#define _PTHREAD_H
+
+#include <stdint.h>
+#include <time.h>
+#include <sched.h> /* only for be compatible with toolchain 7.3.1.*/
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-#include <time.h>
-#include <sys/time.h>
+#ifndef USE_AOS_NEW_HDL_DEF
+// need match in aos/kernel.h
+typedef struct {
+    void *hdl;
+} ahdl_t;
+#else
+typedef void * ahdl_t;
+#endif
 
-#include "posix_config.h"
-#include "enviro.h"
+#define PTHREAD_CREATE_JOINABLE 0
+#define PTHREAD_CREATE_DETACHED 1
 
-#define _GTHREAD_USE_MUTEX_INIT_FUNC 1
-#define _GTHREAD_USE_RECURSIVE_MUTEX_INIT_FUNC 1
-#define _GTHREAD_USE_COND_INIT_FUNC 1
-
-/* the value of contentionscope in struct pthread_attr_t */
-#define PTHREAD_SCOPE_PROCESS   0
-#define PTHREAD_SCOPE_SYSTEM    1
-
-/* the value of inheritsched in struct pthread_attr_t */
-#define PTHREAD_INHERIT_SCHED   1
-#define PTHREAD_EXPLICIT_SCHED  2
-
-/* the value of detachstate in struct pthread_attr_t */
-#define PTHREAD_CREATE_DETACHED 0
-#define PTHREAD_CREATE_JOINABLE 1
-
-/* the value of scheduling policy */
-#define SCHED_OTHER 0
-#define SCHED_FIFO  1
-#define SCHED_RR    2
-
-#define RH_LOW_PRI     RHINO_CONFIG_PRI_MAX /* low priority rhino numbering */
-#define RH_HIGH_PRI    0                    /* high priority rhino numbering */
-#define POSIX_LOW_PRI  0                    /* low priority POSIX numbering */
-#define POSIX_HIGH_PRI RHINO_CONFIG_PRI_MAX /* high priority POSIX numbering */
-
-/* conversion pri between POSIX and RHINO */
-#define PRI_CONVERT_PX_RH(prior) (POSIX_HIGH_PRI - prior)
-
-#define DEFAULT_THREAD_STACK_SIZE 2048
-#define DEFAULT_THREAD_PRIORITY   30
-#define DEFAULT_THREAD_SLICE      10
-#define DEFAULT_THREAD_NAME_LEN   16
-
-#define PTHREAD_INITIALIZED_OBJ 0XABCDEFEF
-#define PTHREAD_ONCE_INIT       0
-
-enum {
-    PTHREAD_CANCEL_ASYNCHRONOUS,
-    PTHREAD_CANCEL_ENABLE,
-    PTHREAD_CANCEL_DEFERRED,
-    PTHREAD_CANCEL_DISABLE,
-    PTHREAD_CANCELED
-};
-
-// typedef ktask_t *pthread_t;
-typedef void    *pthread_t;
-typedef int      pthread_once_t;
-//typedef int      pid_t;
-
-struct sched_param {
-    int    sched_priority; /* process execution scheduling priority */
-    size_t slice;          /* time slice in SCHED_RR mode (ms) */
-};
-
-typedef struct pthread_attr {
-    unsigned char      is_initialized;  /* if the attr is initialized set to 1, otherwise set to 0 */
-    void              *stackaddr;       /* the start addr of the stack of the pthead */
-    size_t             stacksize;       /* the size of the stack of the pthead */
-    unsigned char      contentionscope; /* the scope of contention, only PTHREAD_SCOPE_SYSTEM is supported */
-    unsigned char      inheritsched;    /* when set to PTHREAD_INHERIT_SCHED, specifies that the thread scheduling attributes
-                                           shall be inherited from the creating thread, and the scheduling attributes in this
-                                           attr argument shall be ignored */
-    unsigned char      schedpolicy;     /* the sched policy of the thread */
-    struct sched_param schedparam;      /* the parameter of the thread scheduling */
-    size_t             guardsize;       /* guardsize is set to protect the stack, not supported */
-    unsigned char      detachstate;     /* when set to PTHREAD_CREATE_JOINABLE, thread will not end untill the creating thread end */
-} pthread_attr_t;
-
-#define PTHREAD_MAGIC 0X11223344
-static inline pid_t _pthread_to_pid(pthread_t thread)
-{
-    if (thread == NULL) {
-        return -1;
-    }
-
-    return (pid_t)thread;
-}
-
-static inline pthread_t _pid_to_pthread(pid_t pid)
-{
-    if (pid == -1) {
-        return NULL;
-    }
-
-    return (pthread_t)pid;
-}
-
-/* function in pthread.c */
-int       pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void));
-int       pthread_create(pthread_t *thread, const pthread_attr_t *attr,
-                         void *(*start_routine)(void *), void *arg);
-void      pthread_exit(void *value_ptr);
-int       pthread_detach(pthread_t thread);
-int       pthread_join(pthread_t thread, void **retval);
-int       pthread_cancel(pthread_t thread);
-void      pthread_testcancel(void);
-int       pthread_setcancelstate(int state, int *oldstate);
-int       pthread_setcanceltype(int type, int *oldtype);
-int       pthread_kill(pthread_t thread, int sig);
-int       pthread_equal(pthread_t t1, pthread_t t2);
-int       pthread_setschedparam(pthread_t thread, int policy, const struct sched_param *pParam);
-void      pthread_cleanup_pop(int execute);
-void      pthread_cleanup_push(void (*routine)(void *), void *arg);
-pthread_t pthread_self(void);
-int       pthread_getcpuclockid(pthread_t thread_id, clockid_t *clock_id);
-int       pthread_setconcurrency(int new_level);
-int       pthread_getconcurrency(void);
-int       pthread_setschedprio(pthread_t thread, int prio);
-int       pthread_once(pthread_once_t *once_control, void (*init_routine)(void));
-
-// #ifdef _GNU_SOURCE
-int pthread_setname_np(pthread_t thread, const char *name);
-int pthread_getname_np(pthread_t thread, char *name, size_t len);
-// #endif
-
-/* function in pthread_sched.c */
-int sched_yield(void);
-int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param);
-int sched_get_priority_min(int policy);
-int sched_get_priority_max(int policy);
-int sched_rr_get_interval(pid_t pid, struct timespec *interval);
-
-/* function in pthread_attr.c */
-int pthread_attr_init(pthread_attr_t *attr);
-int pthread_attr_destroy(pthread_attr_t *attr);
-int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate);
-int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *detachstate);
-int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy);
-int pthread_attr_getschedpolicy(pthread_attr_t const *attr, int *policy);
-int pthread_attr_setschedparam(pthread_attr_t *attr, const struct sched_param *param);
-int pthread_attr_getschedparam(const pthread_attr_t *attr, struct sched_param *param);
-int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize);
-int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize);
-int pthread_attr_setstackaddr(pthread_attr_t *attr, void *stackaddr);
-int pthread_attr_getstackaddr(const pthread_attr_t *attr, void **stackaddr);
-int pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize);
-int pthread_attr_getstack(const pthread_attr_t *attr, void **stackaddr, size_t *stacksize);
-int pthread_attr_setinheritsched(pthread_attr_t *attr, int inheritsched);
-int pthread_attr_getinheritsched(const pthread_attr_t *__restrict attr, int *__restrict inheritsched);
-int pthread_attr_setguardsize(pthread_attr_t *attr, size_t guardsize);
-int pthread_attr_getguardsize(const pthread_attr_t *attr, size_t *guardsize);
-int pthread_attr_setscope(pthread_attr_t *attr, int scope);
-int pthread_attr_getscope(const pthread_attr_t *attr, int *scope);
-
-/* function in pthread.c */
-inline int pthread_attr_getname(const pthread_attr_t *attr, char *name)
-{
-    return 0;
-}
-inline int pthread_attr_setname(pthread_attr_t *attr, char *name)
-{
-    return 0;
-}
-inline int pthread_attr_getpriority(const pthread_attr_t *attr, int *priority)
-{
-    return 0;
-}
-inline int pthread_attr_setpriority(pthread_attr_t *attr, int priority)
-{
-    return 0;
-}
-
-/* definetion for pthread mutex */
-#define PTHREAD_UNUSED_YET_OBJ -1
-
-#define PTHREAD_MUTEX_INITIALIZER { NULL, PTHREAD_UNUSED_YET_OBJ }
-
-/*
- * This type of mutex does not detect deadlock. A thread attempting to
- * relock this mutex without first unlocking it shall deadlock. Attempting
- * to unlock a mutex locked by a different thread results in undefined
- * behavior.  Attempting to unlock an unlocked mutex results in undefined
- * behavior.
- */
 #define PTHREAD_MUTEX_NORMAL 0
-
-/*
- * A thread attempting to relock this mutex without first unlocking
- * it shall succeed in locking the mutex.  The relocking deadlock which
- * can occur with mutexes of type PTHREAD_MUTEX_NORMAL cannot occur with
- * this type of mutex.  Multiple locks of this mutex shall require the
- * same number of unlocks to release the mutex before another thread can
- * acquire the mutex. A thread attempting to unlock a mutex which another
- * thread has locked shall return with an error.  A thread attempting to
- * unlock an unlocked mutex shall return with an error.
- */
+#define PTHREAD_MUTEX_DEFAULT 1
 #define PTHREAD_MUTEX_RECURSIVE 1
-
-/*
- * This type of mutex provides error checking. A thread attempting
- * to relock this mutex without first unlocking it shall return with an
- * error. A thread attempting to unlock a mutex which another thread has
- * locked shall return with an error. A thread attempting to unlock an
- * unlocked mutex shall return with an error.
- */
 #define PTHREAD_MUTEX_ERRORCHECK 2
-
-/*
- * Attempting to recursively lock a mutex of this type results
- * in undefined behavior. Attempting to unlock a mutex of this type
- * which was not locked by the calling thread results in undefined
- * behavior. Attempting to unlock a mutex of this type which is not locked
- * results in undefined behavior. An implementation may map this mutex to
- * one of the other mutex types.
- */
-#define PTHREAD_MUTEX_DEFAULT 3
-
-#define PTHREAD_PROCESS_PRIVATE 0 /* visible within only the creating process */
-#define PTHREAD_PROCESS_SHARED  1 /* visible too all processes with access to
-                                     the memory where the resource is located */
 
 #define PTHREAD_PRIO_NONE    0
 #define PTHREAD_PRIO_INHERIT 1
 #define PTHREAD_PRIO_PROTECT 2
 
-#define DEFAULT_MUTEX_TYPE        PTHREAD_MUTEX_DEFAULT
-#define DEFAULT_MUTEX_PROCOCOL    PTHREAD_PRIO_INHERIT
-#define DEFAULT_MUTEX_PRIOCEILING POSIX_HIGH_PRI
-#define DEFAULT_MUTEX_PSHARED     PTHREAD_PROCESS_PRIVATE
+#define PTHREAD_INHERIT_SCHED 0
+#define PTHREAD_EXPLICIT_SCHED 1
+
+#define PTHREAD_SCOPE_SYSTEM 0
+#define PTHREAD_SCOPE_PROCESS 1
+
+#define PTHREAD_PROCESS_PRIVATE 0
+#define PTHREAD_PROCESS_SHARED 1
+
+#define PTHREAD_CANCEL_ENABLE 0
+#define PTHREAD_CANCEL_DISABLE 1
+#define PTHREAD_CANCEL_MASKED 2
+#define PTHREAD_CANCEL_DEFERRED 0
+#define PTHREAD_CANCEL_ASYNCHRONOUS 1
+#define PTHREAD_CANCELED ((void *)-1)
+
+#define PTHREAD_DYN_INIT    0X01
+#define PTHREAD_STATIC_INIT 0X02
+#ifndef USE_AOS_NEW_HDL_DEF
+#define PTHREAD_MUTEX_INITIALIZER {PTHREAD_STATIC_INIT, {0}, {0}}
+#define PTHREAD_COND_INITIALIZER  {PTHREAD_STATIC_INIT, 0, 0, {0}, {0}, {0}, {0}}
+#else
+#define PTHREAD_MUTEX_INITIALIZER {PTHREAD_STATIC_INIT, NULL, {0}}
+#define PTHREAD_COND_INITIALIZER  {PTHREAD_STATIC_INIT, 0, 0, NULL, NULL, NULL, {0}}
+#endif
+#define PTHREAD_ONCE_INIT 0
+
+typedef void * pthread_t;
+typedef int pthread_once_t;
+
+typedef struct pthread_attr {
+    uint8_t flag;
+    void   *stackaddr;       /* the start addr of the stack of the pthead */
+    size_t  stacksize;       /* the size of the stack of the pthead */
+    size_t  guardsize;       /* guardsize is set to protect the stack, not supported */
+    int     contentionscope; /* the scope of contention, only PTHREAD_SCOPE_SYSTEM is supported */
+    int     inheritsched;    /* when set to PTHREAD_INHERIT_SCHED, specifies that the thread scheduling attributes
+                                shall be inherited from the creating thread, and the scheduling attributes in this
+                                attr argument shall be ignored */
+    int     schedpolicy;     /* the sched policy of the thread */
+    int     detachstate;     /* when set to PTHREAD_CREATE_JOINABLE, thread will not end untill the creating thread end */
+    int     sched_priority;  /* The thread scheduling priority */
+    uint64_t sched_slice;    /* The time slice in SCHED_RR mode (ms) */
+} pthread_attr_t;
 
 typedef struct pthread_mutexattr {
-    int is_initialized;
+    uint8_t flag;
     int type;
     int protocol;
     int prioceiling;
@@ -246,63 +88,26 @@ typedef struct pthread_mutexattr {
 } pthread_mutexattr_t;
 
 typedef struct pthread_mutex {
-    int                  initted;
-    void                *mutex;
-    pthread_mutexattr_t *attr;
+    uint8_t              flag;
+    ahdl_t               mutex;
+    pthread_mutexattr_t  attr;
 } pthread_mutex_t;
 
-/* function in pthread_mutex.c */
-int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
-int pthread_mutex_destroy(pthread_mutex_t *mutex);
-int pthread_mutex_lock(pthread_mutex_t *mutex);
-int pthread_mutex_unlock(pthread_mutex_t *mutex);
-int pthread_mutex_trylock(pthread_mutex_t *mutex);
-
-int pthread_mutexattr_init(pthread_mutexattr_t *attr);
-int pthread_mutexattr_destroy(pthread_mutexattr_t *attr);
-int pthread_mutexattr_gettype(const pthread_mutexattr_t *attr, int *type);
-int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type);
-int pthread_mutexattr_setpshared(pthread_mutexattr_t *attr, int pshared);
-int pthread_mutexattr_getpshared(pthread_mutexattr_t *attr, int *pshared);
-int pthread_mutexattr_setprotocol(pthread_mutexattr_t *attr, int protocol);
-int pthread_mutexattr_getprotocol(const pthread_mutexattr_t *__restrict attr, int *__restrict protocol);
-int pthread_mutex_getprioceiling(const pthread_mutex_t *__restrict mutex, int *__restrict prioceiling);
-int pthread_mutex_setprioceiling(pthread_mutex_t *__restrict mutex, int prioceiling, int *__restrict old_ceiling);
-int pthread_mutexattr_getprioceiling(const pthread_mutexattr_t *__restrict attr, int *__restrict prioceiling);
-int pthread_mutexattr_setprioceiling(pthread_mutexattr_t *attr, int prioceiling);
-int pthread_mutexattr_setpshared(pthread_mutexattr_t *attr, int pshared);
-int pthread_mutexattr_getpshared(pthread_mutexattr_t *attr, int *pshared);
-int pthread_mutexattr_getpshared(pthread_mutexattr_t *attr, int *pshared);
-
-
-#define DEFAULT_COND_CLOCK  CLOCK_REALTIME
-#define DEFAULT_COND_SHARED PTHREAD_PROCESS_PRIVATE
-
 typedef struct pthread_condattr {
-    int     is_initialized;
-    clock_t clock;   /* specifiy clock for timeouts */
+    uint8_t flag;
     int     pshared; /* allow this to be shared amongst processes */
+    clock_t clock;   /* specifiy clock for timeouts */
 } pthread_condattr_t;
 
 typedef struct pthread_cond {
-    void    *lock;
+    uint8_t flag;
     int     waiting;
     int     signals;
-    void    *wait_sem;
-    void    *wait_done;
-
-    pthread_condattr_t *attr;
+    ahdl_t  lock;
+    ahdl_t  wait_sem;
+    ahdl_t  wait_done;
+    pthread_condattr_t attr;
 } pthread_cond_t;
-
-/* function in pthread_cond.c */
-int pthread_condattr_init(pthread_condattr_t *attr);
-int pthread_condattr_destroy(pthread_condattr_t *attr);
-int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
-int pthread_cond_destroy(pthread_cond_t *cond);
-int pthread_cond_broadcast(pthread_cond_t *cond);
-int pthread_cond_signal(pthread_cond_t *cond);
-int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
-int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime);
 
 /********* Thread Specific Data *********/
 typedef int pthread_key_t;
@@ -331,15 +136,87 @@ typedef struct pthread_key_list_s {
     struct pthread_key_list_s *next;
 } pthread_key_list_t;
 
-/* function in pthread_tsd.c */
+int       pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void));
+int       pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                         void *(*start_routine)(void *), void *arg);
+void      pthread_exit(void *value_ptr);
+int       pthread_detach(pthread_t thread);
+int       pthread_join(pthread_t thread, void **retval);
+int       pthread_cancel(pthread_t thread);
+void      pthread_testcancel(void);
+int       pthread_setcancelstate(int state, int *oldstate);
+int       pthread_setcanceltype(int type, int *oldtype);
+int       pthread_kill(pthread_t thread, int sig);
+int       pthread_equal(pthread_t t1, pthread_t t2);
+int       pthread_setschedparam(pthread_t thread, int policy, const struct sched_param *pParam);
+void      pthread_cleanup_pop(int execute);
+void      pthread_cleanup_push(void (*routine)(void *), void *arg);
+int       pthread_once(pthread_once_t *once_control, void (*init_routine)(void));
+pthread_t pthread_self(void);
+int       pthread_getcpuclockid(pthread_t thread_id, clockid_t *clock_id);
+int       pthread_setconcurrency(int new_level);
+int       pthread_getconcurrency(void);
+int       pthread_setschedprio(pthread_t thread, int prio);
+int       pthread_setname_np(pthread_t thread, const char *name);
+int       pthread_timedjoin_np(pthread_t thread, void **retval, const struct timespec *abstime);
+
+int pthread_attr_init(pthread_attr_t *attr);
+int pthread_attr_destroy(pthread_attr_t *attr);
+int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate);
+int pthread_attr_getdetachstate(const pthread_attr_t *attr, int *detachstate);
+int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy);
+int pthread_attr_getschedpolicy(pthread_attr_t const *attr, int *policy);
+int pthread_attr_setschedparam(pthread_attr_t *attr, const struct sched_param *param);
+int pthread_attr_getschedparam(const pthread_attr_t *attr, struct sched_param *param);
+int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize);
+int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize);
+int pthread_attr_setstackaddr(pthread_attr_t *attr, void *stackaddr);
+int pthread_attr_getstackaddr(const pthread_attr_t *attr, void **stackaddr);
+int pthread_attr_setstack(pthread_attr_t *attr, void *stackaddr, size_t stacksize);
+int pthread_attr_getstack(const pthread_attr_t *attr, void **stackaddr, size_t *stacksize);
+int pthread_attr_setinheritsched(pthread_attr_t *attr, int inheritsched);
+int pthread_attr_getinheritsched(const pthread_attr_t *__restrict attr, int *__restrict inheritsched);
+int pthread_attr_setguardsize(pthread_attr_t *attr, size_t guardsize);
+int pthread_attr_getguardsize(const pthread_attr_t *attr, size_t *guardsize);
+int pthread_attr_setscope(pthread_attr_t *attr, int scope);
+int pthread_attr_getscope(const pthread_attr_t *attr, int *scope);
+
+int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+int pthread_mutex_destroy(pthread_mutex_t *mutex);
+int pthread_mutex_lock(pthread_mutex_t *mutex);
+int pthread_mutex_unlock(pthread_mutex_t *mutex);
+int pthread_mutex_trylock(pthread_mutex_t *mutex);
+int pthread_mutex_getprioceiling(const pthread_mutex_t *__restrict mutex, int *__restrict prioceiling);
+int pthread_mutex_setprioceiling(pthread_mutex_t *__restrict mutex, int prioceiling, int *__restrict old_ceiling);
+
+int pthread_mutexattr_init(pthread_mutexattr_t *attr);
+int pthread_mutexattr_destroy(pthread_mutexattr_t *attr);
+int pthread_mutexattr_gettype(const pthread_mutexattr_t *attr, int *type);
+int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type);
+int pthread_mutexattr_setpshared(pthread_mutexattr_t *attr, int pshared);
+int pthread_mutexattr_getpshared(pthread_mutexattr_t *attr, int *pshared);
+int pthread_mutexattr_setprotocol(pthread_mutexattr_t *attr, int protocol);
+int pthread_mutexattr_getprotocol(const pthread_mutexattr_t *__restrict attr, int *__restrict protocol);
+int pthread_mutexattr_getprioceiling(const pthread_mutexattr_t *__restrict attr, int *__restrict prioceiling);
+int pthread_mutexattr_setprioceiling(pthread_mutexattr_t *attr, int prioceiling);
+
+int pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
+int pthread_cond_destroy(pthread_cond_t *cond);
+int pthread_cond_broadcast(pthread_cond_t *cond);
+int pthread_cond_signal(pthread_cond_t *cond);
+int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
+int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime);
+
+int pthread_condattr_init(pthread_condattr_t *attr);
+int pthread_condattr_destroy(pthread_condattr_t *attr);
+int pthread_condattr_setclock(pthread_condattr_t *attr, clockid_t clock);
+
 int   pthread_key_create(pthread_key_t *key, void (*destructor)(void*));
 int   pthread_setspecific(pthread_key_t key, const void *value);
-void *pthread_getspecific(pthread_key_t key);
+void* pthread_getspecific(pthread_key_t key);
 int   pthread_key_delete(pthread_key_t key);
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
-
-#endif /* PTHREAD_H */
-
+#endif
+#endif /* _PTHREAD_H */

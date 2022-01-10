@@ -28,8 +28,8 @@ static int _ad_amrnb_open(ad_cls_t *o)
     void *obuf = NULL;
     struct ad_amrnb_priv *priv = NULL;
 
-    obuf = aos_malloc(AMRNB_DEC_OBUF_SIZE);
-    priv = aos_zalloc(sizeof(struct ad_amrnb_priv));
+    obuf = av_malloc(AMRNB_DEC_OBUF_SIZE);
+    priv = av_zalloc(sizeof(struct ad_amrnb_priv));
     CHECK_RET_TAG_WITH_GOTO(priv && obuf, err);
 
     rc = GSMInitDecode(&hdl, (Word8*)"AMRNBDecoder");
@@ -41,8 +41,8 @@ static int _ad_amrnb_open(ad_cls_t *o)
     return 0;
 err:
     GSMDecodeFrameExit(&hdl);
-    aos_free(obuf);
-    aos_free(priv);
+    av_free(obuf);
+    av_free(priv);
     return -1;
 }
 
@@ -120,8 +120,8 @@ static int _ad_amrnb_close(ad_cls_t *o)
     struct ad_amrnb_priv *priv = o->priv;
 
     GSMDecodeFrameExit(&priv->hdl);
-    aos_free(priv->obuf);
-    aos_free(priv);
+    av_free(priv->obuf);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

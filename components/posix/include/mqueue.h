@@ -1,26 +1,23 @@
 /*
- * Copyright (C) 2015-2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2021 Alibaba Group Holding Limited
  */
 
-#ifndef MQUEUE_H
-#define MQUEUE_H
+#ifndef _MQUEUE_H
+#define _MQUEUE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <unistd.h>
 #include <time.h>
-
-#include "k_api.h"
-#include "posix_config.h"
+#include <aos/kernel.h>
 
 #define DEFAULT_MQUEUE_SIZE  (10 * 1024)
 #define DEFAULT_MAX_MSG_SIZE (1024)
 
 #define NANOSECONDS_PER_SECOND       1000000000LL
 
-typedef kbuf_queue_t *mqd_t;
+typedef aos_queue_t* mqd_t;
 
 struct mq_attr {
     long mq_flags;    /* message queue flags */
@@ -41,6 +38,6 @@ int     mq_unlink(const char *name);
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
 
-#endif /* MQUEUE_H */
+#endif /* _MQUEUE_H */

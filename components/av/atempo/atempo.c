@@ -42,7 +42,7 @@ atempo_t* atempo_new(uint32_t rate)
         return NULL;
     }
 
-    atempo = aos_zalloc(sizeof(atempo_t));
+    atempo = av_zalloc(sizeof(atempo_t));
     atempo->rate  = rate;
     atempo->speed = 1;
 
@@ -53,7 +53,7 @@ atempo_t* atempo_new(uint32_t rate)
 
     return atempo;
 err:
-    aos_free(atempo);
+    av_free(atempo);
     return NULL;
 }
 
@@ -142,7 +142,7 @@ int atempo_free(atempo_t *atempo)
     CHECK_PARAM(atempo, -1);
     atempo->ops->uninit(atempo);
     aos_mutex_free(&atempo->lock);
-    aos_free(atempo);
+    av_free(atempo);
 
     return 0;
 }

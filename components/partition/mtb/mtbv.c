@@ -38,14 +38,14 @@ const scn_type_t g_scn_part_type[] = {
     {{SCN_TYPE_NORMAL, SCN_TYPE_PART}, SCN_SUB_TYPE_IMG_PART}
 };
 
-#define GET_SECTION_TYPE_ADDR(scn_addr) ((uint32_t)&(((scn_head_t *)scn_addr)->type))
+#define GET_SECTION_TYPE_ADDR(scn_addr) ((unsigned long)&(((scn_head_t *)scn_addr)->type))
 #define GET_SECTION_TYPE_PTR(scn_addr)  ((scn_type_t *)(GET_SECTION_TYPE_ADDR(scn_addr)))
-#define GET_SECTION_IMG_INFO_ADDR(scn_addr) ((uint32_t)((uint32_t)scn_addr+ sizeof(scn_head_t)))
+#define GET_SECTION_IMG_INFO_ADDR(scn_addr) ((unsigned long)((unsigned long)scn_addr+ sizeof(scn_head_t)))
 #define GET_SECTION_IMG_INFO_PTR(scn_addr)  ((scn_img_sig_info_t *)(GET_SECTION_IMG_INFO_ADDR(scn_addr)))
 /****************************************************************************
  * Functions
  ****************************************************************************/
-static inline int padding_flash(uint32_t src)
+static inline int padding_flash(unsigned long src)
 {
     int flashid = 0;
     partition_flash_info_t flash_info;
@@ -64,8 +64,8 @@ static inline int mtb_version(void)
     return mtb_get()->version;
 }
 
-static int veriy_signature_check(signature_sch_e sig_type, digest_sch_e digest_type , uint32_t key, uint32_t key_len,
-                              uint32_t src, uint32_t src_size,
+static int veriy_signature_check(signature_sch_e sig_type, digest_sch_e digest_type , unsigned long key, uint32_t key_len,
+                              unsigned long src, uint32_t src_size,
                               uint8_t* signature, uint32_t sig_size)
 {
     int ret;
@@ -86,9 +86,9 @@ static int veriy_signature_check(signature_sch_e sig_type, digest_sch_e digest_t
  * @param[out]     offset      offset
  * @return      0 on success; -1 on failure
  */
-static int get_scn_offset(uint32_t im_addr, uint32_t *offset)
+static int get_scn_offset(uint32_t im_addr, unsigned long *offset)
 {
-    uint32_t m_addr = mtb_get()->using_addr;
+    unsigned long m_addr = mtb_get()->using_addr;
     uint32_t size_ver = 0;
 
     if (mtb_version() == 1) {
@@ -104,7 +104,7 @@ static int get_scn_offset(uint32_t im_addr, uint32_t *offset)
         return -1;
     }
 
-    *offset = (uint32_t)(m_addr + sizeof(mhead_tb) + size_ver);
+    *offset = (unsigned long)(m_addr + sizeof(mhead_tb) + size_ver);
     return 0;
 }
 
@@ -114,13 +114,13 @@ static int get_scn_offset(uint32_t im_addr, uint32_t *offset)
  * @param[in]     first_type      first_type
  * @return      count
  */
-static uint32_t get_section_type_sum(uint32_t im_addr, uint8_t first_type)
+static uint32_t get_section_type_sum(unsigned long im_addr, uint8_t first_type)
 {
-    uint32_t m_addr = mtb_get()->using_addr;
+    unsigned long m_addr = mtb_get()->using_addr;
     mhead_tb *mtb = (mhead_tb *)m_addr;
     scn_head_t *scn_head = NULL;
 
-    if (get_scn_offset(m_addr, (uint32_t *)(&scn_head))) {
+    if (get_scn_offset(m_addr, (unsigned long *)(&scn_head))) {
         return -1;
     }
 
@@ -132,7 +132,7 @@ static uint32_t get_section_type_sum(uint32_t im_addr, uint8_t first_type)
             count++;
         }
 
-        scn_head = (scn_head_t *)(((uint32_t)scn_head) + scn_head->size);
+        scn_head = (scn_head_t *)(((unsigned long)scn_head) + scn_head->size);
     }
 
     return count;
@@ -146,22 +146,27 @@ static uint32_t get_section_type_sum(uint32_t im_addr, uint8_t first_type)
  * @param[in]     mode          SEACH_MODE_FIRST_TYPE,SEACH_MODE_SON_TYPE or SEACH_MODE_EXTEND_TYPE
  * @return      0 on success; -1 on failure
  */
-int get_section_addr(uint32_t im_addr, const scn_type_t *seach_type, uint8_t *seach_name, uint32_t *scn_addr, uint32_t mode)
+int get_section_addr(unsigned long im_addr, const scn_type_t *seach_type, uint8_t *seach_name, unsigned long *scn_addr, uint32_t mode)
 {
-    uint32_t m_addr = im_addr;
+    unsigned long m_addr = im_addr;
     mhead_tb *mtb = (mhead_tb *)m_addr;
     scn_head_t *scn_head = NULL;
     scn_img_sig_info_t *img_info_t;
     uint32_t i = 0;
-    uint32_t sum_scn = mtb->scn_count;
+    uint32_t sum_scn;
     uint8_t s_name[MTB_IMAGE_NAME_SIZE + 1];
+
+    if (mtb == NULL) {
+        return -EINVAL;
+    }
+    sum_scn = mtb->scn_count;
     memset(s_name, 0, sizeof(s_name));
 
     if (seach_name != NULL) {
         memcpy(s_name, seach_name, MTB_IMAGE_NAME_SIZE);
     }
 
-    if (get_scn_offset(m_addr, (uint32_t *)(&scn_head))) {
+    if (get_scn_offset(m_addr, (unsigned long *)(&scn_head))) {
         return -1;
     }
 
@@ -194,8 +199,8 @@ int get_section_addr(uint32_t im_addr, const scn_type_t *seach_type, uint8_t *se
     MTB_LOGD("not seach_type:%d", seach_type->father_type.first_type);
     return -1;
 succ:
-    MTB_LOGD("s scn_t:%x", (uint32_t)scn_head);
-    *scn_addr = (uint32_t)scn_head;
+    MTB_LOGD("s scn_t:0x%lx", (unsigned long)scn_head);
+    *scn_addr = (unsigned long)scn_head;
     return 0;
 }
 
@@ -208,9 +213,9 @@ succ:
  * @param[out]      key_size    key size
  * @return      0 suc ; -1 on failure
  */
-static int get_key_info(uint32_t im_addr, uint8_t key_type, uint32_t *key_addr, uint32_t *key_size)
+static int get_key_info(unsigned long im_addr, uint8_t key_type, unsigned long *key_addr, uint32_t *key_size)
 {
-    uint32_t m_addr = mtb_get()->using_addr;
+    unsigned long m_addr = mtb_get()->using_addr;
     mhead_tb *mtb = (mhead_tb *)m_addr;
 
     if (!(key_addr && key_size)) {
@@ -229,7 +234,7 @@ static int get_key_info(uint32_t im_addr, uint8_t key_type, uint32_t *key_addr, 
         }
 
         if (get_section_addr(m_addr, (const scn_type_t *)&g_scn_key_type[key_type], NULL,
-                             (uint32_t *)(&scn_keyinfo_addr), SEACH_MODE_EXTEND_TYPE)) {
+                             (unsigned long *)(&scn_keyinfo_addr), SEACH_MODE_EXTEND_TYPE)) {
             MTB_LOGE("not find %d key", key_type);
             return -1;
         }
@@ -237,7 +242,7 @@ static int get_key_info(uint32_t im_addr, uint8_t key_type, uint32_t *key_addr, 
         // section_type = GET_SECTION_TYPE_PTR(scn_keyinfo_addr);
 
         // key_info->key_type =  section_type->son_type;
-        *key_addr = (uint32_t)(scn_keyinfo_addr) + sizeof(scn_head_t);
+        *key_addr = (unsigned long)(scn_keyinfo_addr) + sizeof(scn_head_t);
         *key_size =  scn_keyinfo_addr->size - sizeof(scn_head_t);
     }
     else if (mtb->version == 2) {
@@ -263,7 +268,7 @@ static int get_key_info(uint32_t im_addr, uint8_t key_type, uint32_t *key_addr, 
  * @param[out]   size           partion  size
  * @return      0 suc ; -1 on failure
  */
-static int get_part_info_sub(uint32_t scn_partion, uint8_t *seach_name, uint32_t *addr, uint32_t *size)
+static int get_part_info_sub(unsigned long scn_partion, uint8_t *seach_name, uint32_t *addr, uint32_t *size)
 {
     uint32_t part_num;
     uint32_t i = 0;
@@ -311,7 +316,7 @@ static int get_part_info_sub(uint32_t scn_partion, uint8_t *seach_name, uint32_t
 int mtbv_get_part_info(uint8_t *name, uint32_t *part_addr, uint32_t *part_size)
 {
     uint32_t im_addr;
-    uint32_t scn_partion;
+    unsigned long scn_partion;
 
     im_addr = mtb_get()->using_addr;
     if (GET_PARTION_SCN_ADDR(im_addr, &scn_partion)) {
@@ -332,7 +337,7 @@ int mtbv_get_img_info(const char *name, img_info_t *img_info)
     // FIXME: NON_ADDRESS_FLASH
     scn_type_t *section_type;
     scn_img_sig_info_t *scn_img_info_t;
-    uint32_t scn_imginfo_addr;
+    unsigned long scn_imginfo_addr;
     uint32_t part_size = 0;
     uint32_t part_addr = 0;
     MTB_LOGD("seach imgname:%.*s", MTB_IMAGE_NAME_SIZE, name);
@@ -368,7 +373,7 @@ int mtbv_get_img_info(const char *name, img_info_t *img_info)
  * @param[in]   dig_type         dig_type
  * @return      0 suc ; -1 on failure
  */
-int get_img_check_result(uint32_t scn_img_addr, uint32_t key_addr, uint32_t key_size, signature_sch_e sig_type, digest_sch_e dig_type)
+int get_img_check_result(unsigned long scn_img_addr, unsigned long key_addr, uint32_t key_size, signature_sch_e sig_type, digest_sch_e dig_type)
 {
     uint8_t section_type = ((scn_head_t *)scn_img_addr)->type.father_type.first_type;
     uint8_t section_extend = ((scn_head_t *)scn_img_addr)->type.father_type.extend_type;
@@ -379,7 +384,7 @@ int get_img_check_result(uint32_t scn_img_addr, uint32_t key_addr, uint32_t key_
     }
 
     scn_img_sig_info_t *img_info_t = GET_SECTION_IMG_INFO_PTR(scn_img_addr);
-    uint32_t img_buf = img_info_t->static_addr;
+    unsigned long img_buf = img_info_t->static_addr;
     uint32_t img_len = img_info_t->image_size;
 
     uint8_t *img_info_buf = (uint8_t *)scn_img_addr;
@@ -398,7 +403,7 @@ int get_img_check_result(uint32_t scn_img_addr, uint32_t key_addr, uint32_t key_
 
 
     return veriy_signature_check(sig_type, dig_type, key_addr, key_size,
-                                (uint32_t)data_to_sign, data_to_sign_len, sig_buf, sig_len);
+                                (unsigned long)data_to_sign, data_to_sign_len, sig_buf, sig_len);
 }
 
 /**
@@ -410,13 +415,14 @@ int get_img_check_result(uint32_t scn_img_addr, uint32_t key_addr, uint32_t key_
  * @param[in]   dig_type         dig_type
  * @return      0 suc ; -1 on failure
  */
-int mtbv_check_imginfo(uint32_t im_addr, uint32_t mode)
+int mtbv_check_imginfo(unsigned long im_addr, uint32_t mode)
 {
-    uint32_t m_addr = mtb_get()->using_addr;
+    unsigned long m_addr = mtb_get()->using_addr;
     uint32_t image_sum = get_section_type_sum(im_addr, SCN_TYPE_IMG);
-    uint32_t i ;
-    uint32_t scn_img_addr;
-    uint32_t key_addr = 0, key_size;
+    uint32_t i;
+    unsigned long scn_img_addr;
+    unsigned long key_addr = 0;
+    uint32_t key_size;
 
     signature_sch_e sig_type = ((mhead_tb *)m_addr)->signature_sch;
     digest_sch_e dig_type = ((mhead_tb *)m_addr)->digest_sch;
@@ -441,7 +447,7 @@ int mtbv_check_imginfo(uint32_t im_addr, uint32_t mode)
     }
 
     for (i = 0; i < image_sum; i++) {
-        MTB_LOGD("scn_img_addr:%x", scn_img_addr);
+        MTB_LOGD("scn_img_addr:%lx", scn_img_addr);
 		MTB_LOGD("son_type:%d", (uint8_t)(GET_SECTION_TYPE_PTR(scn_img_addr)->son_type));
 
         if (mode == MTB_MODE_CHECK_OTHER) {
@@ -539,7 +545,7 @@ static scn_t *_get_section(search_mode_e mode, scn_type_t *type, const char *img
     int i;
     scn_t *scn;
     mtb_head_t *head;
-    uint32_t mtb_head = mtb_get()->using_addr;
+    unsigned long mtb_head = mtb_get()->using_addr;
 
     if (mtb_version() == 0x01) {
         scn = (scn_t *)(mtb_head + sizeof(mtb_head_t) + sizeof(mtb_os_version_t));
@@ -548,7 +554,7 @@ static scn_t *_get_section(search_mode_e mode, scn_type_t *type, const char *img
     } else if (mtb_version() == 0x04) {
         return NULL;
     } else {
-        MTB_LOGE("mtb ver err, mtb_addr %x\n", mtb_head);
+        MTB_LOGE("mtb ver err, mtb_addr %lx\n", mtb_head);
         return NULL;
     }
     head = (mtb_head_t*)mtb_head;

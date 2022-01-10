@@ -60,7 +60,7 @@ static int _aef_sona_init(aefx_t *aef)
     void *hdl = NULL;
     struct aef_sona_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct aef_sona_priv));
+    priv = av_zalloc(sizeof(struct aef_sona_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
 #if CONFIG_AV_AEF_DEBUG
@@ -93,7 +93,7 @@ static int _aef_sona_init(aefx_t *aef)
     aef->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -121,7 +121,7 @@ static int _aef_sona_uninit(aefx_t *aef)
     audioaef_destroy(priv->hdl);
 #endif
 #endif
-    aos_free(priv);
+    av_free(priv);
     aef->priv = NULL;
     return 0;
 }

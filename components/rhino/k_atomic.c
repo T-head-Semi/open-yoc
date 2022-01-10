@@ -1,12 +1,6 @@
 /*
- * Copyright (C) 2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
-
-/*
-modification history
---------------------
-2017_12_27,WangMin(Rocky) created.
-*/
 
 /*
  * DESCRIPTION
@@ -35,17 +29,17 @@ modification history
 
 atomic_val_t rhino_atomic_add(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target += value;
+    old_value = *target;
+    *target += value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -62,17 +56,17 @@ atomic_val_t rhino_atomic_add(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_sub(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target -= value;
+    old_value = *target;
+    *target -= value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -86,17 +80,17 @@ atomic_val_t rhino_atomic_sub(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_inc(atomic_t *target)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	(*target)++;
+    old_value = *target;
+    (*target)++;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -110,17 +104,17 @@ atomic_val_t rhino_atomic_inc(atomic_t *target)
 
 atomic_val_t rhino_atomic_dec(atomic_t *target)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	(*target)--;
+    old_value = *target;
+    (*target)--;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -140,17 +134,17 @@ atomic_val_t rhino_atomic_dec(atomic_t *target)
 
 atomic_val_t rhino_atomic_set(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target = value;
+    old_value = *target;
+    *target = value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -162,7 +156,7 @@ atomic_val_t rhino_atomic_set(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_get(const atomic_t *target)
 {
-	return *target;
+    return *target;
 }
 
 /**
@@ -179,17 +173,17 @@ atomic_val_t rhino_atomic_get(const atomic_t *target)
 
 atomic_val_t rhino_atomic_or(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target |= value;
+    old_value = *target;
+    *target |= value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -206,17 +200,17 @@ atomic_val_t rhino_atomic_or(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_xor(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target ^= value;
+    old_value = *target;
+    *target ^= value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -233,17 +227,17 @@ atomic_val_t rhino_atomic_xor(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_and(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target &= value;
+    old_value = *target;
+    *target &= value;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -260,17 +254,17 @@ atomic_val_t rhino_atomic_and(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_nand(atomic_t *target, atomic_val_t value)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target = ~(*target & value);
+    old_value = *target;
+    *target = ~(*target & value);
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -286,17 +280,17 @@ atomic_val_t rhino_atomic_nand(atomic_t *target, atomic_val_t value)
 
 atomic_val_t rhino_atomic_clear(atomic_t *target)
 {
-	CPSR_ALLOC();
-	atomic_val_t old_value;
+    CPSR_ALLOC();
+    atomic_val_t old_value;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	old_value = *target;
-	*target = 0;
+    old_value = *target;
+    *target = 0;
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return old_value;
+    return old_value;
 }
 
 /**
@@ -314,20 +308,19 @@ atomic_val_t rhino_atomic_clear(atomic_t *target)
  */
 
 int rhino_atomic_cas(atomic_t *target, atomic_val_t old_value,
-			  atomic_val_t new_value)
+                     atomic_val_t new_value)
 {
     CPSR_ALLOC();
-	int ret = 0;
+    int ret = 0;
 
-	RHINO_CPU_INTRPT_DISABLE();
+    RHINO_CPU_INTRPT_DISABLE();
 
-	if (*target == old_value) 
-        {
-		*target = new_value;
-		ret = 1;
-	    }
+    if (*target == old_value){
+        *target = new_value;
+        ret = 1;
+    }
 
-	RHINO_CPU_INTRPT_ENABLE();
+    RHINO_CPU_INTRPT_ENABLE();
 
-	return ret;
+    return ret;
 }

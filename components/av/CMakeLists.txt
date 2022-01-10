@@ -1,0 +1,230 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+INCLUDE(../../cmake/toolchain.cmake)
+
+# include
+INCLUDE_DIRECTORIES(./include)
+INCLUDE_DIRECTORIES(./include/icore)
+
+#extern include
+INCLUDE_DIRECTORIES(../sonic)
+INCLUDE_DIRECTORIES(../aos_port/include)
+INCLUDE_DIRECTORIES(../ulog/include)
+INCLUDE_DIRECTORIES(../uservice/include)
+INCLUDE_DIRECTORIES(../dbus_knife/include)
+INCLUDE_DIRECTORIES(../speexdsp/include)
+INCLUDE_DIRECTORIES(../pvmp3dec/include)
+INCLUDE_DIRECTORIES(../amrnb/include)
+INCLUDE_DIRECTORIES(../amrwb/include)
+INCLUDE_DIRECTORIES(../flac/include)
+INCLUDE_DIRECTORIES(../ogg/include)
+INCLUDE_DIRECTORIES(../opus/include)
+INCLUDE_DIRECTORIES(../speex/include)
+INCLUDE_DIRECTORIES(../mbedtls/include)
+INCLUDE_DIRECTORIES(../mbedtls/platform/yoc/include)
+
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-nonnull-compare -Wno-unused-function -Wno-unused-but-set-variable -Wno-stringop-truncation -Wstringop-overflow=0")
+
+ADD_DEFINITIONS(
+    -DCONFIG_PLAYER_YOC=1
+    -DCONFIG_PLAYER_TPLAYER=0
+    -DCONFIG_AV_AUDIO_ONLY_SUPPORT=0
+    -DCONFIG_AV_DBUS_SUPPORT=1
+    -DCONFIG_TCPIP=1
+    -DATEMPO_FREQ_REDUCE=1
+    -DCONFIG_DEMUXER_OGG=1
+    -DCONFIG_MCAXER_LOCAL=0
+    -DCONFIG_STREAMER_FILE=1
+    -DCONFIG_AV_PROBE_SIZE_MAX=2048
+    -DCONFIG_DEMUXER_AMR=1
+    -DCONFIG_AV_STREAM_INNER_BUF_SIZE=2048
+    -DCONFIG_AV_STREAM_CACHE_SIZE_DEFAULT=81920
+    -DCONFIG_DECODER_ALAW=1
+    -DCONFIG_DECODER_AMRNB=1
+    -DCONFIG_STREAMER_FIFO=1
+    -DCONFIG_DECODER_AMRWB=1
+    -DCONFIG_DECODER_PCM=1
+    -DCONFIG_ATEMPOER_IPC=0
+	-DCONFIG_AV_AO_DUMMY=1
+    -DCONFIG_AV_AO_ALSA=0
+    -DCONFIG_AV_AO_ALSA_STANDARD=1
+    -DTMALL_PATCH=0
+    -DXIAOYA_PATCH=1
+    -DCONFIG_AV_AEF_DEBUG=0
+    -DCONFIG_AV_AO_CHANNEL_NUM=2
+    -DCONFIG_DECODER_OPUS=1
+    -DCONFIG_PLAYER_TASK_STACK_SIZE=98304
+    -DCONFIG_AV_ERRNO_DEBUG=0
+    -DCONFIG_AEFXER_IPC=0
+    -DCONFIG_AVPARSER_MP3=1
+    -DCONFIG_DEMUXER_MP4=1
+    -DCONFIG_WEB_CACHE_TASK_STACK_SIZE=6144
+    -DCONFIG_DEMUXER_ASF=1
+    -DCONFIG_AO_DIFF_SUPPORT=0
+    -DCONFIG_DECODER_MULAW=1
+    -DCONFIG_EQXER_IPC=0
+    -DCONFIG_AEFXER_SONA=0
+    -DCONFIG_STREAMER_HLS=1
+    -DCONFIG_DEMUXER_WAV=1
+    -DCONFIG_STREAMER_HTTP=1
+    -DCONFIG_DECODER_PVMP3=1
+    -DCONFIG_FFTXER_IPC=0
+    -DCONFIG_AVPARSER_ADTS=1
+    -DCONFIG_MCAXER_IPC=0
+    -DCONFIG_ATEMPOER_SONIC=1
+    -DCONFIG_RESAMPLER_SPEEX=1
+    -DCONFIG_DECODER_SPEEX=1
+    -DCONFIG_STREAMER_CRYPTO=1
+    -DCONFIG_DECODER_ADPCM_MS=1
+    -DCONFIG_DEMUXER_RAWAUDIO=1
+    -DCONFIG_AV_MP4_IDX_OPT=1
+    -DCONFIG_RESAMPLER_IPC=0
+    -DCONFIG_DECODER_IPC=0
+    -DCONFIG_AV_SAMPLE_NUM_PER_FRAME_MAX=320
+    -DCONFIG_DEMUXER_MP3=1
+    -DCONFIG_DEMUXER_TS=1
+    -DCONFIG_DEMUXER_ADTS=1
+    -DCONFIG_EQXER_SILAN=0
+    -DCONFIG_DECODER_FLAC=1
+    -DCONFIG_AO_MIXER_SUPPORT=1
+    -DCONFIG_STREAMER_MEM=1
+    -DCONFIG_FFTXER_SPEEX=0
+    -DCONFIG_DEMUXER_FLAC=1
+)
+
+SET(LIBSOURCE 
+	avutil/av_errno.c
+	avutil/misc.c
+	avutil/path.c
+	avutil/sf.c
+	avutil/straight_fifo.c
+#	avutil/lc_fifo.c
+#	avutil/named_fifo.c
+	avutil/named_sfifo_in.c
+	avutil/named_sfifo_inter.c
+	avutil/named_straightfifo.c
+	avutil/dict.c
+	avutil/socket_rw.c
+	avutil/url_parse.c
+	avutil/url_encode.c
+	avutil/byte_rw.c
+	avutil/bio.c
+	avutil/dync_buf.c
+	avutil/mem_block.c
+	avutil/vol_scale.c
+	avutil/web.c
+	avutil/web_url.c
+	avutil/avframe.c
+	avutil/avpacket.c
+	avcodec/ad.c
+	avcodec/ad_pvmp3.c
+	avcodec/ad_pcm.c
+	avcodec/ad_adpcm.c
+	avcodec/ad_flac.c
+	avcodec/ad_amrnb.c
+	avcodec/ad_amrwb.c
+	avcodec/ad_opus.c
+	avcodec/ad_speex.c
+	avcodec/ad_alaw.c
+	avcodec/ad_mulaw.c
+	avcodec/avcodec_all.c
+	avcodec/ad_ipc.c
+	avformat/demux.c
+	avformat/demux_wav.c
+	avformat/demux_mp3.c
+	avformat/demux_mp4.c
+	avformat/demux_ts.c
+	avformat/demux_adts.c
+	avformat/demux_flac.c
+	avformat/demux_asf.c
+	avformat/demux_amr.c
+	avformat/demux_ogg.c
+	avformat/demux_rawaudio.c
+	avformat/avformat_utils.c
+	avformat/m4a_rw.c
+	avformat/mp3_rw.c
+	avformat/ts_rw.c
+	avformat/adts_rw.c
+	avformat/flac_rw.c
+	avformat/asf_rw.c
+	avformat/riff_rw.c
+	avformat/amr_rw.c
+	avformat/ogg_rw.c
+	avformat/avformat_all.c
+	avformat/avparser.c
+	avformat/avparser_mp3.c
+	avformat/avparser_adts.c
+	avformat/avparser_all.c
+	output/mixer.c
+	output/mixer_channel.c
+	output/ao.c
+	output/ao_dummy.c
+	output/ao_alsa.c
+	output/ao_alsa_standard.c
+	output/output_all.c
+	stream/stream.c
+	stream/stream_mem.c
+	stream/stream_file.c
+	stream/stream_http.c
+	stream/stream_fifo.c
+	stream/stream_crypto.c
+	stream/stream_hls.c
+	stream/stream_all.c
+	avfilter/avfilter.c
+	avfilter/avfilter_eq.c
+	avfilter/avfilter_swr.c
+	avfilter/avfilter_aef.c
+	avfilter/avfilter_vol.c
+	avfilter/avfilter_atempo.c
+	avfilter/avfilter_atempo2.c
+	swresample/swresample.c
+	swresample/aformat_conv.c
+	swresample/pcm_convert.c
+	swresample/resample.c
+	swresample/resample_ipc.c
+	swresample/resample_speex.c
+	swresample/resample_all.c
+	aef/eq.c
+	aef/eq_ipc.c
+	aef/eq_all.c
+	aef/aef.c
+	aef/aef_ipc.c
+	aef/aef_sona.c
+	aef/aef_all.c
+	icore/icore_msg.c
+	icore/aef_icore/aef_icore.c
+	icore/fft_icore/fft_icore.c
+	icore/res_icore/res_icore.c
+	icore/eq_icore/eq_icore.c
+	icore/ad_icore/ad_icore.c
+	icore/mca_icore/mca_icore.c
+	icore/atempo_icore/atempo_icore.c
+	tfft/fft.c
+	tfft/fft_ipc.c
+	tfft/fft_speex.c
+	tfft/fft_all.c
+	mca/mca.c
+	mca/cmca.c
+	mca/mca_ipc.c
+	mca/mca_local.c
+	mca/mca_all.c
+	atempo/atempo.c
+	atempo/atempo_sonic.c
+	atempo/atempo_ipc.c
+	atempo/atempo_all.c
+	player/player.c
+	xplayer/xplayer.c
+	xplayer/xplayer_yoc.c
+	xplayer/xplayer_tplayer.c
+	xplayer/xplayer_all.c
+	media/media.c
+	avdbus/dbus_utils.c
+	avdbus/media_client_dbus.c
+	avdbus/media_server_dbus.c
+)
+
+ADD_LIBRARY(av ${LIBSOURCE})
+
+INSTALL(TARGETS av DESTINATION ${INSTALL_PATH}/lib)
+INSTALL(DIRECTORY ./include DESTINATION ${INSTALL_PATH}/include)
+
+

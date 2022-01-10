@@ -42,7 +42,7 @@ fftx_t* fftx_new(size_t size)
         return NULL;
     }
 
-    fft = aos_zalloc(sizeof(fftx_t));
+    fft = av_zalloc(sizeof(fftx_t));
     CHECK_RET_TAG_WITH_GOTO(fft, err);
 
     rc = _fftx_ops->init(fft, size);
@@ -53,7 +53,7 @@ fftx_t* fftx_new(size_t size)
 
     return fft;
 err:
-    aos_free(fft);
+    av_free(fft);
     return NULL;
 }
 
@@ -105,7 +105,7 @@ int fftx_free(fftx_t *fft)
     CHECK_PARAM(fft, -1);
     fft->ops->uninit(fft);
     aos_mutex_free(&fft->lock);
-    aos_free(fft);
+    av_free(fft);
 
     return 0;
 }

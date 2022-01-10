@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <devices/driver.h>
+#include <aos/kernel.h>
 
 #ifndef __AOS_PCM__
 #define __AOS_PCM__
@@ -63,6 +63,7 @@ typedef enum _aos_pcm_access {
     AOS_PCM_ACCESS_LAST = AOS_PCM_ACCESS_RW_NONINTERLEAVED
 } aos_pcm_access_t;
 
+
 typedef int aos_pcm_uframes_t;
 typedef int aos_pcm_sframes_t;
 
@@ -103,52 +104,30 @@ typedef struct aos_pcm_sw_params {
 
 typedef struct _aos_pcm aos_pcm_t;
 
-typedef void (*pcm_event_cb)(aos_pcm_t *pcm, int event_id, void *priv);
-typedef struct {
-    pcm_event_cb cb;
-    void *priv;
-} pcm_event_cb_t;
-
 typedef struct aos_pcm_ops {
+    int (*open)(aos_pcm_t *pcm);
     int (*hw_params_set)(aos_pcm_t *pcm, struct aos_pcm_hw_params *params);
-    int (*hw_get_size)(aos_pcm_t *pcm);
-    int (*hw_get_remain_size)(aos_pcm_t *pcm);
-    int (*prepare)(aos_pcm_t *pcm);
     int (*pause)(aos_pcm_t *pcm, int enable);
     int (*write)(aos_pcm_t *pcm, void *buf, int size);
     int (*read)(aos_pcm_t *pcm, void *buf, int size);
-    int (*set_event)(aos_pcm_t *pcm, pcm_event_cb cb, void *priv);
+    int (*close)(aos_pcm_t *pcm);
+    int (*wait)(aos_pcm_t *pcm, int timeout);
+    int (*flush)(aos_pcm_t *pcm);
 } aos_pcm_ops_t;
 
 struct _aos_pcm {
-    const char *card_name;
-    const char *pcm_name;
+    char *name;
     void *hdl;
     aos_pcm_state_t state;
     aos_pcm_stream_t stream;
     int mode;
-    pcm_event_cb_t event;
-    int card;
-    int device;
-    int ref;
-    dev_ringbuf_t ringbuffer;
-
-    aos_mutex_t mutex;
-    aos_event_t evt;
-
     aos_pcm_hw_params_t *hw_params;
     aos_pcm_sw_params_t *sw_params;
-    struct aos_pcm_ops *ops;
-    slist_t next;
+    aos_mutex_t mutex;
+    aos_pcm_ops_t *ops;
 };
 
-typedef struct _aos_pcm_drv {
-    driver_t drv;
-    struct aos_pcm_ops ops;
-} aos_pcm_drv_t;
-
 typedef struct aos_pcm_dev {
-    aos_dev_t device;
     aos_pcm_t pcm;
 } aos_pcm_dev_t;
 

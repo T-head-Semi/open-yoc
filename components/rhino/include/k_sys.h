@@ -1,11 +1,13 @@
-/**
- * @file k_sys.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_SYS_H
 #define K_SYS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino sys
  *  OS system functions
@@ -13,11 +15,12 @@
  *  @{
  */
 
-#define RHINO_VERSION  12000
-#define RHINO_IDLE_PRI (RHINO_CONFIG_PRI_MAX - 1)
-#define RHINO_NO_WAIT      0u
-#define RHINO_WAIT_FOREVER ((uint64_t)-1)
-#define MAX_TIMER_TICKS ((tick_t)-1 >> 1)
+#define RHINO_VERSION       12000
+#define RHINO_IDLE_PRI      (RHINO_CONFIG_PRI_MAX - 1)
+
+#define RHINO_NO_WAIT       0u
+#define RHINO_WAIT_FOREVER  ((tick_t)-1)
+#define RHINO_MAX_TICKS     ((tick_t)-1 >> 1)
 
 typedef enum
 {
@@ -117,6 +120,10 @@ size_t krhino_global_space_get(void);
 uint32_t krhino_version_get(void);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_SYS_H */
 

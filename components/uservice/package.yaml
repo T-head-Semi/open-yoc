@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: uservice                                      # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.3                                     # <必选项> 组件版本号
+version: v7.5.0                                    # <必选项> 组件版本号
 description: uService (微服务) 是一种支持RPC请求/应用的交互，并支持状态消息发布的一种服务机制，客户端可以通过发送请求消息并待回复的方式调用uService(微服务)提供的服务，也可以通过订阅服务的事件，来处理服务的事件状态。 # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 tag: 核心模块                                       # <可选项> 组件分类，缺省值： ''
@@ -10,14 +10,13 @@ keywords:                                           # <可选项> 标签，会�
 license: Apache license v2.0                        # <可选项> 源代码的许可证，要确保所有代码、文件的许可证不冲突。如：MIT，Apache license v2.0，BSD
 
 ## 第二部分：依赖信息
-#           指定该组件依赖的组件及版本，版本支持条件比较，支持：>=v1.0, >v1.0, ==v1.0, <=v1.0, <v1.0, v1.0
-#           未指定条件时，默认为 ==，如 v1.0 与 ==v1.0
+#           指定该组件依赖的组件及版本
 # sdk_chip:                                # <可选项> 该组件依赖sdk组件，合理的依赖才能保证组件能编译、使用
-#   - sdk_chip_csky_dummy: v7.4.3
-#   - sdk_chip_riscv_dummy: v7.4.3
+#   - sdk_chip_csky_dummy: v7.4.0
+#   - sdk_chip_riscv_dummy: v7.4.0
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
-#   - minilibc: v7.2.0
-#   - aos: >=v7.2.0
+#   - minilibc: v7.4.0
+#   - aos: v7.4.0
 
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
@@ -55,6 +54,8 @@ source_file:
 #   CONFIG_DEBUG: y
 #   CONFIG_PARAM_NOT_CHECK: y
 #   CONFIG_CLI: y
+def_config:
+  CONFIG_USERVICE_EVENT_TASK_STACK_SIZE: 2048
 
 ## 第六部分：安装信息
 # install:

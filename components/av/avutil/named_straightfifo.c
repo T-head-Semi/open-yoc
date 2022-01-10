@@ -2,22 +2,9 @@
  * Copyright (C) 2018-2020 Alibaba Group Holding Limited
  */
 
+#include <stdarg.h>
 #include "avutil/named_straightfifo.h"
-#include <aos/list.h>
-
-struct named_sfifo {
-    char               *name;
-    int                ref;
-    sfifo_t            *sfifo;
-    aos_mutex_t        lock;
-    dlist_t            node;
-};
-
-static struct {
-    int                init;
-    dlist_t            head;
-    aos_mutex_t        lock;
-} g_fifo_list;
+#include "avutil/named_sfifo_cls.h"
 
 #define lock() aos_mutex_lock(&fifo->lock, AOS_WAIT_FOREVER);
 #define unlock() aos_mutex_unlock(&fifo->lock);
@@ -34,68 +21,56 @@ static struct {
  */
 nsfifo_t* nsfifo_open(const char *name, int mode, ...)
 {
+    int rc;
     va_list ap;
-    size_t size;
+    size_t size = 0;
     nsfifo_t *fifo = NULL;
-    sfifo_t *sfifo = NULL;
-    dlist_t *node  = &g_fifo_list.head;
+    struct nsfifo_cls *cls = NULL;
 
     CHECK_PARAM(name && strlen(name), NULL);
-    if (!g_fifo_list.init) {
-        dlist_init(&g_fifo_list.head);
-        aos_mutex_new(&g_fifo_list.lock);
-        g_fifo_list.init = 1;
-    }
+    if (mode & O_CREAT) {
+        va_start(ap, mode);
+        size = va_arg(ap, size_t);
+        va_end(ap);
 
-    aos_mutex_lock(&g_fifo_list.lock, AOS_WAIT_FOREVER);
-    if (!(mode & O_CREAT)) {
-        /* read only */
-        for (node = node->next; node != &g_fifo_list.head; node = node->next) {
-            fifo = list_entry(node, nsfifo_t, node);
-            if (!strcmp(fifo->name, name)) {
-                lock();
-                fifo->ref++;
-                unlock();
-                aos_mutex_unlock(&g_fifo_list.lock);
-
-                return fifo;
-            }
+        if (!size) {
+            LOGE(TAG, "param error!");
+            return NULL;
         }
-
-        fifo = NULL;
-        goto err;
     }
 
-    va_start(ap, mode);
-    size = va_arg(ap, size_t);
-    va_end(ap);
+    if (strncasecmp(name, "fifo", 4) == 0) {
+        extern struct nsfifo_cls nsfifo_cls_fifo;
 
-    if (!size)
-        goto err;
+        cls = &nsfifo_cls_fifo;
+        fifo = aos_zalloc(sizeof(nsfifo_t) + cls->priv_size);
+#ifdef __linux__
+    } else if (strncasecmp(name, "ififo", 4) == 0) {
+        extern struct nsfifo_cls nsfifo_cls_ififo;
 
-    sfifo = sfifo_create(size);
-    CHECK_RET_TAG_WITH_GOTO(sfifo, err);
+        cls = &nsfifo_cls_ififo;
+        fifo = aos_zalloc(sizeof(nsfifo_t) + cls->priv_size);
+#endif
+    }
 
-    fifo =(nsfifo_t*)aos_zalloc(sizeof(nsfifo_t));
-    CHECK_RET_TAG_WITH_GOTO(fifo, err);
+    if (!fifo) {
+        LOGE(TAG, "param error, may be oom or not support, name = %s", name);
+        return NULL;
+    }
+
+    fifo->cls  = cls;
+    fifo->size = size;
+    rc = fifo->cls->ops->init(fifo, name, mode);
+    if (rc) {
+        LOGE(TAG, "error. fifo init fail!");
+        av_free(fifo);
+        return NULL;
+    }
 
     fifo->name = strdup(name);
-    CHECK_RET_TAG_WITH_GOTO(fifo->name, err);
-
-    fifo->ref   = 1;
-    fifo->sfifo = sfifo;
     aos_mutex_new(&fifo->lock);
 
-    dlist_add_tail(&fifo->node, &g_fifo_list.head);
-    aos_mutex_unlock(&g_fifo_list.lock);
-
     return fifo;
-err:
-    aos_mutex_unlock(&g_fifo_list.lock);
-    sfifo_destroy(sfifo);
-    aos_free(fifo);
-
-    return NULL;
 }
 
 /**
@@ -107,12 +82,14 @@ err:
  */
 int nsfifo_get_rpos(nsfifo_t* fifo, char **pos, uint32_t timeout)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo && pos, -1);
-    ret = sfifo_get_rpos(fifo->sfifo, pos, timeout);
+    lock();
+    rc = fifo->cls->ops->get_rpos(fifo, pos, timeout);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -123,12 +100,14 @@ int nsfifo_get_rpos(nsfifo_t* fifo, char **pos, uint32_t timeout)
  */
 int nsfifo_set_rpos(nsfifo_t* fifo, size_t count)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo && count, -1);
-    ret = sfifo_set_rpos(fifo->sfifo, count);
+    lock();
+    rc = fifo->cls->ops->set_rpos(fifo, count);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -140,12 +119,14 @@ int nsfifo_set_rpos(nsfifo_t* fifo, size_t count)
  */
 int nsfifo_get_wpos(nsfifo_t* fifo, char **pos, uint32_t timeout)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo && pos, -1);
-    ret = sfifo_get_wpos(fifo->sfifo, pos, timeout);
+    lock();
+    rc = fifo->cls->ops->get_wpos(fifo, pos, timeout);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -156,12 +137,14 @@ int nsfifo_get_wpos(nsfifo_t* fifo, char **pos, uint32_t timeout)
  */
 int nsfifo_set_wpos(nsfifo_t* fifo, size_t count)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo && count, -1);
-    ret = sfifo_set_wpos(fifo->sfifo, count);
+    lock();
+    rc = fifo->cls->ops->set_wpos(fifo, count);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -173,12 +156,14 @@ int nsfifo_set_wpos(nsfifo_t* fifo, size_t count)
  */
 int nsfifo_set_eof(nsfifo_t* fifo, uint8_t reof, uint8_t weof)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo, -1);
-    ret = sfifo_set_eof(fifo->sfifo, reof, weof);
+    lock();
+    rc = fifo->cls->ops->set_eof(fifo, reof, weof);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -190,12 +175,14 @@ int nsfifo_set_eof(nsfifo_t* fifo, uint8_t reof, uint8_t weof)
  */
 int nsfifo_get_eof(nsfifo_t* fifo, uint8_t *reof, uint8_t *weof)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo, -1);
-    ret = sfifo_get_eof(fifo->sfifo, reof, weof);
+    lock();
+    rc = fifo->cls->ops->get_eof(fifo, reof, weof);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -205,12 +192,14 @@ int nsfifo_get_eof(nsfifo_t* fifo, uint8_t *reof, uint8_t *weof)
  */
 int nsfifo_reset(nsfifo_t *fifo)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo, -1);
-    ret = sfifo_reset(fifo->sfifo);
+    lock();
+    rc = fifo->cls->ops->reset(fifo);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -220,12 +209,14 @@ int nsfifo_reset(nsfifo_t *fifo)
  */
 int nsfifo_get_len(nsfifo_t *fifo)
 {
-    int ret;
+    int rc;
 
     CHECK_PARAM(fifo, -1);
-    ret = sfifo_get_len(fifo->sfifo);
+    lock();
+    rc = fifo->cls->ops->get_len(fifo);
+    unlock();
 
-    return ret;
+    return rc;
 }
 
 /**
@@ -235,34 +226,15 @@ int nsfifo_get_len(nsfifo_t *fifo)
  */
 int nsfifo_close(nsfifo_t *fifo)
 {
-    int ret = 0;
+    int rc = 0;
 
     CHECK_PARAM(fifo, -1);
-    aos_mutex_lock(&g_fifo_list.lock, AOS_WAIT_FOREVER);
-    lock();
-    fifo->ref--;
-    if (0 == fifo->ref) {
-        dlist_t *item, *tmp;
-        sfifo_destroy(fifo->sfifo);
+    fifo->cls->ops->uninit(fifo);
+    aos_mutex_free(&fifo->lock);
+    av_free(fifo->name);
+    av_free(fifo);
 
-        dlist_for_each_safe(item, tmp, &g_fifo_list.head) {
-            if (&fifo->node == item) {
-                dlist_del(item);
-                break;
-            }
-        }
-        aos_mutex_unlock(&g_fifo_list.lock);
-
-        unlock();
-        aos_mutex_free(&fifo->lock);
-        aos_free(fifo->name);
-        aos_free(fifo);
-        return ret;
-    }
-    unlock();
-    aos_mutex_unlock(&g_fifo_list.lock);
-
-    return ret;
+    return rc;
 }
 
 

@@ -68,6 +68,10 @@ void netmgr_event_cb(uint32_t event_id, const void *param, void *context)
     case EVENT_NETWORK_RESTART:
         uservice_call_async(netmgr_svc.srv, API_NET_RESET, (void *)&param, sizeof(netmgr_hdl_t));
         break;
+    case EVENT_WIFI_LINK_DOWN:
+        /* param as link donw reason */
+        uservice_call_async(netmgr_svc.srv, event_id, (void *)&param, 4);
+        break;
     default:
         uservice_call_async(netmgr_svc.srv, event_id, NULL, 0);
         break;
@@ -131,7 +135,7 @@ int netmgr_unreg_srv_func(int cmd_id, netmgr_srv_func func)
     slist_for_each_entry(&netmgr->srv_list, node, netmgr_srv_t, next) {
         if ((node->cmd_id == cmd_id) &&  (node->func == func)) {
             slist_del((slist_t *)node, &netmgr->srv_list);
-
+            aos_free(node);
             return 0;
         }
     }
@@ -169,6 +173,7 @@ int netmgr_reg_srv_func(int cmd_id, netmgr_srv_func func)
 int netmgr_start_dhcp(struct netmgr_uservice *netmgr, const char *name)
 {
     netmgr_dev_t *node = netmgr_find_dev(&netmgr->dev_list, name);
+    static int link_reason;
 
     if (node == NULL) {
         LOGE(TAG, "net device not found");
@@ -191,7 +196,8 @@ int netmgr_start_dhcp(struct netmgr_uservice *netmgr, const char *name)
     }
 
 failed:
-    event_publish(EVENT_NETMGR_NET_DISCON, (void*)NET_DISCON_REASON_DHCP_ERROR);
+    link_reason = NET_DISCON_REASON_DHCP_ERROR;
+    event_publish(EVENT_NETMGR_NET_DISCON, &link_reason);
 
     return -1;
 }
@@ -217,11 +223,13 @@ static int netmgr_check_dhcp(struct netmgr_uservice *netmgr, rpc_t *rpc)
 {
     netmgr_dev_t *node = netmgr_find_dev(&netmgr->dev_list, NULL);
     aos_dev_t *dev = node->dev;
+    static int link_reason;
 
     if (!netmgr_is_gotip(NULL) && netmgr_is_linkup(NULL)) {
         LOGE(TAG, "dhcp failed");
+        link_reason = NET_DISCON_REASON_DHCP_ERROR;
         hal_net_stop_dhcp(dev);
-        event_publish(EVENT_NETMGR_NET_DISCON, (void *)NET_DISCON_REASON_DHCP_ERROR);
+        event_publish(EVENT_NETMGR_NET_DISCON, &link_reason);
     }
 
     return 0;
@@ -498,6 +506,8 @@ void netmgr_service_deinit()
  */
 int netmgr_set_gotip(const char *name, int gotip)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     netmgr_dev_t *node = netmgr_find_dev(&netmgr_svc.dev_list, name);
 
     if (node) {
@@ -516,6 +526,8 @@ int netmgr_set_gotip(const char *name, int gotip)
  */
 int netmgr_set_linkup(const char *name, int linkup)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     netmgr_dev_t *node = netmgr_find_dev(&netmgr_svc.dev_list, name);
 
     if (node) {
@@ -534,6 +546,8 @@ int netmgr_set_linkup(const char *name, int linkup)
 
 netmgr_hdl_t netmgr_get_handle(const char *name)
 {
+    CHECK_PARAM(netmgr_svc.inited, NULL);
+
     netmgr_hdl_t hdl;
 
     if (netmgr_svc.srv == NULL) {
@@ -552,6 +566,8 @@ netmgr_hdl_t netmgr_get_handle(const char *name)
  */
 aos_dev_t *netmgr_get_dev(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, NULL);
+
     netmgr_dev_t *dev = (netmgr_dev_t *)hdl;
     aos_check_return_null(dev);
 
@@ -569,6 +585,8 @@ aos_dev_t *netmgr_get_dev(netmgr_hdl_t hdl)
  */
 int netmgr_ipconfig(netmgr_hdl_t hdl, int dhcp_en, char *ipaddr, char *netmask, char *gw)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     int ret = -1;
     param_ip_setting_t param;
     ip_setting_t *config = &param.config;
@@ -599,6 +617,8 @@ int netmgr_ipconfig(netmgr_hdl_t hdl, int dhcp_en, char *ipaddr, char *netmask, 
  */
 int netmgr_start(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+    
     int ret = 0;
     aos_check_return_einval(hdl);
 
@@ -615,6 +635,7 @@ int netmgr_start(netmgr_hdl_t hdl)
  */
 int netmgr_reset(netmgr_hdl_t hdl, uint32_t sec)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
     aos_check_return_einval(hdl);
 
     /*
@@ -641,6 +662,8 @@ int netmgr_reset(netmgr_hdl_t hdl, uint32_t sec)
  */
 int netmgr_stop(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     int ret = -1;
 
     aos_check_return_einval(hdl);
@@ -656,6 +679,8 @@ int netmgr_stop(netmgr_hdl_t hdl)
  */
 int netmgr_is_gotip(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     netmgr_dev_t *node = netmgr_find_dev(&netmgr_svc.dev_list, NULL);
 
     if (node) {
@@ -672,6 +697,8 @@ int netmgr_is_gotip(netmgr_hdl_t hdl)
  */
 int netmgr_is_linkup(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     netmgr_dev_t *node = netmgr_find_dev(&netmgr_svc.dev_list, NULL);
 
     if (node) {
@@ -688,6 +715,8 @@ int netmgr_is_linkup(netmgr_hdl_t hdl)
  */
 int netmgr_get_info(netmgr_hdl_t hdl)
 {
+    CHECK_PARAM(netmgr_svc.inited, -1);
+
     int ret = -1;
 
     aos_check_return_einval(hdl);

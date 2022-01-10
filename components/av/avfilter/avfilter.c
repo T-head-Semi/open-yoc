@@ -29,7 +29,7 @@ int avf_init(const char *inst_name, avfilter_t *avf)
 
     return 0;
 err:
-    aos_free(iname);
+    av_free(iname);
     avframe_free(&frame);
     return -1;
 }
@@ -160,7 +160,7 @@ int avf_uninit(avfilter_t *avf)
     CHECK_PARAM(avf, -1);
     avframe_free(&avf->oframe);
     aos_mutex_free(&avf->lock);
-    aos_free(avf->inst_name);
+    av_free(avf->inst_name);
 
     return rc;
 }
@@ -180,7 +180,7 @@ int avf_close(avfilter_t *avf)
     aos_mutex_unlock(&avf->lock);
 
     avf_uninit(avf);
-    aos_free(avf);
+    av_free(avf);
 
     return rc;
 }

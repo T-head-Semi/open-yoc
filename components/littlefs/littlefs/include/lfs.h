@@ -15,24 +15,13 @@ extern "C"
 {
 #endif
 
-struct statfs {
-    long f_type;    /* fs type */
-    long f_bsize;   /* optimized transport block size */
-    long f_blocks;  /* total blocks */
-    long f_bfree;   /* available blocks */
-    long f_bavail;  /* number of blocks that non-super users can acquire */
-    long f_files;   /* total number of file nodes */
-    long f_ffree;   /* available file nodes */
-    long f_fsid;    /* fs id */
-    long f_namelen; /* max file name length */
-};
 
 /// Version info ///
 
 // Software library version
 // Major (top-nibble), incremented on backwards incompatible changes
 // Minor (bottom-nibble), incremented on feature additions
-#define LFS_VERSION 0x00020001
+#define LFS_VERSION 0x00020002
 #define LFS_VERSION_MAJOR (0xffff & (LFS_VERSION >> 16))
 #define LFS_VERSION_MINOR (0xffff & (LFS_VERSION >>  0))
 
@@ -82,6 +71,7 @@ typedef uint32_t lfs_block_t;
 enum lfs_error {
     LFS_ERR_OK          = 0,    // No error
     LFS_ERR_IO          = -5,   // Error during device operation
+    LFS_ERR_BROKEN_CTZ  = -83,  // ctz corrupted
     LFS_ERR_CORRUPT     = -84,  // Corrupted
     LFS_ERR_NOENT       = -2,   // No directory entry
     LFS_ERR_EXIST       = -17,  // Entry already exists
@@ -166,24 +156,29 @@ struct lfs_config {
 
     // Read a region in a block. Negative error codes are propogated
     // to the user.
-    int32_t (*read)(const struct lfs_config *c, lfs_block_t block,
+    int (*read)(const struct lfs_config *c, lfs_block_t block,
             lfs_off_t off, void *buffer, lfs_size_t size);
 
     // Program a region in a block. The block must have previously
     // been erased. Negative error codes are propogated to the user.
     // May return LFS_ERR_CORRUPT if the block should be considered bad.
-    int32_t (*prog)(const struct lfs_config *c, lfs_block_t block,
+    int (*prog)(const struct lfs_config *c, lfs_block_t block,
             lfs_off_t off, const void *buffer, lfs_size_t size);
 
     // Erase a block. A block must be erased before being programmed.
     // The state of an erased block is undefined. Negative error codes
     // are propogated to the user.
     // May return LFS_ERR_CORRUPT if the block should be considered bad.
-    int32_t (*erase)(const struct lfs_config *c, lfs_block_t block);
+    int (*erase)(const struct lfs_config *c, lfs_block_t block);
 
     // Sync the state of the underlying block device. Negative error codes
     // are propogated to the user.
-    int32_t (*sync)(const struct lfs_config *c);
+    int (*sync)(const struct lfs_config *c);
+
+#ifdef AOS_COMP_NFTL
+    // Notify gabage
+    int (*nty_gc)(const struct lfs_config *c, lfs_block_t block);
+#endif
 
     // Minimum size of a block read. All read operations will be a
     // multiple of this value.
@@ -366,6 +361,11 @@ typedef struct lfs_superblock {
     lfs_size_t attr_max;
 } lfs_superblock_t;
 
+typedef struct lfs_gstate {
+    uint32_t tag;
+    lfs_block_t pair[2];
+} lfs_gstate_t;
+
 // The littlefs filesystem type
 typedef struct lfs {
     lfs_cache_t rcache;
@@ -380,10 +380,9 @@ typedef struct lfs {
     } *mlist;
     uint32_t seed;
 
-    struct lfs_gstate {
-        uint32_t tag;
-        lfs_block_t pair[2];
-    } gstate, gpending, gdelta;
+    lfs_gstate_t gstate;
+    lfs_gstate_t gdisk;
+    lfs_gstate_t gdelta;
 
     struct lfs_free {
         lfs_block_t off;
@@ -401,6 +400,8 @@ typedef struct lfs {
 #ifdef LFS_MIGRATE
     struct lfs1 *lfs1;
 #endif
+
+    lfs_size_t total_used_blk;
 } lfs_t;
 
 
@@ -644,6 +645,13 @@ lfs_ssize_t lfs_fs_size(lfs_t *lfs);
 //
 // Returns a negative error code on failure.
 int lfs_fs_traverse(lfs_t *lfs, int (*cb)(void*, lfs_block_t), void *data);
+
+// Clean up the gargage in the fielsystem.
+//
+// This function will notify all non-used blocks currently in system.
+// 
+// Returns 0 if success, otherwise failure.
+int lfs_fs_cleanup(lfs_t *lfs);
 
 #ifdef LFS_MIGRATE
 // Attempts to migrate a previous version of littlefs

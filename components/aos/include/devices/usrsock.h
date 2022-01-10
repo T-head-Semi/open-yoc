@@ -22,8 +22,8 @@ extern "C" {
 #define usrsock_close(dev) device_close(dev)
 
 void usrsock_initialize(void);
-int usrsock_write(aos_dev_t *dev, const void *data, uint32_t size);
-int usrsock_read(aos_dev_t *dev, void *data, uint32_t size);
+int usrsock_write(aos_dev_t *dev, const void *data, size_t size);
+int usrsock_read(aos_dev_t *dev, void *data, size_t size);
 void usrsock_set_event(aos_dev_t *dev,
                        void (*event)(aos_dev_t *dev, int event_id, void *priv),
                        void *priv);

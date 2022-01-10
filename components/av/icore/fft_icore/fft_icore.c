@@ -62,7 +62,7 @@ fft_icore_t* fft_icore_new(size_t size)
     fft_icore_new_t *inp;
 
     CHECK_PARAM(size, NULL);
-    hdl = aos_zalloc(sizeof(fft_icore_t));
+    hdl = av_zalloc(sizeof(fft_icore_t));
     CHECK_RET_TAG_WITH_RET(hdl, NULL);
 
     in_mb = mblock_new(FFT_MB_SIZE_DEFAULT, 16);
@@ -72,7 +72,7 @@ fft_icore_t* fft_icore_new(size_t size)
     msg_new = icore_msg_new(ICORE_CMD_FFT_NEW, sizeof(fft_icore_new_t));
     CHECK_RET_TAG_WITH_GOTO(msg_new, err);
 
-    priv = aos_zalloc(sizeof(struct fft_icore_ap_priv));
+    priv = av_zalloc(sizeof(struct fft_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(priv, err);
 
     inp = icore_get_msg(msg_new, fft_icore_new_t);
@@ -93,8 +93,8 @@ err:
     mblock_free(in_mb);
     mblock_free(out_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -213,8 +213,8 @@ int fft_icore_free(fft_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

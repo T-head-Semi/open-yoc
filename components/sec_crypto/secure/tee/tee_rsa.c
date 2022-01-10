@@ -184,15 +184,15 @@ bool sc_rsa_verify(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32_t
     tee_rsa_sign_type_e types[] = {TEE_RSA_MD5,    TEE_RSA_SHA1,          TEE_RSA_SIGN_TYPE_MAX,
                                    TEE_RSA_SHA256, TEE_RSA_SIGN_TYPE_MAX, TEE_RSA_SIGN_TYPE_MAX};
 
-    CHECK_PARAM(rsa, SC_PARAM_INV);
-    CHECK_PARAM(context, SC_PARAM_INV);
-    CHECK_PARAM(src, SC_PARAM_INV);
-    CHECK_PARAM(signature, SC_PARAM_INV);
+    CHECK_PARAM(rsa, false);
+    CHECK_PARAM(context, false);
+    CHECK_PARAM(src, false);
+    CHECK_PARAM(signature, false);
     uint32_t ret;
 
     /* src:degist */
     sc_common_set_key_bits(rsa, context);
-    CHECK_PARAM(context->key_bits != 0, SC_PARAM_INV);
+    CHECK_PARAM(context->key_bits != 0, false);
     ret = csi_tee_rsa_verify(src, src_size, (const uint8_t *)context->n,
                              (context->key_bits / 8) * 2, signature, sig_size, types[hash_type]);
   /* ret  suc: 0  failed:other */

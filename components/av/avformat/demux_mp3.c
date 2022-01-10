@@ -65,7 +65,7 @@ static int _demux_mp3_open(demux_cls_t *o)
     struct mp3_priv *priv;
     struct mp3_hdr_info *hinfo;
 
-    priv = aos_zalloc(sizeof(struct mp3_priv));
+    priv = av_zalloc(sizeof(struct mp3_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     o->priv = priv;
 
@@ -102,7 +102,7 @@ static int _demux_mp3_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return -1;
 }
@@ -111,7 +111,7 @@ static int _demux_mp3_close(demux_cls_t *o)
 {
     struct mp3_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }
@@ -157,8 +157,11 @@ resync:
         }
     }
     if (rc > 0) {
-        /* guess may be wrong, judge twice needed*/
-        mp3_guess = rc;
+        //FIXME:
+        if (stream_is_seekable(o->s)) {
+            /* guess may be wrong, judge twice needed*/
+            mp3_guess = rc;
+        }
     }
 
     if (pkt->size < info.framesize) {

@@ -1,11 +1,14 @@
-/**
- * @file k_mm.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_MM_H
 #define K_MM_H
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino mm
  *  Heap memory management.
@@ -14,6 +17,12 @@
  */
 
 #if (RHINO_CONFIG_MM_TLF > 0)
+#define KMM_ERROR_LOCKED        1
+#define KMM_ERROR_UNLOCKED      0
+
+#if (RHINO_CONFIG_MM_DEBUG && (RHINO_CONFIG_MM_TRACE_LVL > 0))
+#define KMM_BT_SET_BY_KV        1
+#endif
 
 /**
  * Heap useage size statistic
@@ -49,21 +58,25 @@
 /**
  * Min size of memory heap
  */
-#define MIN_FREE_MEMORY_SIZE    1024
+#define MM_MIN_HEAP_SIZE        1024
 
-/**
- * Bit0 of 'k_mm_head.buf_size' indicate this buffer is free or not
- */
-#define RHINO_MM_CURSTAT_MASK   0x1
-#define RHINO_MM_FREE           1
-#define RHINO_MM_ALLOCED        0
+/* magic word for check overwrite or corrupt */
+#define MM_DYE_USED             0xFEFE
+#define MM_DYE_FREE             0xABAB
 
-/**
- * Bit1 of 'k_mm_head.buf_size' indicate the previous buffer is free or not
- */
-#define RHINO_MM_PRESTAT_MASK   0x2
-#define RHINO_MM_PREVFREE       2
-#define RHINO_MM_PREVALLOCED    0
+#define MM_OWNER_ID_SELF        0xFF
+
+#define MM_CURSTAT_MASK         0x1
+#define MM_PRESTAT_MASK         0x2
+
+/* bit 0 */
+#define MM_BUFF_FREE            1
+#define MM_BUFF_USED            0
+
+/* bit 1 */
+#define MM_BUFF_PREV_FREE       2
+#define MM_BUFF_PREV_USED       0
+
 
 /**
  * Buffer head size
@@ -87,6 +100,7 @@
  */
 #define MM_GET_THIS_BLK(buf)    ((k_mm_list_t *)((char *)(buf)-MMLIST_HEAD_SIZE))
 
+#define MM_LAST_BLK_MAGIC       0x11224433
 
 #if (RHINO_CONFIG_MM_REGION_MUTEX == 0)
 /**
@@ -95,7 +109,7 @@
  */
 #define MM_CRITICAL_ENTER(pmmhead,flags_cpsr) krhino_spin_lock_irq_save(&(pmmhead->mm_lock),flags_cpsr);
 #define MM_CRITICAL_EXIT(pmmhead,flags_cpsr)  krhino_spin_unlock_irq_restore(&(pmmhead->mm_lock),flags_cpsr);
-#else
+#else /* (RHINO_CONFIG_MM_REGION_MUTEX != 0) */
 /**
  * MM critical section strategy:
  * Task blocked
@@ -129,15 +143,17 @@ typedef struct free_ptr_struct {
 /**
  * memory buffer head
  */
+#define ALIGN_UP_2(a) ((a % 2 == 0) ? a : (a + 1))
+
 typedef struct k_mm_list_struct {
 #if (RHINO_CONFIG_MM_DEBUG > 0)
-    /**<
-     * Magic word:
-     * RHINO_MM_FREE_DYE, when buffer is free
-     * RHINO_MM_CORRUPT_DYE, when buffer is alloced
-     */
-    size_t dye;
-    size_t owner;   /**< buffer alloc owner */
+    uint16_t dye;
+    uint8_t owner_id;
+    uint8_t trace_id;
+    size_t owner;
+#if (RHINO_CONFIG_MM_TRACE_LVL > 0)
+    void  *trace[ALIGN_UP_2(RHINO_CONFIG_MM_TRACE_LVL)];
+#endif
 #endif
     struct k_mm_list_struct *prev;
     /**<
@@ -185,7 +201,7 @@ typedef struct {
     size_t used_size;
     size_t maxused_size;
     size_t free_size;
-    size_t alloc_times[MM_BIT_LEVEL];
+    size_t alloc_times[MM_BIT_LEVEL]; /* number of times for each TLF level */
 #endif
     /**< msb (MM_BIT_LEVEL-1) <-> lsb 0, one bit match one freelist */
     uint32_t free_bitmap;
@@ -259,6 +275,10 @@ size_t krhino_mm_max_free_size_get(void);
 #endif /* RHINO_CONFIG_MM_TLF > 0 */
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_MM_H */
 

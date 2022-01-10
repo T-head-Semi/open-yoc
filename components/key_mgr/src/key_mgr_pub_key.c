@@ -1,6 +1,7 @@
 /**
 * Copyright (C) 2017 C-SKY Microsystems Co., All rights reserved.
 */
+#ifndef CONFIG_KEY_MGR_NO_PUB_PARTITION
 
 #include "key_mgr_pub_key.h"
 #include "key_mgr.h"
@@ -15,7 +16,9 @@
 #include "yoc/partition.h"
 #include "verify_wrapper.h"
 #if CONFIG_TB_KP > 0
+#if (CONFIG_KEY_FROM_OTP > 0)
 #include "tee_addr_map.h"
+#endif
 #endif
 #include <soc.h>
 
@@ -137,7 +140,7 @@ uint32_t km_pub_key_init(void)
 
 static pub_key_info_t g_pub_key_info;
 
-static int get_pub_key_from_pkey_part(const char *pub_key_name, uint32_t *key_addr, uint32_t *key_len, int *index)
+static int get_pub_key_from_pkey_part(const char *pub_key_name, unsigned long *key_addr, uint32_t *key_len, int *index)
 {
     int i;
 
@@ -150,7 +153,7 @@ static int get_pub_key_from_pkey_part(const char *pub_key_name, uint32_t *key_ad
         pk_info_t *pk_info = &g_pub_key_info.pk_info[i];
         if (strncmp(pub_key_name, pk_info->name, sizeof(pk_info->name)) == 0
             && pk_info->invalid == 0) {
-            *key_addr = (uint32_t)pk_info->key;
+            *key_addr = (unsigned long)pk_info->key;
             *key_len = pk_info->key_size;
             if (index)
                 *index = i;
@@ -166,7 +169,7 @@ static int pkey_part_init(uint32_t part_start, uint32_t part_end)
 {
     int i;
     int size, body_size;
-    uint32_t offset;
+    unsigned long offset;
     pkey_t * pkey;
 
     KM_LOGD("pk init start:0x%x,end:0x%x", part_start, part_end);
@@ -207,13 +210,13 @@ static int pkey_part_init(uint32_t part_start, uint32_t part_end)
         }
 
         KM_LOGD("pkey real size:0x%x", size);
-        pkey = (pkey_t *)((uint32_t)buf + sizeof(pkey_head_t));
+        pkey = (pkey_t *)((unsigned long)buf + sizeof(pkey_head_t));
         i = 0;
         while (i < body_size) {
             int data_len = get_length_with_signature_type(pkey->type);
             pk_info_t pk_info;
             KM_LOGD("%s,type:%d, data_len:%d", pkey->name, pkey->type, data_len);
-            offset = (uint32_t)(pkey + 1);
+            offset = (unsigned long)(pkey + 1);
             strncpy(pk_info.name, pkey->name, PUBLIC_KEY_NAME_SIZE);
             memcpy(pk_info.key, (uint8_t *)offset, MIN(data_len, sizeof(pk_info.key)));
             pk_info.key_size = data_len;
@@ -312,7 +315,9 @@ static int kp_check(uint8_t *kp_data)
 }
 #endif /* CONFIG_TB_KP */
 
-static uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part_end, 
+
+
+uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part_end, 
                                       uint32_t pkey_part_start, uint32_t pkey_part_end)
 {
     int ret;
@@ -327,9 +332,15 @@ static uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part
 #if CONFIG_TB_KP > 0
     int i;
     uint32_t otp_part_size;
-    uint8_t buf[CONFIG_OTP_BANK_SIZE];
+	//uint8_t buf[CONFIG_OTP_BANK_SIZE];
+	uint8_t* buf = (uint8_t*)malloc(CONFIG_OTP_BANK_SIZE);
     manifest_idx_head_t *idx_head;
     otp_pub_key_head_t * otp_pub_start;
+
+    if (!buf) {
+        KM_LOGE("malloc fail");
+        goto fail;
+    }
 
     KM_LOGD("otp init start:0x%x,end:0x%x", otp_part_start, otp_part_end);
     otp_part_size = otp_part_end - otp_part_start;
@@ -401,7 +412,7 @@ static uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part
     i = 0;
     while (i < pr_body_len) {
         int data_len;
-        uint32_t key_addr = INVALID_ADDR, key_len = 0;
+        unsigned long key_addr = INVALID_ADDR, key_len = 0;
         otp_pub_key_store_t *store = (otp_pub_key_store_t *)p;
 
         data_len = get_length_with_type(store->type);
@@ -437,7 +448,8 @@ static uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part
             key_addr = (uint32_t)(store + 1);
             key_len = data_len;
         }
-        uint32_t a,b;
+        unsigned long a;
+        uint32_t b;
         if (get_pub_key_from_pkey_part(store->name, &a, &b, &index) == 0) {
             // 替换原来的pubkey
             g_pub_key_info.pk_info[index].key_size = MIN(key_len, MAX_PUB_KEY_SIZE);
@@ -460,9 +472,15 @@ static uint32_t pub_key_init_internal(uint32_t otp_part_start, uint32_t otp_part
         p += data_len + sizeof(otp_pub_key_store_t);
     }
     KM_LOGD("pub key init ok");
+	free(buf);
     return 0;
 fail:
 #endif /* CONFIG_TB_KP */
+#if CONFIG_TB_KP > 0
+    if (buf) {
+	    free(buf);
+    }
+#endif
     return ret;
 }
 
@@ -470,7 +488,7 @@ uint32_t km_get_pub_key_with_name(const char *pub_key_name, key_handle *key_addr
 {
     int i;
 
-    if (get_pub_key_from_pkey_part(pub_key_name, key_addr, key_len, &i))
+    if (get_pub_key_from_pkey_part(pub_key_name, (unsigned long *)key_addr, key_len, &i))
         return KM_ERR;
     return 0;
 }
@@ -529,3 +547,4 @@ uint32_t km_pub_key_init(void)
 }
 
 #endif /* defined(CONFIG_CHIP_CH2201) */
+#endif

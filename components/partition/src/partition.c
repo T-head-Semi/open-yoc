@@ -13,7 +13,9 @@
 #include <drv/tee.h>
 #endif
 
+#ifndef SHOW_PART_INFO_EN
 #define SHOW_PART_INFO_EN 0
+#endif
 
 #define MAX_FLASH_NUM CONFIG_FLASH_NUM
 
@@ -61,12 +63,15 @@ int partition_init(void)
         partition_flash_info_get(temp_flash_dev, &cur_flash_info);
         if (cur_flash_info.sector_count > 0) {
 #if SHOW_PART_INFO_EN
-            printf("#############################[flash_idx:%d]\n", flash_idx);
+            printf("#############################[flash_idx:%d, part_num:%d]\n", flash_idx, num);
 #endif
             for (i = 0; i < num; i++) {
                 if ((cur_flash_info.start_addr <= part_info[i].part_addr) &&
                     ((part_info[i].part_addr + part_info[i].part_size) <= (cur_flash_info.start_addr + cur_flash_info.sector_size * cur_flash_info.sector_count))) {
                     partition_info_t *scn = &g_partion_array.scn_list[i];
+                    if (scn->sector_size == 0) {
+                        g_partion_array.num ++;
+                    }
                     memcpy(scn->description, part_info[i].image_name, MTB_IMAGE_NAME_SIZE);
                     scn->base_addr = cur_flash_info.start_addr;
                     scn->start_addr = part_info[i].part_addr - cur_flash_info.start_addr;
@@ -106,11 +111,11 @@ int partition_init(void)
         flash_idx++;
     }
 
-    g_partion_array.num = num;
-
     g_part_init_ok = 1;
-
-    return num;
+#if SHOW_PART_INFO_EN
+    printf("g_partion_array.num:%d\n", g_partion_array.num);
+#endif
+    return g_partion_array.num;
 }
 
 partition_info_t *partition_info_get(partition_t partition)
@@ -132,9 +137,9 @@ partition_t partition_open(const char *name)
     if (name == NULL) {
         return -EINVAL;
     }
+    len = strlen(name);
+    len = len > MTB_IMAGE_NAME_SIZE ? MTB_IMAGE_NAME_SIZE : len;    
     for (int i = 0; i < g_partion_array.num; i++) {
-        len = strlen(name);
-        len = len > MTB_IMAGE_NAME_SIZE ? MTB_IMAGE_NAME_SIZE : len;
         if (memcmp(name, g_partion_array.scn_list[i].description, len) == 0) {
             if (g_partion_array.scn_list[i].flash_dev == NULL) {
                 void *flash_dev = partition_flash_open(g_partion_array.scn_list[i].idx);
@@ -200,57 +205,83 @@ int partition_erase(partition_t partition, off_t off_set, uint32_t block_count )
 
 int partition_get_digest(partition_t partition, uint8_t *out_hash, uint32_t *out_len)
 {
+#define READ_SIZE (1024 + 32)
 #define TAIL_BUFF_SIZE (sizeof(partition_tail_head_t) + 128)
+    bool got_flag;
+    uint8_t *buffer;
+    int offset;
     uint8_t tail_buf[TAIL_BUFF_SIZE];
-    partition_header_t header = {0};
+    partition_header_t *phead;
     partition_tail_head_t *tail = NULL;
 
     if (!(out_hash && out_len)) {
         return -EINVAL;
     }
-
-    if (partition_read(partition, 0, &header, sizeof(partition_header_t)) == 0) {
-        if (memcmp((const void *)&header.magic, (const void *)PARTITION_HEAD_MAGIC, 4) == 0
-            && memcmp((const void *)&header.size, (const void *)PARTITION_HEAD_MAGIC, 4) != 0) {
-            uint32_t img_content_size = header.size;
-            uint32_t tail_offset = sizeof(partition_header_t) + img_content_size;
-            tail = (partition_tail_head_t *)tail_buf;
-
-            if (partition_read(partition, tail_offset, (void *)tail, TAIL_BUFF_SIZE) == 0) {
-                switch(tail->digestType) {
-                    case DIGEST_HASH_SHA1:
-                        *out_len = 20;
-                        memcpy(out_hash, tail->digest_data, 20);
-                        break;
-                    case DIGEST_HASH_MD5:
-                        *out_len = 16;
-                        memcpy(out_hash, tail->digest_data, 16);
-                        break;
-                    case DIGEST_HASH_SHA224:
-                        *out_len = 28;
-                        memcpy(out_hash, tail->digest_data, 28);
-                        break;
-                    case DIGEST_HASH_SHA256:
-                        *out_len = 32;
-                        memcpy(out_hash, tail->digest_data, 32);
-                        break;
-                    case DIGEST_HASH_SHA384:
-                        *out_len = 48;
-                        memcpy(out_hash, tail->digest_data, 48);
-                        break;
-                    case DIGEST_HASH_SHA512:
-                        *out_len = 64;
-                        memcpy(out_hash, tail->digest_data, 64);
-                        break;
-                    default:
-                        goto fail;
-                }
-                return 0;
+    buffer = malloc(READ_SIZE);
+    if (buffer == NULL) {
+        return -ENOMEM;
+    }
+    if (partition_read(partition, 0, buffer, READ_SIZE) != 0) {
+        goto fail;
+    }
+    got_flag = false;
+    offset = 0;
+    while (offset < READ_SIZE) {
+        phead = (partition_header_t *)&buffer[offset];
+        if (memcmp((uint8_t *)&phead->magic, PARTITION_HEAD_MAGIC, 4) == 0
+            && memcmp((uint8_t *)&phead->size, (const void *)PARTITION_HEAD_MAGIC, 4) != 0) {
+            got_flag = true;
+            break;
+        }
+        offset += 1;
+    }
+    // printf("offset:%d\r\n", offset);
+    if (got_flag) {
+        uint32_t img_content_size = phead->size;
+        uint32_t tail_offset = sizeof(partition_header_t) + img_content_size + offset;
+        partition_info_t *node = hal_flash_get_info(partition);
+        // printf("img_content_size:%d, node->length: %d, tail_offset:%d\r\n", img_content_size, node->length, tail_offset);
+        if (img_content_size > node->length) {
+            goto fail;
+        }
+        tail = (partition_tail_head_t *)tail_buf;
+        if (partition_read(partition, tail_offset, (void *)tail, TAIL_BUFF_SIZE) == 0) {
+            // printf("tail->digestType:%d\r\n", tail->digestType);
+            switch(tail->digestType) {
+                case DIGEST_HASH_SHA1:
+                    *out_len = 20;
+                    memcpy(out_hash, tail->digest_data, 20);
+                    break;
+                case DIGEST_HASH_MD5:
+                    *out_len = 16;
+                    memcpy(out_hash, tail->digest_data, 16);
+                    break;
+                case DIGEST_HASH_SHA224:
+                    *out_len = 28;
+                    memcpy(out_hash, tail->digest_data, 28);
+                    break;
+                case DIGEST_HASH_SHA256:
+                    *out_len = 32;
+                    memcpy(out_hash, tail->digest_data, 32);
+                    break;
+                case DIGEST_HASH_SHA384:
+                    *out_len = 48;
+                    memcpy(out_hash, tail->digest_data, 48);
+                    break;
+                case DIGEST_HASH_SHA512:
+                    *out_len = 64;
+                    memcpy(out_hash, tail->digest_data, 64);
+                    break;
+                default:
+                    goto fail;
             }
+            free(buffer);
+            return 0;
         }
     }
 
 fail:
+    free(buffer);
     return -1;
 }
 

@@ -1,11 +1,13 @@
-/**
- * @file k_queue.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_QUEUE_H
 #define K_QUEUE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino queue
  *  Queue can be used for synchronous communication between tasks.
@@ -150,6 +152,10 @@ kstat_t krhino_queue_flush(kqueue_t *queue);
 kstat_t krhino_queue_info_get(kqueue_t *queue, msg_info_t *info);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_QUEUE_H */
 

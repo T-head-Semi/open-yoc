@@ -44,7 +44,7 @@ typedef enum {
  * \brief    GPIO mode define
  */
 typedef enum {
-    GPIO_MODE_PULLNONE         = 0,    ///< Pull none for input
+    GPIO_MODE_PULLNONE         = 0,    ///< Pull none
     GPIO_MODE_PULLUP,                  ///< Pull up for input
     GPIO_MODE_PULLDOWN,                ///< Pull down for input
     GPIO_MODE_OPEN_DRAIN,              ///< Open drain mode for output

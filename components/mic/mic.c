@@ -12,7 +12,7 @@
 #define TAG "mic"
 
 #define FRAME_SIZE ((16000 / 1000) * (16 / 8) * 20) /* 640 */
-#define RINGBUFFER_SIZE (FRAME_SIZE * 20 + 1) /* 20ms * 20 */
+#define RINGBUFFER_SIZE (FRAME_SIZE * CONFIG_MIC_RINGBUF_RAME + 1) /* 20ms * 20 */
 
 typedef enum {
     MIC_MIC_DATA,
@@ -159,20 +159,15 @@ static void mic_event_hdl(void *priv, mic_event_id_t event_id, void *data, int s
 
     if (event_id == MIC_EVENT_SESSION_START) {
         if (data != NULL) {
-            /* FIXME: check it for wrong happen easily here */
-            aos_check_return(size >= sizeof(mic_kws_t));
             mic_kws_t *k = aos_zalloc_check(sizeof(mic_kws_t));
-            mic_kws_t *k_temp = (mic_kws_t*)data;
-
-            k->id = k_temp->id;
-            if (k_temp->word != NULL) {
-                k->word = strdup(k_temp->word);
-            }
+            // TODO: 这里处理逻辑有误，data是kws函数的返回，kws返回类型是int型(参考voice_ai.h：24)
+            // 所以data不可能有word成员
+            k->id = *(int *)data;
+            k->word = NULL;
             param.ptr = k;
         }
     } else if (event_id == MIC_EVENT_VAD) {
         /* 唤醒的类型和VAD值通过 data指针传递，是一个局部变量，异步抛出需要复制该值 */
-        aos_check_return(size >= sizeof(int));
         param.ival = *((int *)data);
     } else if (event_id == MIC_EVENT_SESSION_STOP) {
     }
@@ -193,7 +188,7 @@ static void mic_event_hdl(void *priv, mic_event_id_t event_id, void *data, int s
         len = audio_write(audio_type, data, size);
 
         if (len < size) {
-            LOGE(TAG, "audio(%d) is full", audio_type);
+            LOGE(TAG, "audio(%d) is full, len(%d), size(%d)", audio_type, len, size);
         }
 
         if (mic->evt_cnt < 2) {
@@ -474,9 +469,10 @@ int aui_mic_control(mic_ctrl_cmd_t cmd, ...)
         }
     } else if (cmd == MIC_CTRL_START_SESSION) {
         int enable = va_arg(ap, int);
+        int vad_flag = va_arg(ap, int);
 
         if (mic->ops->kws_wakeup) {
-            mic->ops->kws_wakeup(mic, enable);
+            mic->ops->kws_wakeup(mic, enable, vad_flag);
         }
     } else {
         if (mic->ops->ai_ctl) {

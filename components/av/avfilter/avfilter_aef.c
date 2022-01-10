@@ -89,7 +89,7 @@ avfilter_t *avf_aef_open(const char *inst_name, const aef_avfp_t *aefp)
         LOGE(TAG, "aef param failed");
         return NULL;
     }
-    dobj = aos_zalloc(sizeof(struct avfilter_aef));
+    dobj = av_zalloc(sizeof(struct avfilter_aef));
     CHECK_RET_TAG_WITH_RET(dobj, NULL);
     f       = (avfilter_t*)dobj;
     f->ops  = &avf_ops_aef;
@@ -112,7 +112,7 @@ avfilter_t *avf_aef_open(const char *inst_name, const aef_avfp_t *aefp)
     return (avfilter_t*)dobj;
 err:
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

@@ -1,11 +1,13 @@
-/**
- * @file k_event.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_EVENT_H
 #define K_EVENT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino event
  *  Event can be used for tasks synchronize.
@@ -122,6 +124,10 @@ kstat_t krhino_event_get(kevent_t *event, uint32_t flags, uint8_t opt,
 kstat_t krhino_event_set(kevent_t *event, uint32_t flags, uint8_t opt);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_EVENT_H */
 

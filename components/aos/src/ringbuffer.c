@@ -59,7 +59,6 @@ int ringbuffer_write(dev_ringbuf_t *ringbuffer, uint8_t *data, uint32_t length)
     }
 
     for (i = 0; i < length; i++) {
-
         ringbuffer->buffer[ringbuffer->widx] = data[i];
 
         ringbuffer->widx++;

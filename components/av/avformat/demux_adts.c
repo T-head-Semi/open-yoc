@@ -51,7 +51,7 @@ static int _demux_adts_open(demux_cls_t *o)
     uint8_t *extradata = NULL;
     struct adts_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct adts_priv));
+    priv = av_zalloc(sizeof(struct adts_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     rc = adts_sync(sync_read_stream, o->s, ADTS_SYNC_HDR_MAX, hdr, &priv->hinfo);
@@ -60,7 +60,7 @@ static int _demux_adts_open(demux_cls_t *o)
         goto err;
     } else {
         flen      = priv->hinfo.flen;
-        extradata = aos_zalloc(flen);
+        extradata = av_zalloc(flen);
         CHECK_RET_TAG_WITH_GOTO(extradata, err);
         priv->start_pos = stream_tell(o->s) - ADTS_HDR_SIZE;
         memcpy(extradata, hdr, ADTS_HDR_SIZE);
@@ -82,8 +82,8 @@ static int _demux_adts_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
-    aos_free(extradata);
+    av_free(priv);
+    av_free(extradata);
     return -1;
 }
 
@@ -91,7 +91,7 @@ static int _demux_adts_close(demux_cls_t *o)
 {
     struct adts_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

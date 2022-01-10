@@ -40,7 +40,7 @@ static aos_pcm_t *pcm_init(ao_cls_t *o, unsigned int *rate)
         LOGE(TAG, "Sample format non available");
     }
 
-    err = aos_pcm_hw_params_set_channels(pcm, params, 1);
+    err = aos_pcm_hw_params_set_channels(pcm, params, CONFIG_AV_AO_CHANNEL_NUM);
 
     if (err < 0) {
         LOGE(TAG, "Channels count non available");
@@ -60,12 +60,12 @@ static aos_pcm_t *pcm_init(ao_cls_t *o, unsigned int *rate)
     return pcm;
 }
 
-static int _ao_alsa_open(ao_cls_t *o, sf_t sf)
+static int _ao_minialsa_open(ao_cls_t *o, sf_t sf)
 {
     unsigned int rate;
     struct ao_alsa_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct ao_alsa_priv));
+    priv = av_zalloc(sizeof(struct ao_alsa_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     rate = sf_get_rate(sf);
@@ -92,12 +92,12 @@ static int _ao_alsa_open(ao_cls_t *o, sf_t sf)
     LOGD(TAG, " ao open");
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
 
     return -1;
 }
 
-static int _ao_alsa_start(ao_cls_t *o)
+static int _ao_minialsa_start(ao_cls_t *o)
 {
     unsigned int rate;
     struct ao_alsa_priv *priv = o->priv;
@@ -116,7 +116,7 @@ static int _ao_alsa_start(ao_cls_t *o)
     return 0;
 }
 
-static int _ao_alsa_stop(ao_cls_t *o)
+static int _ao_minialsa_stop(ao_cls_t *o)
 {
     int rc = -1;
     struct ao_alsa_priv *priv = o->priv;
@@ -128,7 +128,7 @@ static int _ao_alsa_stop(ao_cls_t *o)
     return rc;
 }
 
-static int _ao_alsa_drain(ao_cls_t *o)
+static int _ao_minialsa_drain(ao_cls_t *o)
 {
     struct ao_alsa_priv *priv = o->priv;
 
@@ -136,7 +136,7 @@ static int _ao_alsa_drain(ao_cls_t *o)
     return 0;
 }
 
-static int _ao_alsa_close(ao_cls_t *o)
+static int _ao_minialsa_close(ao_cls_t *o)
 {
     struct ao_alsa_priv *priv = o->priv;
 
@@ -145,11 +145,11 @@ static int _ao_alsa_close(ao_cls_t *o)
         priv->pcm = NULL;
     }
 
-    aos_free(o->priv);
+    av_free(o->priv);
     return 0;
 }
 
-static int _ao_alsa_write(ao_cls_t *o, const uint8_t *buffer, size_t count)
+static int _ao_minialsa_write(ao_cls_t *o, const uint8_t *buffer, size_t count)
 {
     int ret = 0;
     struct ao_alsa_priv *priv = o->priv;
@@ -162,12 +162,12 @@ static int _ao_alsa_write(ao_cls_t *o, const uint8_t *buffer, size_t count)
 const struct ao_ops ao_ops_alsa = {
     .name          = "alsa",
 
-    .open          = _ao_alsa_open,
-    .start         = _ao_alsa_start,
-    .stop          = _ao_alsa_stop,
-    .drain         = _ao_alsa_drain,
-    .close         = _ao_alsa_close,
-    .write         = _ao_alsa_write,
+    .open          = _ao_minialsa_open,
+    .start         = _ao_minialsa_start,
+    .stop          = _ao_minialsa_stop,
+    .drain         = _ao_minialsa_drain,
+    .close         = _ao_minialsa_close,
+    .write         = _ao_minialsa_write,
 };
 #endif
 

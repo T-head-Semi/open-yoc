@@ -43,7 +43,7 @@ static int _ad_speex_open(ad_cls_t *o)
         return -1;
     }
 
-    priv = aos_zalloc(sizeof(struct ad_speex_priv));
+    priv = av_zalloc(sizeof(struct ad_speex_priv));
     dec  = speex_decoder_init(speex_lib_get_mode(spx_mode));
     CHECK_RET_TAG_WITH_GOTO(priv && dec, err);
 
@@ -67,7 +67,7 @@ static int _ad_speex_open(ad_cls_t *o)
 err:
     if (priv) {
         speex_bits_destroy(&priv->bits);
-        aos_free(priv);
+        av_free(priv);
     }
     if (dec)
         speex_decoder_destroy(dec);
@@ -125,7 +125,7 @@ static int _ad_speex_close(ad_cls_t *o)
 
     speex_decoder_destroy(priv->dec);
     speex_bits_destroy(&priv->bits);
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

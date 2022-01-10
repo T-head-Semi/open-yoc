@@ -41,7 +41,7 @@ mcax_t* mcax_new(int type)
         return NULL;
     }
 
-    mca = aos_zalloc(sizeof(mcax_t));
+    mca = av_zalloc(sizeof(mcax_t));
     CHECK_RET_TAG_WITH_GOTO(mca, err);
 
     rc = _mcax_ops->init(mca, type);
@@ -52,7 +52,7 @@ mcax_t* mcax_new(int type)
 
     return mca;
 err:
-    aos_free(mca);
+    av_free(mca);
     return NULL;
 }
 
@@ -110,7 +110,7 @@ int mcax_free(mcax_t *mca)
     CHECK_PARAM(mca, -1);
     mca->ops->uninit(mca);
     aos_mutex_free(&mca->lock);
-    aos_free(mca);
+    av_free(mca);
 
     return 0;
 }

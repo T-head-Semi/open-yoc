@@ -34,6 +34,8 @@ typedef struct {
     uint32_t          page_size;          ///< Optimal programming page size in bytes
     uint32_t          program_unit;       ///< Smallest programmable unit in bytes
     uint8_t           erased_value;       ///< Contents of erased memory (usually 0xFF)
+    uint32_t          block_size;
+    uint32_t          flash_id;
 } spiflash_info_t;
 
 /**
@@ -100,6 +102,14 @@ spiflash_capabilities_t csi_spiflash_get_capabilities(int32_t idx);
 int32_t csi_spiflash_config_data_line(spiflash_handle_t handle, spiflash_data_line_e line);
 
 /**
+  \brief       Set QSPI freq
+  \param[in]   handle spiflash handle to operate
+  \param[in]   freq   QSPI freq
+  \return      error code
+*/
+int32_t csi_spiflash_config_freq(spiflash_handle_t handle, uint32_t freq);
+
+/**
   \brief       Read data from Flash.
   \param[in]   handle  spiflash handle to operate.
   \param[in]   addr  Data address.
@@ -126,6 +136,14 @@ int32_t csi_spiflash_program(spiflash_handle_t handle, uint32_t addr, const void
   \return      error code
 */
 int32_t csi_spiflash_erase_sector(spiflash_handle_t handle, uint32_t addr);
+
+/**
+  \brief       Erase Flash Block.
+  \param[in]   handle  spiflash handle to operate.
+  \param[in]   addr  Block address
+  \return      \ref execution_status
+*/
+int32_t csi_spiflash_erase_block(spiflash_handle_t handle, uint32_t addr);
 
 /**
   \brief       Erase complete Flash.
@@ -161,6 +179,31 @@ spiflash_info_t *csi_spiflash_get_info(spiflash_handle_t handle);
   \return      SPIFLASH status \ref spiflash_status_t
 */
 spiflash_status_t csi_spiflash_get_status(spiflash_handle_t handle);
+
+/**
+  \brief       Get SPIFLASH status.
+  \param[in]   handle  spiflash handle to operate.
+  \param[in]   offset  lock address.
+  \param[in]   size  lock size.
+  \return      error code
+*/
+int csi_spiflash_lock(spiflash_handle_t handle, uint32_t offset, uint32_t size);
+
+/**
+  \brief       Get SPIFLASH status.
+  \param[in]   handle  spiflash handle to operate.
+  \param[in]   offset  lock address.
+  \param[in]   size  lock size.
+  \return      error code
+*/
+int csi_spiflash_unlock(spiflash_handle_t handle, uint32_t offset, uint32_t size);
+
+/**
+  \brief       Get SPIFLASH status.
+  \param[in]   data Pointer to a buffer containing the config data.
+  \return      error code
+*/
+uint8_t csi_spiflash_get_config(uint8_t *data);
 
 #ifdef __cplusplus
 }

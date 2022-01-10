@@ -13,16 +13,26 @@ struct straight_fifo {
     uint8_t        reof;
     uint8_t        weof;
 
+#ifdef __linux__
+    pthread_cond_t wcond;
+    pthread_cond_t rcond;
+#else
     aos_event_t    evt;
+#endif
     aos_mutex_t    lock;
 };
 
 #define TAG "sfifo"
 #define SFIFO_MAGIC_NUM    (4)
+
+#ifdef __linux__
+#include <time.h>
+#else
 #define SFIFO_WRITE_EVENT  (0x01)
 #define SFIFO_READ_EVENT   (0x02)
+#endif
 
-#define lock() aos_mutex_lock(&fifo->lock, AOS_WAIT_FOREVER);
+#define lock()   aos_mutex_lock(&fifo->lock, AOS_WAIT_FOREVER);
 #define unlock() aos_mutex_unlock(&fifo->lock);
 
 #define is_full(fifo) (fifo->len == fifo->size)
@@ -39,23 +49,28 @@ sfifo_t* sfifo_create(size_t size)
     sfifo_t *fifo = NULL;
 
     CHECK_PARAM(size > 0, NULL);
-    buf  = aos_zalloc(size + SFIFO_MAGIC_NUM);
-    fifo = aos_zalloc(sizeof(sfifo_t));
+    buf  = av_zalloc(size + SFIFO_MAGIC_NUM);
+    fifo = av_zalloc(sizeof(sfifo_t));
     if (!(fifo && buf)) {
         goto err;
     }
 
     memset(buf + size, 0xa, SFIFO_MAGIC_NUM);
     aos_mutex_new(&fifo->lock);
+#ifdef __linux__
+    pthread_cond_init(&fifo->wcond, NULL);
+    pthread_cond_init(&fifo->rcond, NULL);
+#else
     aos_event_new(&fifo->evt, 0);
+#endif
     fifo->buf  = (uint8_t*)buf;
     fifo->len  = 0;
     fifo->size = size;
 
     return fifo;
 err:
-    aos_free(buf);
-    aos_free(fifo);
+    av_free(buf);
+    av_free(fifo);
     return NULL;
 }
 
@@ -69,24 +84,48 @@ err:
 int sfifo_get_rpos(sfifo_t* fifo, char **pos, uint32_t timeout)
 {
     int rc = 0;
-    unsigned int flag;
 
     CHECK_PARAM(fifo && pos, -1);
     lock();
     if (is_empty(fifo) && (!fifo->weof)) {
+#ifdef __linux__
+        {
+            uint64_t nsec;
+            struct timespec ts;
+            struct timeval now;
+
+            gettimeofday(&now, NULL);
+            nsec       = now.tv_usec * 1000 + (timeout % 1000) * 1000000;
+            ts.tv_nsec = nsec % 1000000000;
+            ts.tv_sec  = now.tv_sec + nsec / 1000000000 + timeout / 1000;
+            rc = pthread_cond_timedwait(&fifo->rcond, &fifo->lock, &ts);
+            if (rc != 0)
+            {
+                unlock();
+                /* maybe timeout */
+                return -1;
+            }
+        }
+#else
         unlock();
-        rc = aos_event_get(&fifo->evt, SFIFO_READ_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
-        if (rc < 0) {
+        {
+            unsigned int flag;
+            rc = aos_event_get(&fifo->evt, SFIFO_READ_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
+        }
+        if (rc != 0) {
             /* maybe timeout */
             //LOGE(TAG, "get rpos err. may be timeout. timeout = %u, rc = %d", timeout, rc);
             return -1;
         }
         lock();
+#endif
     }
 
     /* may be reof set, is_empty again */
     if (!is_empty(fifo)) {
+#ifndef __linux__
         aos_event_set(&fifo->evt, ~SFIFO_READ_EVENT, AOS_EVENT_AND);
+#endif
         if (fifo->widx > fifo->ridx) {
             rc   = fifo->widx - fifo->ridx;
             *pos = (char*)fifo->buf + fifo->ridx;
@@ -119,7 +158,11 @@ int sfifo_set_rpos(sfifo_t* fifo, size_t count)
         fifo->len  -= count;
         fifo->ridx += count;
         fifo->ridx %= fifo->size;
+#ifdef __linux__
+        pthread_cond_signal(&fifo->wcond);
+#else
         aos_event_set(&fifo->evt, SFIFO_WRITE_EVENT, AOS_EVENT_OR);
+#endif
         rc = 0;
     } else {
         //LOGE(TAG, "set rpos err. count = %u, size = %u, widx = %d, ridx = %d, len = %d",
@@ -140,24 +183,48 @@ int sfifo_set_rpos(sfifo_t* fifo, size_t count)
 int sfifo_get_wpos(sfifo_t* fifo, char **pos, uint32_t timeout)
 {
     int rc = 0;
-    unsigned int flag;
 
     CHECK_PARAM(fifo && pos, -1);
     lock();
     if (is_full(fifo) && (!fifo->reof)) {
+#ifdef __linux__
+        {
+            uint64_t nsec;
+            struct timespec ts;
+            struct timeval now;
+
+            gettimeofday(&now, NULL);
+            nsec       = now.tv_usec * 1000 + (timeout % 1000) * 1000000;
+            ts.tv_nsec = nsec % 1000000000;
+            ts.tv_sec  = now.tv_sec + nsec / 1000000000 + timeout / 1000;
+            rc = pthread_cond_timedwait(&fifo->wcond, &fifo->lock, &ts);
+            if (rc != 0)
+            {
+                unlock();
+                /* maybe timeout */
+                return -1;
+            }
+        }
+#else
         unlock();
-        rc = aos_event_get(&fifo->evt, SFIFO_WRITE_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
-        if (rc < 0) {
+        {
+            unsigned int flag;
+            rc = aos_event_get(&fifo->evt, SFIFO_WRITE_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
+        }
+        if (rc != 0) {
             /* maybe timeout */
             //LOGE(TAG, "get wpos err. may be timeout. timeout = %u, rc = %d", timeout, rc);
             return -1;
         }
         lock();
+#endif
     }
 
     /* may be weof set, is_full again */
     if (!is_full(fifo)) {
+#ifndef __linux__
         aos_event_set(&fifo->evt, ~SFIFO_WRITE_EVENT, AOS_EVENT_AND);
+#endif
         if (fifo->widx >= fifo->ridx) {
             rc   = fifo->size - fifo->widx;
             *pos = (char*)fifo->buf + fifo->widx;
@@ -190,7 +257,11 @@ int sfifo_set_wpos(sfifo_t* fifo, size_t count)
         fifo->len  += count;
         fifo->widx += count;
         fifo->widx %= fifo->size;
+#ifdef __linux__
+        pthread_cond_signal(&fifo->rcond);
+#else
         aos_event_set(&fifo->evt, SFIFO_READ_EVENT, AOS_EVENT_OR);
+#endif
         rc = 0;
     } else {
         //LOGE(TAG, "set wpos err. count = %u, size = %u, widx = %d, ridx = %d, len = %d",
@@ -216,12 +287,20 @@ int sfifo_set_eof(sfifo_t* fifo, uint8_t reof, uint8_t weof)
     lock();
     if (reof) {
         fifo->reof = reof;
+#ifdef __linux__
+        pthread_cond_signal(&fifo->wcond);
+#else
         aos_event_set(&fifo->evt, SFIFO_WRITE_EVENT, AOS_EVENT_OR);
+#endif
     }
 
     if (weof) {
         fifo->weof = weof;
+#ifdef __linux__
+        pthread_cond_signal(&fifo->rcond);
+#else
         aos_event_set(&fifo->evt, SFIFO_READ_EVENT, AOS_EVENT_OR);
+#endif
     }
     unlock();
 
@@ -267,7 +346,9 @@ int sfifo_reset(sfifo_t *fifo)
     fifo->widx = 0;
     fifo->reof = 0;
     fifo->weof = 0;
+#ifndef __linux__
     aos_event_set(&fifo->evt, 0, AOS_EVENT_AND);
+#endif
     unlock();
 
     return rc;
@@ -301,9 +382,14 @@ int sfifo_destroy(sfifo_t *fifo)
 
     CHECK_PARAM(fifo, -1);
     aos_mutex_free(&fifo->lock);
+#ifdef __linux__
+    pthread_cond_destroy(&fifo->wcond);
+    pthread_cond_destroy(&fifo->rcond);
+#else
     aos_event_free(&fifo->evt);
-    aos_free(fifo->buf);
-    aos_free(fifo);
+#endif
+    av_free(fifo->buf);
+    av_free(fifo);
 
     return rc;
 }

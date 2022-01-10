@@ -82,8 +82,7 @@ void krhino_stack_ovf_check(void)
     cur = g_active_task[cpu_cur_get()];
 
     stack_start = cur->task_stack_base;
-    stack_end   = stack_start + cur->stack_size
-                  - RHINO_CONFIG_STK_CHK_WORDS;
+    stack_end   = stack_start + cur->stack_size - RHINO_CONFIG_STK_CHK_WORDS;
 
     for (i = 0; i < RHINO_CONFIG_STK_CHK_WORDS; i++) {
         if (*stack_end++ != RHINO_TASK_STACK_OVF_MAGIC) {
@@ -101,8 +100,7 @@ void krhino_stack_ovf_check(void)
     }
 
     stack_start = cur->task_ustack_base;
-    stack_end   = stack_start + cur->ustack_size
-                  - RHINO_CONFIG_STK_CHK_WORDS;
+    stack_end   = stack_start + cur->ustack_size - RHINO_CONFIG_STK_CHK_WORDS;
 
     for (i = 0; i < RHINO_CONFIG_STK_CHK_WORDS; i++) {
         if (*stack_end++ != RHINO_TASK_STACK_OVF_MAGIC) {
@@ -138,7 +136,6 @@ void krhino_task_sched_stats_get(void)
 {
     lr_timer_t cur_time;
     lr_timer_t exec_time;
-
     hr_timer_t intrpt_disable_time;
 
     if (g_cur_intrpt_disable_max_time > g_sys_measure_waste) {
@@ -170,8 +167,7 @@ void krhino_task_sched_stats_get(void)
     g_active_task[cpu_cur_get()]->task_time_total_run += (uint64_t)exec_time;
     if (g_active_task[cpu_cur_get()]->task_state == K_RDY) {
         g_active_task[cpu_cur_get()]->task_time_this_run += exec_time;
-    }
-    else {
+    } else {
         g_active_task[cpu_cur_get()]->task_time_this_run = 0u;
     }
     g_preferred_ready_task[cpu_cur_get()]->task_time_start = cur_time;
@@ -246,8 +242,7 @@ static void cpu_usage_task_entry(void *arg)
         if (idle_count < g_idle_count_max) {
             /* use 64bit for cpu_task_idle_count  to avoid overflow quickly */
             g_cpu_usage = 10000 - (uint32_t)((idle_count * 10000) / g_idle_count_max);
-        }
-        else {
+        } else {
             g_cpu_usage = 10000;
         }
     }

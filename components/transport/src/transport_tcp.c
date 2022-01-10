@@ -131,6 +131,10 @@ static int tcp_poll_read(transport_handle_t t, int timeout_ms)
     struct timeval timeout;
     transport_utils_ms_to_timeval(timeout_ms, &timeout);
     ret = select(tcp->sock + 1, &readset, NULL, &errset, &timeout);
+    if (ret == 0) {
+        LOGE(TAG, "tcp_poll_read, select ret:%d, timeout", ret);
+        return -1;
+    }
     if (ret > 0 && FD_ISSET(tcp->sock, &errset)) {
         int sock_errno = 0;
         uint32_t optlen = sizeof(sock_errno);
@@ -158,6 +162,10 @@ static int tcp_poll_write(transport_handle_t t, int timeout_ms)
     struct timeval timeout;
     transport_utils_ms_to_timeval(timeout_ms, &timeout);
     ret = select(tcp->sock + 1, NULL, &writeset, &errset, &timeout);
+    if (ret == 0) {
+        LOGE(TAG, "tcp_poll_write, select ret:%d, timeout", ret);
+        return -1;
+    }
     if (ret > 0 && FD_ISSET(tcp->sock, &errset)) {
         int sock_errno = 0;
         uint32_t optlen = sizeof(sock_errno);

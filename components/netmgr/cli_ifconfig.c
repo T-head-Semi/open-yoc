@@ -132,6 +132,9 @@ static void cmd_ifconfig_gprs(char *wbuf, int wbuf_len, int argc, char **argv)
 
         netmgr_hdl_t hdl = netmgr_get_handle("gprs");
 
+        if (hdl == NULL)
+            return;
+
         if (item_count == 1) {
 
             netmgr_get_info(hdl);
@@ -151,6 +154,9 @@ static void cmd_ifconfig_func(char *wbuf, int wbuf_len, int argc, char **argv)
     if (eth_dev != NULL) {
 
         netmgr_hdl_t hdl_eth = netmgr_get_handle("eth");
+
+        if (hdl_eth == NULL)
+            return;
 
         if (item_count == 2) {
 #if LWIP_DHCP
@@ -174,6 +180,9 @@ static void cmd_ifconfig_func(char *wbuf, int wbuf_len, int argc, char **argv)
 
     if (wifi_dev != NULL) {
         netmgr_hdl_t hdl = netmgr_get_handle("wifi");
+
+        if (hdl == NULL)
+            return;
 
         if (item_count == 2) {
             if (strcmp(argv[1], "apoff") == 0) {
@@ -203,6 +212,9 @@ static void cmd_ifconfig_func(char *wbuf, int wbuf_len, int argc, char **argv)
 
         netmgr_hdl_t hdl = netmgr_get_handle("gprs");
 
+        if (hdl == NULL)
+            return;
+
         if (item_count == 1) {
 
             netmgr_get_info(hdl);
@@ -216,6 +228,9 @@ static void cmd_ifconfig_func(char *wbuf, int wbuf_len, int argc, char **argv)
     if (nbiot_dev != NULL) {
 
         netmgr_hdl_t hdl = netmgr_get_handle("nbiot");
+
+        if (hdl == NULL)
+            return;
 
         if (item_count == 1) {
 

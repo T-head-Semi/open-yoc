@@ -183,7 +183,7 @@ char* url_encode2(const char* s)
 
     oldlen = p1 - s;
     newlen = oldlen + 2 * en_cnt;
-    str    = aos_zalloc(newlen + 1);
+    str    = av_zalloc(newlen + 1);
     CHECK_RET_WITH_RET(str, NULL);
 
     p1 = s;

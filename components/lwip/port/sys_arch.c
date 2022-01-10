@@ -44,6 +44,8 @@
 #include "lwip/sys.h"
 #include "lwip/mem.h"
 #include "arch/sys_arch.h"
+#include <aos/aos.h>
+#include <k_api.h>
 
 static aos_mutex_t sys_arch_mutex;
 
@@ -510,9 +512,9 @@ err_t sys_mbox_trypost(sys_mbox_t *mb, void *msg)
 */
 u32_t sys_arch_mbox_fetch(sys_mbox_t *mb, void **msg, u32_t timeout)
 {
-    u32_t begin_ms, end_ms, elapsed_ms;
-    u32_t len;
+    size_t len;
     u32_t ret;
+    u32_t begin_ms, end_ms, elapsed_ms;
 
     if (mb == NULL) {
         return SYS_ARCH_TIMEOUT;
@@ -555,7 +557,7 @@ u32_t sys_arch_mbox_fetch(sys_mbox_t *mb, void **msg, u32_t timeout)
 */
 u32_t sys_arch_mbox_tryfetch(sys_mbox_t *mb, void **msg)
 {
-    u32_t len;
+    size_t len;
 
     if (aos_queue_recv(mb, 0u, msg, &len) != 0) {
         return SYS_MBOX_EMPTY;
@@ -721,6 +723,9 @@ void sys_init(void)
 }
 
 #if LWIP_NETCONN_SEM_PER_THREAD
+#ifndef LWIP_USER_INFO_POS
+#define LWIP_USER_INFO_POS 0
+#endif
 #include <k_api.h>
 // need RHINO_CONFIG_TASK_INFO_NUM > 3
 typedef struct _sys_sem_cb {
@@ -734,7 +739,7 @@ typedef struct _sys_sem_cb {
  */
 sys_sem_t* sys_thread_sem_get(void)
 {
-    return krhino_cur_task_get()->user_info[2];
+    return krhino_cur_task_get()->user_info[LWIP_USER_INFO_POS];
 }
 
 sys_sem_t* sys_thread_sem_init(void)
@@ -753,7 +758,7 @@ void sys_thread_sem_deinit(void)
 {
     // sched suspend here, because sys_sem_free will core_sched and cause mem leak
     aos_kernel_sched_suspend();
-    sys_sem_t *sem = krhino_cur_task_get()->user_info[2];
+    sys_sem_t *sem = krhino_cur_task_get()->user_info[LWIP_USER_INFO_POS];
 
     sys_sem_free(sem);
 
@@ -763,11 +768,18 @@ void sys_thread_sem_deinit(void)
 
 void krhino_task_create_hook_lwip_thread_sem(ktask_t *task)
 {
-    task->user_info[2] = sys_thread_sem_init();
+    task->user_info[LWIP_USER_INFO_POS] = sys_thread_sem_init();
 }
 
 void krhino_task_del_hook_lwip_thread_sem(ktask_t *task, res_free_t *arg)
 {
-    sys_thread_sem_deinit();
+    // sched suspend here, because sys_sem_free will core_sched and cause mem leak
+    aos_kernel_sched_suspend();
+    sys_sem_t *sem = task->user_info[LWIP_USER_INFO_POS];
+
+    sys_sem_free(sem);
+
+    aos_free(sem);
+    aos_kernel_sched_resume();
 }
 #endif

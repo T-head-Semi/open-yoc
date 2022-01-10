@@ -5,7 +5,7 @@
 #ifndef __EQ_ALL_H__
 #define __EQ_ALL_H__
 
-#include <aos/aos.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

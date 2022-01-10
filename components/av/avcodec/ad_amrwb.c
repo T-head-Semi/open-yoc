@@ -31,13 +31,13 @@ static int _ad_amrwb_open(ad_cls_t *o)
     void *hdl = NULL, *dbuf = NULL;
     void *obuf = NULL, *mime_buf = NULL;
 
-    priv = aos_zalloc(sizeof(struct ad_amrwb_priv));
+    priv = av_zalloc(sizeof(struct ad_amrwb_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     msize    = pvDecoder_AmrWbMemRequirements();
-    dbuf     = aos_malloc(msize);
-    obuf     = aos_malloc(AMRWB_DEC_OBUF_SIZE);
-    mime_buf = aos_malloc(AMRWB_MIME_SIZE_MAX);
+    dbuf     = av_malloc(msize);
+    obuf     = av_malloc(AMRWB_DEC_OBUF_SIZE);
+    mime_buf = av_malloc(AMRWB_MIME_SIZE_MAX);
     CHECK_RET_TAG_WITH_GOTO(dbuf && obuf && mime_buf, err);
 
     pvDecoder_AmrWb_Init(&hdl, dbuf, &priv->cookie);
@@ -49,10 +49,10 @@ static int _ad_amrwb_open(ad_cls_t *o)
     o->priv        = priv;
     return 0;
 err:
-    aos_free(obuf);
-    aos_free(dbuf);
-    aos_free(mime_buf);
-    aos_free(priv);
+    av_free(obuf);
+    av_free(dbuf);
+    av_free(mime_buf);
+    av_free(priv);
     return -1;
 }
 
@@ -128,10 +128,10 @@ static int _ad_amrwb_close(ad_cls_t *o)
 {
     struct ad_amrwb_priv *priv = o->priv;
 
-    aos_free(priv->dbuf);
-    aos_free(priv->obuf);
-    aos_free(priv->mime_buf);
-    aos_free(priv);
+    av_free(priv->dbuf);
+    av_free(priv->obuf);
+    av_free(priv->mime_buf);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

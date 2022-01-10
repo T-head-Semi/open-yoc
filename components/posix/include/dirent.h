@@ -1,22 +1,19 @@
 /*
- * Copyright (C) 2018 Alibaba Group Holding Limited
+ * Copyright (C) 2018-2020 Alibaba Group Holding Limited
  */
 
-#ifndef DIRENT_H
-#define DIRENT_H
+#ifndef _DIRENT_H
+#define _DIRENT_H
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
-
 #include "k_api.h"
 #include "vfs.h"
-#include "posix_config.h"
 
 #define DT_UNKNOWN 0
 #define DT_FIFO    1
@@ -28,7 +25,6 @@ extern "C"
 #define DT_SOCK    12
 #define DT_WHT     14
 
-// FIXME:
 #ifdef TMP_MAX
 #undef TMP_MAX
 #endif
@@ -39,12 +35,18 @@ extern "C"
 #endif
 #define PATH_MAX     64
 
+#if defined(__GNUC__) && (__GNUC__ > 9)
+/* On GCC 10 and above, related macros have been defined in the syslimits.h */
+#else
 #define NAME_MAX     64
 #define FILESIZEBITS (NAME_MAX * 8)
 #define LINK_MAX     0
+#endif
 
 /* temp file will be saved in this dirctory */
-#define TEMP_FILE_NAME_MAGIC "/ramfs/du2s5sz3p1jdi97ds"
+#define TEMP_FILE_NAME_MAGIC "/tmp/du2s5sz3p1jdi97ds"
+
+#define DIRSIZ(dp) offsetof(struct dirent, d_name) + ((strlen((dp)->d_name) + 1 + 3) & ~3)
 
 typedef aos_dir_t DIR;
 
@@ -99,6 +101,9 @@ struct dirent *readdir(DIR *dirp);
 int            closedir(DIR *dirp);
 long           telldir(DIR *dirp);
 void           seekdir(DIR *dirp, long loc);
+int scandir(const char *dirname, struct dirent ***namelist,
+            int (*filter)(const struct dirent *),
+            int (*compar)(const struct dirent **, const struct dirent **));
 off_t          lseek(int fildes, off_t offset, int whence);
 int            stat(const char *path, struct stat *buf);
 int            fstat(int fh, struct stat *buf);
@@ -123,10 +128,8 @@ char          *tmpnam(char *s);
 /* ramfs must be added to the prj if you want to use tmpfile */
 FILE          *tmpfile(void);
 
-extern int ioctl(int fildes, int request, ... /* arg */);
-
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
 
-#endif /* DIRENT_H */
+#endif /* _DIRENT_H */

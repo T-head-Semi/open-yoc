@@ -13,7 +13,7 @@ extern "C" {
 #define BMTB_MAGIC  0x74427254
 #define MTB_MAGIC   0x74427251
 
-#define INVALID_ADDR (0xFFFFFFFF)
+#define INVALID_ADDR (~0)
 
 #define PUBLIC_KEY_NAME_SIZE 8
 #define MTB_MISC_NAME           "misc"
@@ -229,9 +229,9 @@ typedef struct {
 } partition_tail_t;
 
 typedef struct {
-    uint32_t using_addr;    // 当前使用的imtb地址(RAM、FLASH)
-    uint32_t prim_addr;     // 当前使用的imtb地址(FLASH)
-    uint32_t backup_addr;   // 备份的imtb地址(FLASH)
+    unsigned long using_addr;    // 当前使用的imtb地址(RAM、FLASH)
+    unsigned long prim_addr;     // 当前使用的imtb地址(FLASH)
+    unsigned long backup_addr;   // 备份的imtb地址(FLASH)
     uint32_t one_size: 16;  // 一份imtb表(或者bmtb+imtb)占用的分区size
     uint32_t i_offset: 16;  // imtb表的偏移地址，当存在bmtb时才有值，否则为0
     uint16_t version;       // imtb表的版本号
@@ -346,7 +346,7 @@ int get_section_buf(uint32_t addr, uint32_t img_len, scn_type_t *scn_type, uint3
 /**
  *  when mtb version < 4
  */
-int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, uint32_t *scn_addr);
+int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, unsigned long *scn_addr);
 
 /**
  * Read data from an area on a Flash to data buffer in RAM

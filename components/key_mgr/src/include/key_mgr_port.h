@@ -13,8 +13,6 @@
 
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
-uint32_t get_data_from_addr(uint32_t addr, uint8_t *data, uint32_t data_len);
-
-uint32_t get_word_from_addr(uint32_t addr);
+int get_data_from_addr(unsigned long addr, uint8_t *data, size_t data_len);
 
 #endif

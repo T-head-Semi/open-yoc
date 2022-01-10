@@ -5,7 +5,7 @@
 #ifndef __ATEMPO_ALL_H__
 #define __ATEMPO_ALL_H__
 
-#include <aos/aos.h>
+#include "avutil/common.h"
 #include "avutil/av_config.h"
 
 __BEGIN_DECLS__

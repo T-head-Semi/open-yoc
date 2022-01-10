@@ -15,7 +15,9 @@
 
 #define TAG "IPERF"
 
-#define BSD_STACK_SIZE          1024
+#ifndef BSD_STACK_SIZE
+#define BSD_STACK_SIZE          1024*4
+#endif
 
 
 typedef unsigned int u32;
@@ -152,7 +154,7 @@ static int tcpclient(struct iperf_param *param)
     }
 
     //filling the TCP server socket address
-    FD_ZERO(&sAddr);
+    memset(&sAddr, 0, sizeof(struct sockaddr_in));
     sAddr.sin_family = AF_INET;
     sAddr.sin_port = htons(param->port);
     sAddr.sin_addr.s_addr = inet_addr(param->server_ip);

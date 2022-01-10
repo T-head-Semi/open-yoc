@@ -37,7 +37,7 @@ static int _mca_local_init(mcax_t *mca, int32_t type)
         g_mcalocal.init = 1;
     }
 
-    priv = aos_zalloc(sizeof(struct mca_local_priv));
+    priv = av_zalloc(sizeof(struct mca_local_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     priv->hdl = hdl;
@@ -75,7 +75,7 @@ static int _mca_local_uninit(mcax_t *mca)
 {
     struct mca_local_priv *priv = mca->priv;
 
-    aos_free(priv);
+    av_free(priv);
     mca->priv = NULL;
     return 0;
 }

@@ -8,6 +8,9 @@
 #include "avutil/common.h"
 #include "avutil/av_typedef.h"
 #include "avutil/straight_fifo.h"
+#ifdef __linux__
+#include "aos_port/list.h"
+#endif
 
 __BEGIN_DECLS__
 

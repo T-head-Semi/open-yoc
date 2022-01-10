@@ -1,20 +1,19 @@
 
 ## 第一部分： 基础信息
 name: cli                                           # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.3                                     # <必选项> 组件版本号
-description: 可在用户提示符下键入可执行指令，实现对功能命令的维护   # <必选项> 建议至少20字以上
+version: v7.5.0                                    # <必选项> 组件版本号
+description: alios shell组件，包含用户命令的注册管理和终端执行等功能，类似Linux shell # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 license: Apache license v2.0                        # <可选项> 源代码的许可证，要确保所有代码、文件的许可证不冲突。如：MIT，Apache license v2.0，BSD
 
 ## 第二部分：依赖信息
-#           指定该组件依赖的组件及版本，版本支持条件比较，支持：>=v1.0, >v1.0, ==v1.0, <=v1.0, <v1.0, v1.0
-#           未指定条件时，默认为 ==，如 v1.0 与 ==v1.0
+#           指定该组件依赖的组件及版本
 # sdk_chip:                                # <可选项> 该组件依赖sdk组件，合理的依赖才能保证组件能编译、使用
-#   - sdk_chip_csky_dummy: v7.4.3
-#   - sdk_chip_riscv_dummy: v7.4.3
+#   - sdk_chip_csky_dummy: v7.4.0
+#   - sdk_chip_riscv_dummy: v7.4.0
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
-#   - minilibc: v7.2.0
-#   - aos: >=v7.2.0
+#   - minilibc: v7.4.0
+#   - aos: v7.4.0
 
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
@@ -37,43 +36,56 @@ license: Apache license v2.0                        # <可选项> 源代码的�
 build_config:
   include:
     - include/
-    - ./
+  internal_include:
+    - src/
+    - src/iobox/
 
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
 source_file:
-  - "cli_cpuusage.c"
-  - "cli.c"
-  - "cli_uagent.c"
-  - "cli_dumpsys.c"
-  - "cli_default_command.c"
-  - "cli_adapt.c"
-  - "cli_aos.c"
-  - "src/sys/*.c"
+  - src/cli.c
+  - src/cli_console.c
+  - src/cli_adapt.c
+  - src/cli_aos.c
+  - src/uart_console.c
+  - src/telnet_console.c ? <CLI_TELNET_ENABLE>
+  - src/cli_uagent.c ? <CLI_UAGENT_ENABLE>
+  #iobox-fs cli cmds
+  - src/iobox/cat.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/cat.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/cd.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/cp.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/df.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/echo.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/ls.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/lsfs.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/mkdir.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/mv.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/rm.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/touch.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/pwd.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/hexdump.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/path_helper.c ? <CLI_IOBOX_ENABLE>
+  - src/iobox/rwspeed.c ? <CLI_IOBOX_ENABLE>
 
-## 第五部分：配置信息
-# def_config:                              # 组件的可配置项
-#   CONFIG_DEBUG: y
-#   CONFIG_PARAM_NOT_CHECK: y
-#   CONFIG_CLI: y
 def_config:
-  AOS_COMP_CLI: y
-  CLI_CONFIG_INBUF_SIZE: 256
-  CLI_CONFIG_OUTBUF_SIZE: 512
-  CLI_CONFIG_MAX_COMMANDS: 64
-  CLI_CONFIG_MAX_ARG_NUM: 16
-  CLI_CONFIG_MAX_ONCECMD_NUM: 4
-  CLI_CONFIG_TASK_PRIORITY: 60
+  AOS_COMP_CLI: 1
+  CLI_INBUF_SIZE: 256
+  CLI_OUTBUF_SIZE: 512
+  CLI_MAX_COMMANDS: 128
+  CLI_MAX_ARG_NUM: 16
+  CLI_MAX_ONCECMD_NUM: 4
+  CLI_TASK_PRIORITY: 60
+  CLI_CONFIG_STACK_SIZE : 2048
+  CLI_TELNET_ENABLE : 0
+  CLI_UAGENT_ENABLE : 0
+  CLI_SEPRATED_CONSOLE : 0
+  CLI_IOBOX_ENABLE : 0
 
-## 第六部分：安装信息
-# install:
-#   - dest: include/                       # 安装的目的路径 dest是相对路径，通常是相对于YoC SDK 安装目录
-#     source:                              # 安装源列表
-#      - src/*.h                           # 支持通配符，相对路径
 install:
-  - dest: "include/"
+  - dest: "include/aos"
     source:
-      - "include/*"
+      - "include/aos/*.h"
 
 ## 第七部分：导出部分
 # export:

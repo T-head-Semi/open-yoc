@@ -18,6 +18,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #include "http_header.h"
 #include "http_utils.h"

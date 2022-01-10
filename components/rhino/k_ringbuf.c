@@ -40,7 +40,7 @@ kstat_t ringbuf_push(k_ringbuf_t *p_ringbuf, void *data, size_t len)
         p_ringbuf->tail     += p_ringbuf->blk_size;
         p_ringbuf->freesize -= p_ringbuf->blk_size;
     } else {
-        if ((len == 0u) || (len >= (uint32_t) - 1)) {
+        if ((len == 0u) || (len >= (uint32_t) -1)) {
             return RHINO_INV_PARAM;
         }
 
@@ -58,8 +58,9 @@ kstat_t ringbuf_push(k_ringbuf_t *p_ringbuf, void *data, size_t len)
         }
 
         /* copy length data to buffer */
+        split_len = p_ringbuf->end - p_ringbuf->tail;
         if (p_ringbuf->tail >= p_ringbuf->head &&
-            (split_len = p_ringbuf->end - p_ringbuf->tail) < len_bytes && split_len > 0) {
+            split_len < len_bytes && split_len > 0) {
             memcpy(p_ringbuf->tail, &c_len[0], split_len);
             len_bytes -= split_len;
             p_ringbuf->tail =  p_ringbuf->buf;
@@ -81,9 +82,9 @@ kstat_t ringbuf_push(k_ringbuf_t *p_ringbuf, void *data, size_t len)
             p_ringbuf->tail = p_ringbuf->buf;
         }
 
+        split_len = p_ringbuf->end - p_ringbuf->tail;
         if (p_ringbuf->tail >= p_ringbuf->head &&
-            ((split_len = p_ringbuf->end - p_ringbuf->tail) < len) &&
-            split_len > 0) {
+            split_len < len && split_len > 0) {
             memcpy(p_ringbuf->tail, data, split_len);
             data = (uint8_t *)data + split_len;
             len -= split_len;
@@ -128,12 +129,9 @@ kstat_t ringbuf_pop(k_ringbuf_t *p_ringbuf, void *pdata, size_t *plen)
         if (p_ringbuf->head == p_ringbuf->end) {
             p_ringbuf->head = p_ringbuf->buf;
         }
-
-        if (((split_len = p_ringbuf->end - p_ringbuf->head) < len_bytes) &&
-            split_len > 0) {
-
+        split_len = p_ringbuf->end - p_ringbuf->head;
+        if (split_len < len_bytes && split_len > 0) {
             memcpy(&c_len[0], p_ringbuf->head, split_len);
-
             p_ringbuf->head      =  p_ringbuf->buf;
             p_ringbuf->freesize += split_len;
         } else {
@@ -153,8 +151,8 @@ kstat_t ringbuf_pop(k_ringbuf_t *p_ringbuf, void *pdata, size_t *plen)
             p_ringbuf->head = p_ringbuf->buf;
         }
 
-        if (p_ringbuf->head > p_ringbuf->tail &&
-            (split_len = p_ringbuf->end - p_ringbuf->head) < len) {
+        split_len = p_ringbuf->end - p_ringbuf->head;
+        if (p_ringbuf->head > p_ringbuf->tail && split_len < len) {
             memcpy(pdata, p_ringbuf->head, split_len);
             data = (uint8_t *)pdata + split_len;
             len -= split_len;
@@ -167,7 +165,6 @@ kstat_t ringbuf_pop(k_ringbuf_t *p_ringbuf, void *pdata, size_t *plen)
         p_ringbuf->freesize += len;
 
         return RHINO_SUCCESS;
-
     }
 }
 

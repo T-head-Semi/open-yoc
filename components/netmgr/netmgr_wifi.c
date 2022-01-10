@@ -156,7 +156,7 @@ static int wifi_cfg_ssid_psk(struct netmgr_uservice *netmgr, rpc_t *rpc)
         //netdev_driver_t *drv = dev->drv;
         wifi_setting_t *config = &node->config.wifi_config;
 
-        if ((param->ssid_psk.ssid_length > 0) && (param->ssid_psk.psk_length > 0)) {
+        if ((param->ssid_psk.ssid_length > 0) && (param->ssid_psk.psk_length >= 0)) {
             config->ssid_psk = param->ssid_psk;
 
 #ifdef CONFIG_KV_SMART
@@ -181,7 +181,11 @@ static int wifi_evt_link_up(struct netmgr_uservice *netmgr, rpc_t *rpc)
 
 static int wifi_evt_link_down(struct netmgr_uservice *netmgr, rpc_t *rpc)
 {
-    static int link_reason = NET_DISCON_REASON_WIFI_TIMEOUT;
+    int reason = rpc_get_int(rpc);
+    static int link_reason;
+
+    link_reason = reason ? reason : NET_DISCON_REASON_WIFI_TIMEOUT;
+
     netmgr_set_gotip("wifi", 0);
     netmgr_set_linkup("wifi", 0);
     event_publish(EVENT_NETMGR_NET_DISCON, &link_reason);
@@ -251,19 +255,16 @@ static netmgr_dev_t *netmgr_wifi_init(struct netmgr_uservice *netmgr)
             node->dhcp_en = 1; //wifi just support dhcp
             strcpy(node->name, "wifi");
 
-            memset(config->ssid_psk.ssid, 0, WIFI_SSID_MAX_LEN);
+            memset(config->ssid_psk.ssid, 0, WIFI_SSID_MAX_LEN + 1);
             config->ssid_psk.ssid_length = WIFI_SSID_MAX_LEN;
-            memset(config->ssid_psk.psk, 0, WIFI_PSK_MAX_LEN);
+            memset(config->ssid_psk.psk, 0, WIFI_PSK_MAX_LEN + 1);
             config->ssid_psk.psk_length = WIFI_PSK_MAX_LEN;
 #ifdef CONFIG_KV_SMART
             if ( aos_kv_get(KV_WIFI_SSID, config->ssid_psk.ssid, &config->ssid_psk.ssid_length) < 0 ||
                  aos_kv_get(KV_WIFI_PSK, config->ssid_psk.psk, &config->ssid_psk.psk_length) < 0) {
 
-                strcpy(config->ssid_psk.ssid, "CSKY-T");
-                config->ssid_psk.ssid_length = 6;
-
-                strcpy(config->ssid_psk.psk, "test1234");
-                config->ssid_psk.psk_length = 8;
+                strcpy(config->ssid_psk.ssid, "SSID_Undef");
+                config->ssid_psk.ssid_length = 11;
             }
 #endif
             slist_add_tail((slist_t *)node, &netmgr->dev_list);
@@ -323,7 +324,7 @@ int netmgr_config_wifi(netmgr_hdl_t hdl, char *ssid, uint8_t ssid_length, char *
     param_ssid_psk_t param;
     wifi_ssid_psk_t *ssid_psk = &param.ssid_psk;
 
-    aos_check_return_einval(ssid && ssid_length && psk);
+    aos_check_return_einval(ssid && ssid_length);
 
     if (psk_length > WIFI_PSK_MAX_LEN || ssid_length > WIFI_SSID_MAX_LEN) {
         return -EINVAL;
@@ -334,7 +335,11 @@ int netmgr_config_wifi(netmgr_hdl_t hdl, char *ssid, uint8_t ssid_length, char *
     memcpy(ssid_psk->ssid, ssid, ssid_length);
     ssid_psk->ssid_length = ssid_length;
 
-    memcpy(ssid_psk->psk, psk, psk_length);
+    if (psk_length == 0) {
+        LOGI(TAG, "Wifi PSK is empty!");
+    } else {
+        memcpy(ssid_psk->psk, psk, psk_length);
+    }
     ssid_psk->psk_length = psk_length;
 
     /* adpator string */

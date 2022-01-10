@@ -5,9 +5,7 @@
 #ifndef __DICT_H__
 #define __DICT_H__
 
-#include <aos/types.h>
-#include <aos/kernel.h>
-#include <aos/aos.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

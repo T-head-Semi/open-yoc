@@ -6,8 +6,13 @@
 #define USERVICE_INTERNAL_H
 
 #include <stdint.h>
-#include <aos/list.h>
 #include <uservice/uservice.h>
+#ifdef __linux__
+#include "aos_port/common.h"
+#include "ulog/ulog.h"
+#else
+#include <aos/list.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,8 +43,13 @@ struct utask {
     uint8_t     queue_max_used;
     slist_t     rpc_reclist;
 #endif
+#ifdef __linux__
+    mqd_t       queue;
+    char        *qname;
+#else
     void       *queue_buffer;
     aos_queue_t queue;
+#endif
     aos_mutex_t mutex;
     rpc_t      *current_rpc;
     aos_sem_t   running_wait;

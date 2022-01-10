@@ -16,7 +16,7 @@ icore_msg_t *icore_msg_new(msgid_t id, size_t size)
     char *orip;
     icore_msg_t *msg = NULL;
 
-    orip = aos_zalloc(ICORE_ALIGN_BUFZ(size + ICORE_MSG_SIZE));
+    orip = av_zalloc(ICORE_ALIGN_BUFZ(size + ICORE_MSG_SIZE));
     if (orip) {
         msg           = ICORE_ALIGN(orip);
         msg->orip     = orip;
@@ -36,7 +36,7 @@ icore_msg_t *icore_msg_new(msgid_t id, size_t size)
 void icore_msg_free(icore_msg_t *msg)
 {
     if (msg && msg->orip) {
-        aos_free(msg->orip);
+        av_free(msg->orip);
     }
 }
 

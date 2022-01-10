@@ -1,11 +1,13 @@
-/**
- * @file k_timer.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_TIMER_H
 #define K_TIMER_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino timer
  *  Timer management
@@ -177,6 +179,10 @@ kstat_t krhino_timer_arg_change_auto(ktimer_t *timer, void *arg);
 kstat_t krhino_timer_arg_change(ktimer_t *timer, void *arg);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_TIMER_H */
 

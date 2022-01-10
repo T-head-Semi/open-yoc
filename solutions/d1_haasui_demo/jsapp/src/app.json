@@ -1,0 +1,31 @@
+{
+  "pages": {
+    "index": "pages/index/index.js",
+    "cases": "pages/cases/index.vue",
+    "drv": "pages/devices/drv.vue",
+    "uihome": "pages/demos/index.vue",
+    "button": "pages/demos/button.vue",
+    "canvas": "pages/demos/canvas.vue",
+    "checkbox": "pages/demos/checkbox.vue",
+    "dialog": "pages/demos/dialog.vue",
+    "div": "pages/demos/div.vue",
+    "icon": "pages/demos/icon.vue",
+    "image": "pages/demos/image.vue",
+    "layout": "pages/demos/layout.vue",
+    "popup": "pages/demos/popup.vue",
+    "progress": "pages/demos/progress.vue",
+    "qrcode": "pages/demos/qrcode.vue",
+    "radio": "pages/demos/radio.vue",
+    "scroller": "pages/demos/scroller.vue",
+    "seekbar": "pages/demos/seekbar.vue",
+    "slider": "pages/demos/slider.vue",
+    "switch": "pages/demos/switch.vue",
+    "text": "pages/demos/text.vue",
+    "toast": "pages/demos/toast.vue"
+  },
+  "options": {
+    "style": {
+      "themeCustom": "theme-custom1"
+    }
+  }
+}

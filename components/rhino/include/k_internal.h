@@ -1,11 +1,13 @@
-/**
- * @file k_internel.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_INTERNAL_H
 #define K_INTERNAL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino internal
  *  OS internal funtions
@@ -27,6 +29,9 @@ extern ktask_t *g_preferred_ready_task[RHINO_CONFIG_CPU_NUM];
 
 /* current active task */
 extern ktask_t *g_active_task[RHINO_CONFIG_CPU_NUM];
+
+/* global task ID */
+extern uint32_t g_task_id;
 
 /* idle attribute */
 extern ktask_t      g_idle_task[RHINO_CONFIG_CPU_NUM];
@@ -220,6 +225,9 @@ void cpu_pwr_up(void);
 #endif
 
 /** @} */
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_INTERNAL_H */
 

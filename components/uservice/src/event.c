@@ -6,10 +6,12 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <aos/kernel.h>
-#include <aos/debug.h>
 #include <uservice/event.h>
 #include <sys/select.h>
+#ifndef __linux__
+#include <aos/kernel.h>
+#include <aos/debug.h>
+#endif
 
 #include "internal.h"
 

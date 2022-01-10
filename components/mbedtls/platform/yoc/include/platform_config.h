@@ -7,6 +7,8 @@
     #include "config_yoc_alicoap.h"
 #elif defined(CONFIG_CLOUDIO_ALIMQTT)
     #include "config_yoc_alimqtt.h"
+#elif defined(CONFIG_USING_HTTP2)
+    #include "config_yoc_http2.h"
 #elif defined(CONFIG_USING_TLS)
     #include "config_yoc_tls.h"
 #else

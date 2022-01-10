@@ -111,12 +111,12 @@ static flash_ops_t partition_ops = {
 static int kv_flash_erase(kv_t *kv, int pos, int size)
 {
     int ret;
-    aos_dev_t *dev = (aos_dev_t *)kv->handle;
+    aos_dev_t *dev = (aos_dev_t *)((long)kv->handle);
     flash_dev_info_t flash_info;
 
     flash_get_info(dev, &flash_info);
 
-    int offset = pos + (int)kv->mem - flash_info.start_addr;
+    int offset = pos + (long)kv->mem - flash_info.start_addr;
 
     ret = flash_erase(dev, offset, 1);
 
@@ -126,12 +126,12 @@ static int kv_flash_erase(kv_t *kv, int pos, int size)
 static int kv_flash_write(kv_t *kv, int pos, void *data, int size)
 {
     int ret;
-    aos_dev_t *dev = (aos_dev_t *)kv->handle;
+    aos_dev_t *dev = (aos_dev_t *)((long)kv->handle);
     flash_dev_info_t flash_info;
 
     flash_get_info(dev, &flash_info);
 
-    int offset = pos + (int)kv->mem - flash_info.start_addr;
+    int offset = pos + (long)kv->mem - flash_info.start_addr;
     ret = flash_program(dev, offset, data, size);
 
     return ret;
@@ -140,12 +140,12 @@ static int kv_flash_write(kv_t *kv, int pos, void *data, int size)
 static int kv_flash_read(kv_t *kv, int pos, void *data, int size)
 {
     int ret;
-    aos_dev_t *dev = (aos_dev_t *)kv->handle;
+    aos_dev_t *dev = (aos_dev_t *)((long)kv->handle);
     flash_dev_info_t flash_info;
 
     flash_get_info(dev, &flash_info);
 
-    int offset = pos + (int)kv->mem - flash_info.start_addr;
+    int offset = pos + (long)kv->mem - flash_info.start_addr;
     ret = flash_read(dev, offset, data, size);
     return ret;
 }
@@ -166,13 +166,11 @@ int kv2x_init(kv_t *kv, const char *partition)
         partition_info_t *lp = hal_flash_get_info(kv->handle);
         aos_assert(lp);
 
-        uint8_t *mem        = (uint8_t *)(lp->start_addr + lp->base_addr);
+        uint8_t *mem        = (uint8_t *)((unsigned long)(lp->start_addr + lp->base_addr));
         int      block_size = lp->sector_size;
         int      block_num  = lp->length / lp->sector_size;
 
-        kv_init(kv, mem, block_num, block_size);
-
-        return 0;
+        return kv_init(kv, mem, block_num, block_size);
     }
 
     return -1;
@@ -181,15 +179,15 @@ int kv2x_init(kv_t *kv, const char *partition)
 int kv2x_flash_init(kv_t *kv, const char *flashname, int start, int num)
 {
     memset(kv, 0, sizeof(kv_t));
-    kv->handle = (int)flash_open(flashname);
+    kv->handle = (long)flash_open(flashname);
     kv->ops    = &flash_ops;
 
     if (kv->handle >= 0) {
         flash_dev_info_t flash_info;
 
-        flash_get_info((aos_dev_t *)kv->handle, &flash_info);
+        flash_get_info((aos_dev_t *)((long)kv->handle), &flash_info);
 
-        uint8_t *mem        = (uint8_t *)(start);
+        uint8_t *mem        = (uint8_t *)((long)start);
         int      block_size = flash_info.block_size;
         int      block_num  = num;
 
@@ -340,33 +338,34 @@ void __kv_list()
     aos_mutex_unlock(&kv_lock);
 }
 
-/**
- * This function will get data from the factory setting area.
- *
- * @param[in]   key   the data pair of the key, less than 64 bytes
- * @param[in]   size  the size of the buffer
- * @param[out]  buf   the buffer that will store the data
- * @return  the length of the data value, error code otherwise
- */
-int nvram_get_val(const char *key, void *buf, int size)
-{
-    memset(buf, 0, size);
+#if !defined(CONFIG_STANDALONE_NVRAM) || !CONFIG_STANDALONE_NVRAM
 
-    return __kv_getdata((char *)key, buf, size - 1);
-}
-
-/**
- * This function will set data to the factory setting area.
- *
- * @param[in]   key   the data pair of the key, less than 64 bytes
- * @param[in]   value the data pair of the value, delete the pair if value == NULL
- * @return  the length of the data value, error code otherwise
- */
-int nvram_set_val(const char *key, char *value)
+int nvram_get_val(const char *key, char *buf, int size)
 {
-    aos_mutex_lock(&kv_lock, -1);
-    int ret = kv_set(&g_kv, key, value, strlen(value));
-    aos_mutex_unlock(&kv_lock);
+    int ret;
+    ret = __kv_getdata((char *)key, (char *)buf, size - 1);
+
+    if(ret > 0) {
+        buf[ret < size ? ret : size - 1] = '\0';
+    }
 
     return ret;
 }
+
+
+int nvram_set_val(const char *key, char *value)
+{
+    return __kv_setdata((char *)key, (void *)value, strlen(value));
+}
+
+int nvram_del(const char *key)
+{
+    return __kv_del((char *)key);
+}
+
+int nvram_reset(void)
+{
+    return __kv_reset();
+}
+
+#endif

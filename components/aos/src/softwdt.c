@@ -249,9 +249,10 @@ void aos_wdt_debug(int en)
     g_wdt_debug = en;
 }
 
-int aos_wdt_hw_enable(int id)
+int aos_wdt_hw_enable(int id, int ms)
 {
     aos_wdt_init();
+
 #ifdef CONFIG_USE_HW
 #ifdef CONFIG_CSI_V2
     csi_error_t ret = csi_wdt_init(&g_softwdt_ctx.hw_wdg_handle, id);
@@ -259,12 +260,12 @@ int aos_wdt_hw_enable(int id)
         return -1;
     }
 
-    csi_wdt_set_timeout(&g_softwdt_ctx.hw_wdg_handle, SOFTWDT_TIME);
+    csi_wdt_set_timeout(&g_softwdt_ctx.hw_wdg_handle, ms);
     csi_wdt_start(&g_softwdt_ctx.hw_wdg_handle);
     aos_check_return_einval(&g_softwdt_ctx.hw_wdg_handle);
 #else
-    g_softwdt_ctx.hw_wdg_handle = csi_wdt_initialize(0, NULL);
-    csi_wdt_set_timeout(g_softwdt_ctx.hw_wdg_handle, SOFTWDT_TIME);
+    g_softwdt_ctx.hw_wdg_handle = csi_wdt_initialize(id, NULL);
+    csi_wdt_set_timeout(g_softwdt_ctx.hw_wdg_handle, ms);
     csi_wdt_start(g_softwdt_ctx.hw_wdg_handle);
     aos_check_return_einval(g_softwdt_ctx.hw_wdg_handle);
 #endif
@@ -277,7 +278,6 @@ int aos_wdt_hw_enable(int id)
 
 void aos_wdt_hw_disable(int id)
 {
-    aos_wdt_init();
 #ifdef CONFIG_USE_HW
 #ifdef CONFIG_CSI_V2
     csi_wdt_uninit(&g_softwdt_ctx.hw_wdg_handle);

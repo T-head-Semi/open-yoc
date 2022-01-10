@@ -54,16 +54,32 @@ void kvnode_show(kvnode_t *node)
     );
 }
 
-static void block_erase(kvblock_t *block) {
-    block->kv->ops->erase(block->kv, (int)block->mem - (int)block->kv->mem, block->size);
+static void block_erase(kvblock_t *block)
+{
+    int rc = block->kv->ops->erase(block->kv, (long)block->mem - (long)block->kv->mem, block->size);
+    if (rc < 0) {
+        printf("kv: erase failed, rc = %d. id = %d\n", rc, block->id);
+    }
 }
 
-static int block_write(kvblock_t *block, int offset, void *data, int size) {
-    return block->kv->ops->write(block->kv, (int)block->mem + offset - (int)block->kv->mem, data, size);
+static int block_write(kvblock_t *block, int offset, void *data, int size)
+{
+    int rc = block->kv->ops->write(block->kv, (long)block->mem + offset - (long)block->kv->mem, data, size);
+    if (rc < 0) {
+        printf("kv: write failed, rc = %d. id = %d, offset = %d, size = %d\n", rc, block->id, offset, size);
+    }
+
+    return rc;
 }
 
-int block_read(kvblock_t *block, int offset, void *data, int size) {
-    return block->kv->ops->read(block->kv, (int)block->mem + offset - (int)block->kv->mem, data, size);
+int block_read(kvblock_t *block, int offset, void *data, int size)
+{
+    int rc = block->kv->ops->read(block->kv, (long)block->mem + offset - (long)block->kv->mem, data, size);
+    if (rc < 0) {
+        printf("kv: read failed, rc = %d. id = %d, offset = %d, size = %d\n", rc, block->id, offset, size);
+    }
+
+    return rc;
 }
 
 static void __kvblock_gc(kvblock_t *block)
@@ -204,6 +220,7 @@ int kvblock_set(kvblock_t *block, const char *key, void *value, int size, int ve
             block->kv_size += node_size;
             block->count++;
         } else {
+            printf("kv: write verify failed, may be have bad block. id = %d, offset = %d\n", block->id, offset);
             int zero = ERASE_FLAG;
             block_write(block, offset + malloc_size, &zero, 4);
             offset = -1;

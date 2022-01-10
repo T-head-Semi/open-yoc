@@ -45,10 +45,10 @@ aefx_t* aefx_new(uint32_t rate, uint8_t *conf, size_t conf_size, size_t nsamples
         return NULL;
     }
 
-    aef = aos_zalloc(sizeof(aefx_t));
+    aef = av_zalloc(sizeof(aefx_t));
     CHECK_RET_TAG_WITH_RET(aef, NULL);
     if (conf && conf_size) {
-        aef->conf = aos_malloc(conf_size);
+        aef->conf = av_malloc(conf_size);
         CHECK_RET_TAG_WITH_GOTO(aef->conf, err);
         memcpy(aef->conf, conf, conf_size);
         aef->conf_size = conf_size;
@@ -64,8 +64,8 @@ aefx_t* aefx_new(uint32_t rate, uint8_t *conf, size_t conf_size, size_t nsamples
     return aef;
 err:
     if (aef) {
-        aos_free(aef->conf);
-        aos_free(aef);
+        av_free(aef->conf);
+        av_free(aef);
     }
     return NULL;
 }
@@ -109,8 +109,8 @@ int aefx_free(aefx_t *aef)
     CHECK_PARAM(aef, -1);
     aef->ops->uninit(aef);
     aos_mutex_free(&aef->lock);
-    aos_free(aef->conf);
-    aos_free(aef);
+    av_free(aef->conf);
+    av_free(aef);
 
     return 0;
 }

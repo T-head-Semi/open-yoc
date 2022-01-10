@@ -175,12 +175,12 @@ bool sc_rsa_verify(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src,
 {
         SC_lOG("===%s, %d\n", __FUNCTION__, __LINE__);
         csi_rsa_context_t ctx;
-        CHECK_PARAM(rsa, SC_PARAM_INV);
-        CHECK_PARAM(context, SC_PARAM_INV);
-        CHECK_PARAM(src, SC_PARAM_INV);
-        CHECK_PARAM(signature, SC_PARAM_INV);
+        CHECK_PARAM(rsa, false);
+        CHECK_PARAM(context, false);
+        CHECK_PARAM(src, false);
+        CHECK_PARAM(signature, false);
         CHECK_PARAM((context->key_bits == 1024) || (context->key_bits == 2048),
-                    SC_PARAM_INV);
+                    false);
         ctx.n = context->n;
         ctx.d = context->d;
         ctx.e = context->e;

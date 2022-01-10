@@ -1,0 +1,28 @@
+/*
+ * 部分样式不支持缩写,可使用此处提供的常用mixin
+ */
+@import "./var.less";
+#border(@width: @border-width-default,@color:@border-color-default,@radius:@border-radius-default) {
+  border-width: @width;
+  border-style: solid;
+  border-color: @color;
+  border-radius: @radius;
+}
+
+.transition(@property: all, @duration:@transition-duration-default, @function:linear, @delay:0) {
+  transition-property: @property;
+  transition-duration: @duration;
+  transition-timing-function: @function;
+  transition-delay: @delay;
+}
+
+// 只支持 "背景" 且 "线性" 渐变
+// 用法:.bg-linear-gradient(to right/0deg; red 0%,blue 50%, green 60%,...);
+.bg-linear-gradient(@direction: @gradient-direction-default, @color-stops) {
+  background-image: linear-gradient(@direction, @color-stops);
+}
+
+// 不支持内阴影(inset),暂不支持模糊距离
+.shadow(@h-shadow:@shadow-h-default, @v-shadow:@shadow-v-default, @radius:@shadow-radius-default, @color:@shadow-color-default) {
+  box-shadow: @h-shadow @v-shadow @radius @color;
+}

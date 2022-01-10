@@ -1,11 +1,13 @@
-/**
- * @file k_mutex.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_MUTEX_H
 #define K_MUTEX_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino mutex
  *  Mutex can be used for mutual exclusion between tasks.
@@ -95,6 +97,10 @@ kstat_t krhino_mutex_lock(kmutex_t *mutex, tick_t ticks);
 kstat_t krhino_mutex_unlock(kmutex_t *mutex);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_MUTEX_H */
 

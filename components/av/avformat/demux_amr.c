@@ -41,7 +41,7 @@ static int _demux_amr_open(demux_cls_t *o)
     uint8_t amr_str[9];
     struct amr_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct amr_priv));
+    priv = av_zalloc(sizeof(struct amr_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     o->priv = priv;
     stream_read(o->s, amr_str, 9);
@@ -77,7 +77,7 @@ static int _demux_amr_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return -1;
 }
@@ -86,7 +86,7 @@ static int _demux_amr_close(demux_cls_t *o)
 {
     struct amr_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

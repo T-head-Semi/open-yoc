@@ -22,7 +22,7 @@ static int _ad_ipc_open(ad_cls_t *o)
     ad_icore_t *hdl;
     adi_conf_t adi_cnf;
 
-    priv = aos_zalloc(sizeof(struct ad_ipc_priv));
+    priv = av_zalloc(sizeof(struct ad_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     rc = ad_icore_init();
@@ -45,7 +45,7 @@ static int _ad_ipc_open(ad_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
 
     return -1;
 }
@@ -85,7 +85,7 @@ static int _ad_ipc_close(ad_cls_t *o)
 
     ad_icore_close(priv->hdl);
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

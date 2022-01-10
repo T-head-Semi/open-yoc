@@ -38,7 +38,6 @@ void base_init()
 }
 
 int pre_main(void)
-
 {
     /* kernel init */
     aos_init();

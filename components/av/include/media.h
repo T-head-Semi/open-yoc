@@ -5,71 +5,11 @@
 #ifndef __YOC_MEDIA_H__
 #define __YOC_MEDIA_H__
 
-#include <aos/list.h>
 #include <uservice/uservice.h>
-#include <avutil/eq_typedef.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*************************************************
- * 音频服务
- * type:
- *  0: 音乐播放
- *  1: 提示音播放
- *      每一个 type 只有一个播放实例，新的播放会替换旧的播放实例，
- *      提示音的播放会先暂停音乐播放，播放完成之后继续音乐播放
- *************************************************/
-
-typedef enum {
-    MEDIA_MUSIC  = 0, /*音乐播放*/
-    MEDIA_SYSTEM = 1, /*通知播放*/
-    MEDIA_ALL    = 255,
-} aui_player_type_t;
-
-typedef enum {
-    AUI_PLAYER_UNKNOWN,
-    AUI_PLAYER_STOP,
-    AUI_PLAYER_PLAYING,
-    AUI_PLAYER_PAUSED
-} aui_player_state_t;
-
-typedef enum {
-    AUI_PLAYER_EVENT_ERROR,
-    AUI_PLAYER_EVENT_START,
-    AUI_PLAYER_EVENT_FINISH,
-    AUI_PLAYER_EVENT_RESUME,
-    AUI_PLAYER_EVENT_UNDER_RUN,    ///< for stream-cache status
-    AUI_PLAYER_EVENT_OVER_RUN,     ///< for stream-cache status
-} aui_player_evtid_t;
-
-typedef int (*media_key_cb_t)(const void *in, size_t ilen, void *out, size_t *olen);
-
-typedef struct {
-    uint8_t   vol_en;              ///< soft vol scale enable
-    uint8_t   vol_index;           ///< soft vol scale index (0~255)
-    uint8_t   *aef_conf;           ///< config data for aef
-    size_t    aef_conf_size;       ///< size of the config data for aef
-    uint32_t  resample_rate;
-    uint32_t  web_cache_size;      ///< size of the web cache. 0 use default
-    uint32_t  web_start_threshold; ///< (0~100)start read for player when up to cache_start_threshold. 0 use default
-    uint32_t  snd_period_ms;       ///< period cache size(ms) for audio out. 0 means use default
-    uint32_t  snd_period_num;      ///< number of period_ms. total cache size for ao is (period_num * period_ms * (rate / 1000) * 2 * (16/8)). 0 means use default
-    float     speed;               ///< atempo play speed.suggest: 0.5 ~ 2.0;
-} aui_player_config_t;
-
-typedef struct {
-    uint64_t  duration;      ///< ms, maybe a dynamic time
-    uint64_t  curtime;       ///< ms, current time
-} aui_play_time_t;
-
-/**
- * 播放器事件用户处理函数
- *
- * @param evt_id
- */
-typedef void (*media_evt_t)(int type, aui_player_evtid_t evt_id);
+#include "avutil/av_config.h"
+#include "avutil/eq_typedef.h"
+#include "xplayer/xplayer_typedef.h"
+#include "media_typedef.h"
 
 /**
  * 获取指定播放器的状态
@@ -79,6 +19,20 @@ typedef void (*media_evt_t)(int type, aui_player_evtid_t evt_id);
  * @return 0:成功
  */
 int aui_player_init(utask_t *task, media_evt_t evt_cb);
+
+/**
+ * @brief  init the default config value before configure
+ * @param  [in] config
+ * @return 0/-1
+ */
+int aui_player_config_init(aui_player_config_t *config);
+
+/**
+ * 配置参数
+ *
+ * @return 0:成功
+ */
+int aui_player_config(const aui_player_config_t *config);
 
 /**
  * 播放音乐，强制停止已经在播的音乐
@@ -138,6 +92,14 @@ int aui_player_seek(int type, uint64_t seek_time);
 int aui_player_mute(int type);
 
 /**
+ * 取消播放器静音
+ *
+ * @param type 支持MEDIA_MUSIC,MEDIA_SYSTEM,MEDIA_ALL
+ * @return 0:成功
+ */
+int aui_player_unmute(int type);
+
+/**
  * 调整音量
  *
  * @param type 支持MEDIA_MUSIC,MEDIA_SYSTEM,,MEDIA_ALL
@@ -150,7 +112,7 @@ int aui_player_vol_adjust(int type, int inc_volume);
  * 调整音量到指定值
  *
  * @param type 支持MEDIA_MUSIC,MEDIA_SYSTEM,MEDIA_ALL
- * @param volume 指定音量的百分比 0~100
+ * @param volume 指定音量的百分比 0~100. 0 means mute-enable
  * @return 0:成功
  */
 int aui_player_vol_set(int type, int volume);
@@ -198,20 +160,6 @@ aui_player_state_t aui_player_get_state(int type);
 int aui_player_resume_music(void);
 
 /**
- * @brief  init the default config value before configure
- * @param  [in] config
- * @return 0/-1
- */
-int aui_player_config_init(aui_player_config_t *config);
-
-/**
- * 配置参数
- *
- * @return 0:成功
- */
-int aui_player_config(const aui_player_config_t *config);
-
-/**
  * 配置参数
  *
  * @param eq_segments EQ段配置数组
@@ -241,7 +189,7 @@ int aui_player_get_time(int type, aui_play_time_t *t);
  * 获取播放速度
  *
  * @param type 支持MEDIA_MUSIC,MEDIA_SYSTEM
- * @param speed : [PLAY_SPEED_MIN ~ PLAY_SPEED_MAX]
+ * @param speed
  * @return 0:成功
  */
 int aui_player_get_speed(int type, float *speed);
@@ -250,10 +198,98 @@ int aui_player_get_speed(int type, float *speed);
  * 设置播放速度
  *
  * @param type 支持MEDIA_MUSIC,MEDIA_SYSTEM
- * @param speed : [PLAY_SPEED_MIN ~ PLAY_SPEED_MAX]
+ * @param speed
  * @return 0:成功
  */
 int aui_player_set_speed(int type, float speed);
+
+/**
+ * @brief  get media info of the type
+ * @param  [in] type
+ * @param  [in] minfo
+ * @return 0/-1
+ */
+int aui_player_get_media_info(int type, xmedia_info_t *minfo);
+
+/**
+ * @brief  switch audio track of the type
+ * @param  [in] type
+ * @param  [in] idx : audio index
+ * @return 0/-1
+ */
+int aui_player_switch_audio_track(int type, uint8_t idx);
+
+/**
+ * @brief  switch subtitle track of the type
+ * @param  [in] type
+ * @param  [in] idx : subtitle index
+ * @return 0/-1
+ */
+int aui_player_switch_subtitle_track(int type, uint8_t idx);
+
+/**
+ * @brief  set extern subtitle of the type
+ * @param  [in] type
+ * @param  [in] url
+ * @return 0/-1
+ */
+int aui_player_set_subtitle_url(int type, const char *url);
+
+/**
+ * @brief  hide/show subtitle of the type
+ * @param  [in] type
+ * @param  [in] visible
+ * @return 0/-1
+ */
+int aui_player_set_subtitle_visible(int type, uint8_t visible);
+
+/**
+ * @brief  hide/show video of the type
+ * @param  [in] type
+ * @param  [in] visible
+ * @return 0/-1
+ */
+int aui_player_set_video_visible(int type, uint8_t visible);
+
+/**
+ * @brief  crop video of the type
+ * @param  [in] type
+ * @param  [in] win
+ * @return 0/-1
+ */
+int aui_player_set_video_crop(int type, const xwindow_t *win);
+
+/**
+ * @brief  set display window of the type
+ * @param  [in] type
+ * @param  [in] win
+ * @return 0/-1
+ */
+int aui_player_set_display_window(int type, const xwindow_t *win);
+
+/**
+ * @brief  on/off fullscreen of the type
+ * @param  [in] type
+ * @param  [in] onoff
+ * @return 0/-1
+ */
+int aui_player_set_fullscreen(int type, uint8_t onoff);
+
+/**
+ * @brief  set display format of the type
+ * @param  [in] type
+ * @param  [in] format
+ * @return 0/-1
+ */
+int aui_player_set_display_format(int type, xdisplay_format_t format);
+
+/**
+ * @brief  rotate video of the type
+ * @param  [in] type
+ * @param  [in] rotate_type
+ * @return 0/-1
+ */
+int aui_player_set_video_rotate(int type, xrotate_type_t rotate_type);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,112 @@
+/*
+ * Copyright (C) 2017-2019 Alibaba Group Holding Limited
+ */
+
+#include <stdio.h>
+#include <aos/hal/qspi.h>
+#include <aos/kernel.h>
+#include <errno.h>
+#include <drv/qspi.h>
+
+typedef struct {
+    csi_qspi_t handle;
+    csi_qspi_command_t cmd;
+    bool has_command;
+    uint32_t size;
+} hal_qspi_priv_t;
+
+static hal_qspi_priv_t qspi_list[6];
+
+int32_t hal_qspi_init(qspi_dev_t *qspi)
+{
+    int32_t ret;
+
+    if (qspi == NULL) {
+        return -1;
+    }
+
+    ret = csi_qspi_init(&qspi_list[qspi->port].handle, qspi->port);
+
+    if (ret < 0U) {
+        return -1;
+    }
+
+    ret = csi_qspi_frequence(&qspi_list[qspi->port].handle, qspi->config.freq);
+
+    if (ret == 0U) {
+        return -1;
+    }
+
+    qspi_list[qspi->port].has_command = false;
+
+    return 0;
+}
+
+int32_t hal_qspi_send(qspi_dev_t *qspi, const uint8_t *data, uint32_t timeout)
+{
+    int32_t ret;
+
+    if (qspi == NULL || data == NULL) {
+        return -1;
+    }
+
+    if (!qspi_list[qspi->port].has_command) {
+        return -1;
+    }
+
+    ret = csi_qspi_send(&qspi_list[qspi->port].handle, &qspi_list[qspi->port].cmd, data, qspi_list[qspi->port].size, timeout);
+
+    return ret;
+}
+
+int32_t hal_qspi_recv(qspi_dev_t *qspi, uint8_t *data, uint32_t timeout)
+{
+    int32_t ret;
+
+    if (qspi == NULL || data == NULL) {
+        return -1;
+    }
+
+    if (!qspi_list[qspi->port].has_command) {
+        return -1;
+    }
+
+    ret = csi_qspi_receive(&qspi_list[qspi->port].handle, &qspi_list[qspi->port].cmd, data, qspi_list[qspi->port].size, timeout);
+
+    return ret;
+}
+
+int32_t hal_qspi_command(qspi_dev_t *qspi, qspi_cmd_t *cmd, uint32_t timeout)
+{
+    if (qspi == NULL || cmd == NULL) {
+        return -1;
+    }
+
+    /* read device id operations */
+    qspi_list[qspi->port].cmd.instruction.value     = cmd->instruction;
+    qspi_list[qspi->port].cmd.instruction.bus_width = QSPI_CFG_BUS_SINGLE;
+    qspi_list[qspi->port].cmd.instruction.disabled  = false;
+    qspi_list[qspi->port].cmd.alt.disabled          = true;
+    qspi_list[qspi->port].cmd.address.disabled      = ( cmd->address == 0xFFFFFFFFU )? true: false;
+    qspi_list[qspi->port].cmd.address.value         = cmd->address;
+    qspi_list[qspi->port].cmd.address.size          = QSPI_ADDRESS_24_BITS;
+    qspi_list[qspi->port].cmd.address.bus_width     = QSPI_CFG_BUS_SINGLE;
+    qspi_list[qspi->port].cmd.data.bus_width        = QSPI_CFG_BUS_SINGLE;
+    qspi_list[qspi->port].size = cmd->size;
+
+    qspi_list[qspi->port].has_command = true;
+
+    return  0;
+}
+
+int32_t hal_qspi_auto_polling(qspi_dev_t *qspi, uint32_t cmd, uint32_t timeout)
+{
+    return 0;
+}
+
+int32_t hal_qspi_finalize(qspi_dev_t *qspi)
+{
+    csi_qspi_uninit(&qspi_list[qspi->port].handle);
+    return 0;
+}
+

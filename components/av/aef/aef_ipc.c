@@ -22,7 +22,7 @@ static int _aef_ipc_init(aefx_t *aef)
     rc = aef_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct aef_ipc_priv));
+    priv = av_zalloc(sizeof(struct aef_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = aef_icore_new(aef->rate, aef->conf, aef->conf_size, aef->nsamples_max);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -31,7 +31,7 @@ static int _aef_ipc_init(aefx_t *aef)
     aef->priv  = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -50,7 +50,7 @@ static int _aef_ipc_uninit(aefx_t *aef)
     struct aef_ipc_priv *priv = aef->priv;
 
     aef_icore_free(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     aef->priv = NULL;
     return 0;
 }

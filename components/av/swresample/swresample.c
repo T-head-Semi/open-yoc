@@ -51,7 +51,7 @@ swr_t *swr_new(sf_t isf, sf_t osf)
     CHECK_PARAM(sf_get_planar(osf) == 0, NULL);
 
     tsf = isf;
-    s   = aos_zalloc(sizeof(swr_t));
+    s   = av_zalloc(sizeof(swr_t));
     CHECK_RET_TAG_WITH_RET(s, NULL);
     mb1 = mblock_new(SWR_MB_SIZE_DEFAULT, 0);
     mb2 = mblock_new(SWR_MB_SIZE_DEFAULT, 0);
@@ -105,7 +105,7 @@ err:
     resx_free(r);
     mblock_free(mb1);
     mblock_free(mb2);
-    aos_free(s);
+    av_free(s);
     return NULL;
 }
 
@@ -270,7 +270,7 @@ void swr_free(swr_t *s)
         afconv_free(s->ac_r);
         resx_free(s->r);
         aos_mutex_free(&s->lock);
-        aos_free(s);
+        av_free(s);
     }
 }
 

@@ -40,10 +40,9 @@ size_t get_id3v2_size(const uint8_t *buf, size_t buf_size);
 
 /**
  * @brief  new a track info
- * @param  [in] type : a/v
  * @return NULL on error
  */
-track_info_t* track_info_new(avmedia_type_t type);
+track_info_t* track_info_new();
 
 /**
  * @brief  free the track info
@@ -66,6 +65,34 @@ int tracks_info_freep(track_info_t **ptracks);
  * @return 0/-1
  */
 int tracks_info_add(track_info_t **ptracks, const track_info_t *track);
+
+/**
+ * @brief  duplicate the media-track
+ * @param  [in] track
+ * @return NULL on error
+ */
+track_info_t* track_info_dup(const track_info_t *track);
+
+/**
+ * @brief  duplicate the media-track list
+ * @param  [in] tracks : media track list
+ * @return NULL on error
+ */
+track_info_t* tracks_info_dup(const track_info_t *tracks);
+
+/**
+ * @brief  init the media-info
+ * @param  [in] info
+ * @return 0/-1
+ */
+int media_info_init(media_info_t *info);
+
+/**
+ * @brief  uninit the media-info
+ * @param  [in] info
+ * @return
+ */
+void media_info_uninit(media_info_t *info);
 
 __END_DECLS__
 

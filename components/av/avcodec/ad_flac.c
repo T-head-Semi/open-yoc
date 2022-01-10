@@ -131,7 +131,7 @@ static int _flac_open(struct ad_flac_priv *priv, uint8_t *extradata, size_t extr
         size_t isize = si->fsize_max * 2;
 
         isize = isize > DEC_IBUF_SIZE_MIN ? isize : DEC_IBUF_SIZE_MIN;
-        ibuf  = aos_zalloc(isize);
+        ibuf  = av_zalloc(isize);
         CHECK_RET_TAG_WITH_GOTO(ibuf, err);
 
         priv->ibuf = ibuf;
@@ -141,7 +141,7 @@ static int _flac_open(struct ad_flac_priv *priv, uint8_t *extradata, size_t extr
     priv->dec = dec;
     return 0;
 err:
-    aos_free(ibuf);
+    av_free(ibuf);
     FLAC__stream_decoder_delete(dec);
     return -1;
 }
@@ -151,7 +151,7 @@ static int _ad_flac_open(ad_cls_t *o)
     int rc;
     struct ad_flac_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct ad_flac_priv));
+    priv = av_zalloc(sizeof(struct ad_flac_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     rc = _flac_open(priv, o->ash.extradata, o->ash.extradata_size);
@@ -170,7 +170,7 @@ static int _ad_flac_open(ad_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -307,8 +307,8 @@ static int _ad_flac_close(ad_cls_t *o)
 
     FLAC__stream_decoder_delete(dec);
 
-    aos_free(priv);
-    aos_free(priv->ibuf);
+    av_free(priv);
+    av_free(priv->ibuf);
     o->priv = NULL;
     return 0;
 }

@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: opus                                          # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.4                                     # <必选项> 组件版本号
+version: v7.5.0                                    # <必选项> 组件版本号
 description: Opus是一个完全开放的、免费的、多功能的音频编解码器。 它在交互式的语音和音乐在互联网中的传输方面有着无与伦比的优势，但是同样致力于存储和流媒体应用程序。 # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 tag: 多媒体播放器                                   # <可选项> 组件分类，缺省值： ''
@@ -12,14 +12,13 @@ keywords:                                           # <可选项> 标签，会�
 license: Xiph.Org                                   # <可选项> 源代码的许可证，要确保所有代码、文件的许可证不冲突。如：MIT，Apache license v2.0，BSD
 
 ## 第二部分：依赖信息
-#           指定该组件依赖的组件及版本，版本支持条件比较，支持：>=v1.0, >v1.0, ==v1.0, <=v1.0, <v1.0, v1.0
-#           未指定条件时，默认为 ==，如 v1.0 与 ==v1.0
+#           指定该组件依赖的组件及版本
 # sdk_chip:                                # <可选项> 该组件依赖sdk组件，合理的依赖才能保证组件能编译、使用
-#   - sdk_chip_csky_dummy: v7.4.3
-#   - sdk_chip_riscv_dummy: v7.4.3
+#   - sdk_chip_csky_dummy: v7.4.0
+#   - sdk_chip_riscv_dummy: v7.4.0
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
-#   - minilibc: v7.2.0
-#   - aos: >=v7.2.0
+#   - minilibc: v7.4.0
+#   - aos: v7.4.0
 
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项

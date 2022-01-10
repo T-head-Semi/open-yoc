@@ -60,7 +60,7 @@ mca_icore_t* mca_icore_new(int type)
     mca_icore_new_t *inp;
 
     CHECK_PARAM(type, NULL);
-    hdl = aos_zalloc(sizeof(mca_icore_t));
+    hdl = av_zalloc(sizeof(mca_icore_t));
     CHECK_RET_TAG_WITH_RET(hdl, NULL);
 
     in_mb = mblock_new(MCA_MB_SIZE_DEFAULT, 16);
@@ -70,7 +70,7 @@ mca_icore_t* mca_icore_new(int type)
     msg_new = icore_msg_new(ICORE_CMD_MCA_NEW, sizeof(mca_icore_new_t));
     CHECK_RET_TAG_WITH_GOTO(msg_new, err);
 
-    priv = aos_zalloc(sizeof(struct mca_icore_ap_priv));
+    priv = av_zalloc(sizeof(struct mca_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(priv, err);
 
     inp = icore_get_msg(msg_new, mca_icore_new_t);
@@ -90,8 +90,8 @@ err:
     mblock_free(in_mb);
     mblock_free(out_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -201,8 +201,8 @@ int mca_icore_free(mca_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

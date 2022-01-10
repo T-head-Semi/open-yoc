@@ -148,7 +148,7 @@ avfilter_t *avf_vol_open(const char *inst_name, uint8_t vol_index)
     struct avfilter_vol *dobj = NULL;
 
     CHECK_PARAM(inst_name, NULL);
-    dobj = aos_zalloc(sizeof(struct avfilter_vol));
+    dobj = av_zalloc(sizeof(struct avfilter_vol));
     CHECK_RET_TAG_WITH_RET(dobj, NULL);
     f       = (avfilter_t*)dobj;
     f->ops  = &avf_ops_vol;
@@ -165,7 +165,7 @@ avfilter_t *avf_vol_open(const char *inst_name, uint8_t vol_index)
     return (avfilter_t*)dobj;
 err:
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

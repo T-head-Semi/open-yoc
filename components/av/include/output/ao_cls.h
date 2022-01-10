@@ -15,9 +15,6 @@
 
 __BEGIN_DECLS__
 
-#define AO_ONE_PERIOD_MS            (15)
-#define AO_TOTAL_PERIOD_NUM         (10)
-
 typedef struct ao_cls ao_cls_t;
 
 struct ao_ops {

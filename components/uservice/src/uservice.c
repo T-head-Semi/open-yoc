@@ -3,10 +3,10 @@
  */
 
 #include <string.h>
-
-#include <aos/debug.h>
+#ifndef __linux__
 #include <aos/kernel.h>
-
+#include <aos/debug.h>
+#endif
 
 #include "internal.h"
 
@@ -27,6 +27,29 @@ void uservice_unlock(uservice_t *srv)
         TASK_UNLOCK(srv->task);
 }
 
+#ifdef __linux__
+int uservice_call(uservice_t *srv, rpc_t *rpc)
+{
+    aos_assert(srv);
+    aos_assert(srv->task);
+    rpc->srv = srv;
+
+    int count = 10;
+    while (count--) {
+        if (mq_send(srv->task->queue, (const char*)rpc, sizeof(rpc_t), 0) == 0) {
+            return rpc_wait(rpc);
+        } else {
+            if ( count == 1) {
+                LOGW(TAG, "uService %s queue full,send id:%d cur id: %d", srv->name,rpc->cmd_id, srv->task->current_rpc->cmd_id);
+            }
+            aos_msleep(100);
+        }
+    }
+
+    return -1;
+}
+
+#else
 int uservice_call(uservice_t *srv, rpc_t *rpc)
 {
     aos_assert(srv);
@@ -55,6 +78,7 @@ int uservice_call(uservice_t *srv, rpc_t *rpc)
 
     return -1;
 }
+#endif
 
 int uservice_call_sync(uservice_t *srv, int cmd, void *param, void *resp, size_t size)
 {
@@ -137,6 +161,7 @@ int uservice_process(void *context, rpc_t *rpc, const rpc_process_t rpcs[])
             return 0;
         }
     }
+    LOGW(TAG, "cmd is may be error. uService = %s, cmd_id = %d", rpc->srv->name, rpc->cmd_id);
 
     return -1;
 }

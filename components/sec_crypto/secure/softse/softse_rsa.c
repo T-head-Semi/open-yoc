@@ -128,10 +128,12 @@ uint32_t sc_rsa_encrypt(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uin
 {
   SC_lOG("===%s, %d\n", __FUNCTION__, __LINE__);
   uint32_t ret;
-  uint32_t len;
+  size_t len;
+  size_t ilen = src_size;
   sc_mbedtls_md_type_t hid[] = {SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_SHA1, SC_MBEDTLS_MD_SHA224,
                                 SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
 
+  CHECK_PARAM(rsa, SC_PARAM_INV);
   CHECK_PARAM(context, SC_PARAM_INV);
   CHECK_PARAM(src, SC_PARAM_INV);
   CHECK_PARAM(out, SC_PARAM_INV);
@@ -151,7 +153,7 @@ uint32_t sc_rsa_encrypt(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uin
   ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
   ret = sc_mbedtls_rsa_pkcs1_encrypt(&rsa->rsa_ctx, rsa_rand, NULL, SC_MBEDTLS_RSA_PUBLIC,
-                                     src_size, src, out);
+                                     ilen, src, out);
   sc_mbedtls_mpi_free(&rsa->rsa_ctx.N);
   sc_mbedtls_mpi_free(&rsa->rsa_ctx.E);
 
@@ -173,10 +175,12 @@ uint32_t sc_rsa_decrypt(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uin
 {
   SC_lOG("===%s, %d\n", __FUNCTION__, __LINE__);
   uint32_t ret;
-  uint32_t len;
+  size_t len;
+  size_t olen;
   sc_mbedtls_md_type_t hid[] = {SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_SHA1, SC_MBEDTLS_MD_SHA224,
                                 SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
 
+  CHECK_PARAM(rsa, SC_PARAM_INV);
   CHECK_PARAM(context, SC_PARAM_INV);
   CHECK_PARAM(src, SC_PARAM_INV);
   CHECK_PARAM(out, SC_PARAM_INV);
@@ -190,14 +194,15 @@ uint32_t sc_rsa_decrypt(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uin
 
   sc_mbedtls_rsa_init(&rsa->rsa_ctx, SC_MBEDTLS_RSA_PKCS_V15, hid[context->hash_type]);
   rsa->rsa_ctx.len = len;
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.D, context->d, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.D, context->d, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
   ret = sc_mbedtls_rsa_pkcs1_decrypt(&rsa->rsa_ctx, rsa_rand, NULL, SC_MBEDTLS_RSA_PRIVATE,
-                                     out_size, src, out, context->key_bits / 8);
+                                     &olen, src, out, len);
+  *out_size = olen;
   sc_mbedtls_mpi_free(&rsa->rsa_ctx.N);
   sc_mbedtls_mpi_free(&rsa->rsa_ctx.E);
   sc_mbedtls_mpi_free(&rsa->rsa_ctx.D);
@@ -220,12 +225,13 @@ uint32_t sc_rsa_sign(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32
 {
   SC_lOG("===%s, %d\n", __FUNCTION__, __LINE__);
   uint32_t ret;
-  uint32_t len;
+  size_t len;
   sc_mbedtls_md_type_t hid[] = {SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_SHA1, SC_MBEDTLS_MD_SHA224,
                                 SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
   sc_mbedtls_md_type_t types[] = {SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_SHA1, SC_MBEDTLS_MD_SHA224,
                                   SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
 
+  CHECK_PARAM(rsa, SC_PARAM_INV);
   CHECK_PARAM(context, SC_PARAM_INV);
   CHECK_PARAM(src, SC_PARAM_INV);
   CHECK_PARAM(signature, SC_PARAM_INV);
@@ -238,11 +244,11 @@ uint32_t sc_rsa_sign(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32
   len = context->key_bits / 8;
   sc_mbedtls_rsa_init(&rsa->rsa_ctx, SC_MBEDTLS_RSA_PKCS_V15, hid[context->hash_type]);
   rsa->rsa_ctx.len = len;
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.D, context->d, context->key_bits / 8);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.D, context->d, len);
   CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
   /* src:degist */
 
@@ -278,9 +284,10 @@ bool sc_rsa_verify(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32_t
                                 SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
   sc_mbedtls_md_type_t types[] = {SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_SHA1, SC_MBEDTLS_MD_SHA224,
                                   SC_MBEDTLS_MD_SHA256, SC_MBEDTLS_MD_NONE, SC_MBEDTLS_MD_NONE};
-  CHECK_PARAM(context, SC_PARAM_INV);
-  CHECK_PARAM(src, SC_PARAM_INV);
-  CHECK_PARAM(signature, SC_PARAM_INV);
+  CHECK_PARAM(rsa, false);
+  CHECK_PARAM(context, false);
+  CHECK_PARAM(src, false);
+  CHECK_PARAM(signature, false);
   if (context->padding_type != SC_RSA_PADDING_MODE_PKCS1)
   {
     return false;
@@ -297,10 +304,10 @@ bool sc_rsa_verify(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32_t
   // aos_log_hexdump("src", (char *)src, src_size);
   // aos_log_hexdump("signature", (char *)signature, sig_size);
 
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, context->key_bits / 8);
-  CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
-  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, context->key_bits / 8);
-  CHECK_RET_WITH_RET(ret == 0, SC_CRYPT_FAIL);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.N, context->n, len);
+  CHECK_RET_WITH_RET(ret == 0, false);
+  ret = sc_mbedtls_mpi_read_binary(&rsa->rsa_ctx.E, context->e, len);
+  CHECK_RET_WITH_RET(ret == 0, false);
   /* src:degist */
 
   ret = sc_mbedtls_rsa_pkcs1_verify(&rsa->rsa_ctx, NULL, NULL, SC_MBEDTLS_RSA_PUBLIC,

@@ -18,11 +18,11 @@ mblock_t* mblock_new(size_t size, size_t align)
     mblock_t *mb;
 
     CHECK_PARAM(size, NULL);
-    mb = aos_zalloc(sizeof(mblock_t));
+    mb = av_zalloc(sizeof(mblock_t));
     CHECK_RET_TAG_WITH_RET(mb, NULL);
 
     sz = align ? (size + 2 * align) : size;
-    mb->data_orip = aos_zalloc(sz);
+    mb->data_orip = av_zalloc(sz);
     CHECK_RET_TAG_WITH_GOTO(mb->data_orip, err);
 
     mb->used  = 0;
@@ -32,7 +32,7 @@ mblock_t* mblock_new(size_t size, size_t align)
 
     return mb;
 err:
-    aos_free(mb);
+    av_free(mb);
     return NULL;
 }
 
@@ -53,7 +53,7 @@ int mblock_grow(mblock_t *mb, size_t size)
 
         align     = mb->align;
         sz        = align ? (size + 2 * align) : size;
-        data_orip = aos_realloc(mb->data_orip, sz);
+        data_orip = av_realloc(mb->data_orip, sz);
         if (data_orip) {
             mb->size      = size;
             mb->data_orip = data_orip;
@@ -80,8 +80,8 @@ int mblock_free(mblock_t *mb)
     mb->size  = 0;
     mb->align = 0;
     mb->data  = NULL;
-    aos_freep((char**)&mb->data_orip);
-    aos_free(mb);
+    av_freep((char**)&mb->data_orip);
+    av_free(mb);
 
     return 0;
 }

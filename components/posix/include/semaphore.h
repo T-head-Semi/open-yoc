@@ -1,20 +1,22 @@
 /*
- * Copyright (C) 2015-2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2021 Alibaba Group Holding Limited
  */
 
-#ifndef SEMAPHORE_H
-#define SEMAPHORE_H
+#ifndef _SEMAPHORE_H
+#define _SEMAPHORE_H
+
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <time.h>
+#define SEM_FAILED ((sem_t *)0)
+#define SEM_VALUE_MAX 32767
 
-#include "k_api.h"
-#include "posix_config.h"
-
-typedef ksem_t *sem_t;
+typedef struct {
+    void *aos_sem;
+} sem_t;
 
 int    sem_init(sem_t *sem, int pshared, unsigned int value);
 sem_t *sem_open(const char *name, int oflag, ...);
@@ -29,6 +31,6 @@ int    sem_destroy(sem_t *sem);
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
 
-#endif /* SEMAPHORE_H */
+#endif /* _SEMAPHORE_H */

@@ -66,7 +66,7 @@ resync:
     }
 
     if (len > priv->size) {
-        data = aos_realloc(priv->data, len);
+        data = av_realloc(priv->data, len);
         CHECK_RET_TAG_WITH_GOTO(data, err);
         priv->data = data;
         priv->size = len;
@@ -162,7 +162,7 @@ static int _demux_ogg_open(demux_cls_t *o)
     int rc;
     struct ogg_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct ogg_priv));
+    priv = av_zalloc(sizeof(struct ogg_priv));
     priv->header = -1;
     o->priv      = priv;
 
@@ -173,8 +173,8 @@ static int _demux_ogg_open(demux_cls_t *o)
     return 0;
 err:
     if (priv) {
-        aos_free(priv->data);
-        aos_free(priv);
+        av_free(priv->data);
+        av_free(priv);
     }
     return -1;
 }
@@ -183,8 +183,8 @@ static int _demux_ogg_close(demux_cls_t *o)
 {
     struct ogg_priv *priv = o->priv;
 
-    aos_free(priv->data);
-    aos_free(priv);
+    av_free(priv->data);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

@@ -5,7 +5,7 @@
 #ifndef __PATH_H__
 #define __PATH_H__
 
-#include <aos/types.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

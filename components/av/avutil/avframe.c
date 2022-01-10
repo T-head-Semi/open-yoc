@@ -10,7 +10,7 @@
  */
 avframe_t *avframe_alloc()
 {
-    avframe_t *frame = aos_zalloc(sizeof(avframe_t));
+    avframe_t *frame = av_zalloc(sizeof(avframe_t));
 
     return frame;
 }
@@ -48,10 +48,10 @@ void avframe_free(avframe_t **frame)
                 void *data = pframe->data[i];
 
                 if (data)
-                    aos_free(data);
+                    av_free(data);
             }
         }
-        aos_freep((char**)frame);
+        av_freep((char**)frame);
     }
 }
 
@@ -91,7 +91,7 @@ int avframe_get_buffer(avframe_t *frame)
         frame->moffset     = linesize;
         return 0;
     } else {
-        void *data = aos_realloc(frame->data[0], linesize);
+        void *data = av_realloc(frame->data[0], linesize);
 
         if (data) {
             frame->data[0]     = data;
@@ -132,7 +132,7 @@ int avframe_copy_from(const avframe_t *from, avframe_t *to)
     } else {
         //FIXME:
         if (f_linesize > to->capsize[0]) {
-            void *data = aos_realloc(to->data[0], f_linesize);
+            void *data = av_realloc(to->data[0], f_linesize);
             if (!data) {
                 return -1;
             }

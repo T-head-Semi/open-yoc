@@ -45,8 +45,8 @@ eqx_t* eqx_new(uint32_t rate, uint8_t eq_segments)
         return NULL;
     }
 
-    eq     = aos_zalloc(sizeof(eqx_t));
-    params = aos_zalloc(sizeof(eqfp_t) * eq_segments);
+    eq     = av_zalloc(sizeof(eqx_t));
+    params = av_zalloc(sizeof(eqfp_t) * eq_segments);
     CHECK_RET_TAG_WITH_GOTO(eq && params, err);
     eq->nsamples_max = POST_PROC_SAMPLES_MAX;
 
@@ -60,8 +60,8 @@ eqx_t* eqx_new(uint32_t rate, uint8_t eq_segments)
 
     return eq;
 err:
-    aos_free(params);
-    aos_free(eq);
+    av_free(params);
+    av_free(eq);
     return NULL;
 }
 
@@ -153,8 +153,8 @@ int eqx_free(eqx_t *eq)
     CHECK_PARAM(eq, -1);
     eq->ops->uninit(eq);
     aos_mutex_free(&eq->lock);
-    aos_free(eq->params);
-    aos_free(eq);
+    av_free(eq->params);
+    av_free(eq);
 
     return 0;
 }

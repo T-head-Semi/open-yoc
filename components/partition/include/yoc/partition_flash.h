@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    uint32_t    start_addr;
+    unsigned long    start_addr;
     uint32_t    sector_size;
     uint32_t    sector_count;
 } partition_flash_info_t;
@@ -34,9 +34,9 @@ typedef struct {
     void *(*open)(int id);
     int (*close)(void *handle);
     int (*info_get)(void *handle, partition_flash_info_t *info);
-    int (*read)(void *handle, uint32_t addr, void *data, size_t data_len);
-    int (*write)(void *handle, uint32_t addr, void *data, size_t data_len);
-    int (*erase)(void *handle, uint32_t addr, size_t len);
+    int (*read)(void *handle, unsigned long addr, void *data, size_t data_len);
+    int (*write)(void *handle, unsigned long addr, void *data, size_t data_len);
+    int (*erase)(void *handle, unsigned long addr, size_t len);
 
     hdl_mgr_t hdl_mgr;
 } partition_flash_ops_t;
@@ -75,7 +75,7 @@ int partition_flash_info_get(void *handle, partition_flash_info_t *info);
  * @param[in]  data_len     The length of the buffer
  * @return  0 : On success, <0 If an error occurred with any step
  */
-int partition_flash_read(void *handle, uint32_t addr, void *data, size_t data_len);
+int partition_flash_read(void *handle, unsigned long addr, void *data, size_t data_len);
 
 /**
  * Write data to flash
@@ -86,7 +86,7 @@ int partition_flash_read(void *handle, uint32_t addr, void *data, size_t data_le
  * @param[in]  data_len     The length of the buffer
  * @return  0 : On success, <0 If an error occurred with any step
  */
-int partition_flash_write(void *handle, uint32_t addr, void *data, size_t data_len);
+int partition_flash_write(void *handle, unsigned long addr, void *data, size_t data_len);
 
 /**
  * Erase flash
@@ -96,7 +96,7 @@ int partition_flash_write(void *handle, uint32_t addr, void *data, size_t data_l
  * @param[in]  len          The length that need to erase
  * @return  0 : On success, <0 If an error occurred with any step
  */
-int partition_flash_erase(void *handle, uint32_t addr, size_t len);
+int partition_flash_erase(void *handle, unsigned long addr, size_t len);
 
 /**
  * Register flash operation functions

@@ -21,7 +21,7 @@ static int _mca_ipc_init(mcax_t *mca, int32_t type)
     rc = mca_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct mca_ipc_priv));
+    priv = av_zalloc(sizeof(struct mca_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = mca_icore_new(type);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -30,7 +30,7 @@ static int _mca_ipc_init(mcax_t *mca, int32_t type)
     mca->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -58,7 +58,7 @@ static int _mca_ipc_uninit(mcax_t *mca)
     struct mca_ipc_priv *priv = mca->priv;
 
     mca_icore_free(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     mca->priv = NULL;
     return 0;
 }

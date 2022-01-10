@@ -7,17 +7,29 @@
 
 #define TAG                   "volscale"
 
-#define FACTOR_N (256)
 static int32_t _factor_scale[FACTOR_N];
 
-static void _factor_init(int maxdb, int mindb)
+/**
+ * @brief  init factor of the vol scale, divided into FACTOR_N(256) equal parts. once only
+ * @param  [in] mindb
+ * @param  [in] maxdb
+ * @return
+ */
+void vol_scale_init(int mindb, int maxdb)
 {
-    int i;
-    double db;
+    static int init;
 
-    for (i = 0; i < FACTOR_N; i++) {
-        db               = mindb + 1.0 * (maxdb - mindb) * i / FACTOR_N;
-        _factor_scale[i] = pow(10.0, db / 20.0) * (1 << 14);
+    if (!init) {
+        int i;
+        double db;
+
+        for (i = 0; i < FACTOR_N; i++) {
+            db               = mindb + 1.0 * (maxdb - mindb) * i / FACTOR_N;
+            _factor_scale[i] = pow(10.0, db / 20.0) * (1 << 14);
+        }
+        //FIXME:
+        _factor_scale[0] = 0;
+        init = 1;
     }
 }
 
@@ -32,12 +44,6 @@ static void _factor_init(int maxdb, int mindb)
 int vol_scale(const int16_t *in, size_t nb_samples, int16_t *out, uint8_t scale_index)
 {
     int factor;
-    static int init;
-
-    if (!init) {
-        _factor_init(14, -60);
-        init = 1;
-    }
 
     factor = _factor_scale[scale_index];
     if (factor > (1 << 14)) {

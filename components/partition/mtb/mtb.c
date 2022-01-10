@@ -11,13 +11,13 @@
 
 static mtb_t g_mtb;
 #ifdef CONFIG_NON_ADDRESS_FLASH
-uint32_t  g_manfest_tb_ram[MAX_MANTB_WORD_SIZE];
+uint8_t __attribute__((aligned(4))) g_manfest_tb_ram[MAX_MANTB_BYTE_SIZE];
 #endif
 
 static int mtb_verify(void);
 static int mtb_crc_check(void);
 
-int get_data_from_faddr(uint32_t addr, void *data, size_t data_len)
+int get_data_from_faddr(unsigned long addr, void *data, size_t data_len)
 {
     int ret = 0;
 #ifdef CONFIG_NON_ADDRESS_FLASH
@@ -38,17 +38,17 @@ int get_data_from_faddr(uint32_t addr, void *data, size_t data_len)
     return ret;
 }
 
-static int mtb_find_addr(mtb_t *mtb, uint32_t find_start, uint32_t find_end, uint32_t block_size)
+static int mtb_find_addr(mtb_t *mtb, unsigned long find_start, unsigned long find_end, uint32_t block_size)
 {
-    uint32_t flash_addr = 0;
-    uint32_t flash_end;
+    unsigned long flash_addr = 0;
+    unsigned long flash_end;
 
     flash_addr = find_start;
     flash_end = find_end;
 
-    MTB_LOGD("start_addr:0x%08x", flash_addr);
+    MTB_LOGD("start_addr:0x%08lx", flash_addr);
     MTB_LOGD("block_size:%d", block_size);
-    MTB_LOGD("flash_end:0x%x", flash_end);
+    MTB_LOGD("flash_end:0x%lx", flash_end);
 #ifdef CONFIG_NON_ADDRESS_FLASH
     mtb_head_t m_buf;
     int bmtb_size = 0;
@@ -104,7 +104,7 @@ static int mtb_find_addr(mtb_t *mtb, uint32_t find_start, uint32_t find_end, uin
         goto fail;
     }
 
-    mtb->using_addr = (uint32_t)g_manfest_tb_ram;
+    mtb->using_addr = (unsigned long)g_manfest_tb_ram;
     mtb->i_offset = bmtb_size;
 #else
     while(flash_addr < flash_end) {
@@ -143,7 +143,7 @@ static int mtb_find_addr(mtb_t *mtb, uint32_t find_start, uint32_t find_end, uin
         goto fail;
     }
 #endif
-    MTB_LOGD("mtb find 0x%x", mtb->prim_addr);
+    MTB_LOGD("mtb find 0x%lx", mtb->prim_addr);
     return 0;
 fail:
     MTB_LOGE("mtb find magic failed.");
@@ -170,6 +170,7 @@ int mtb_init(void)
     flash_addr = flash_info.start_addr;
     flash_end = flash_addr + flash_info.sector_size * flash_info.sector_count;
     if (mtb_find_addr(&g_mtb, flash_addr, flash_end, flash_info.sector_size)) {
+        MTB_LOGE("mtb find magic error");
         return -1;
     }
 
@@ -196,14 +197,12 @@ static int mtb_crc_check(void)
 {
     int ret = 0;
 
-#if (CONFIG_MTB_CRC_NO_CHECK == 0)
     if (g_mtb.version < 4) {
         // do nothing
         ret = 0;
     } else {
         ret = mtbv4_crc_check();
     }
-#endif
     return ret;
 }
 
@@ -345,15 +344,15 @@ int get_section_buf(uint32_t addr, uint32_t img_len, scn_type_t *scn_type, uint3
     return 0;
 }
 
-int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, uint32_t *scn_addr)
+int mtb_get_img_scn_addr(uint8_t *mtb_buf, const char *name, unsigned long *scn_addr)
 {
     int ret;
 
     if (!(mtb_buf && name && scn_addr)) {
         return -EINVAL;
     }
-    ret = get_section_addr((uint32_t)mtb_buf, &(g_scn_img_type[SCN_SUB_TYPE_IMG_NOR]), (uint8_t *)name,
-                     (uint32_t *)scn_addr, SEACH_MODE_FIRST_TYPE);
+    ret = get_section_addr((unsigned long)mtb_buf, &(g_scn_img_type[SCN_SUB_TYPE_IMG_NOR]), (uint8_t *)name,
+                     (unsigned long *)scn_addr, SEACH_MODE_FIRST_TYPE);
     return ret;
 }
 
@@ -362,9 +361,9 @@ int get_sys_partition(uint8_t *out, uint32_t *out_len)
     int ret = 0;
 
     MTB_LOGD("get_sys_partition----------");
-    MTB_LOGD("mtb.prim_addr: 0x%x", g_mtb.prim_addr);
-    MTB_LOGD("mtb.backup_addr: 0x%x", g_mtb.backup_addr);
-    MTB_LOGD("mtb.using_addr: 0x%x", g_mtb.using_addr);
+    MTB_LOGD("mtb.prim_addr: 0x%lx", g_mtb.prim_addr);
+    MTB_LOGD("mtb.backup_addr: 0x%lx", g_mtb.backup_addr);
+    MTB_LOGD("mtb.using_addr: 0x%lx", g_mtb.using_addr);
     MTB_LOGD("mtb.one_size: 0x%x", g_mtb.one_size);
     MTB_LOGD("mtb.version: 0x%x", g_mtb.version);
 

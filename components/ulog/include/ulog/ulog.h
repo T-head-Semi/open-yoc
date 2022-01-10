@@ -28,6 +28,10 @@
 
 #define ULOG_TAG __FILE__, __LINE__
 
+#ifdef __linux__
+#include <syslog.h>
+#define DEBUG
+#else
 #define LOG_EMERG   0 /* system is unusable */
 #define LOG_ALERT   1 /* action must be taken immediately */
 #define LOG_CRIT    2 /* critical conditions */
@@ -37,6 +41,7 @@
 #define LOG_INFO    6 /* informational message */
 #define LOG_DEBUG   7 /* debug-level message */
 #define LOG_NONE    8 /* used in stop filter, all log will pop out */
+#endif
 
 typedef enum {
     AOS_LL_NONE  = LOG_EMERG,   /* disable log */
@@ -172,6 +177,12 @@ void ulog_init(void);
  *          reason may come from kernel message queue.
  */
 int ulog_man(const char *cmd_str);
+
+/**
+ * Function prototype for ulog buffer flush.
+ * This function takes effect when the macro ULOG_CONFIG_ASYNC is valid.
+ */
+void ulog_flush();
 
 /**
  * Function prototype for get ulog list recorded in file system.

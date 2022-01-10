@@ -59,7 +59,7 @@ static int _avf_atempo_filter_frame(avfilter_t *avf, const avframe_t *in, avfram
         //FIXME:
         size = (1024 + in->nb_samples / dobj->speed) * sizeof(int16_t);
         if (size > dobj->osize) {
-            void *data = aos_realloc(dobj->obuf, size);
+            void *data = av_realloc(dobj->obuf, size);
             CHECK_RET_TAG_WITH_RET(data, -1);
 
             dobj->obuf  = data;
@@ -94,7 +94,7 @@ static int _avf_atempo_uninit(avfilter_t *avf)
     struct avfilter_atempo *dobj = (struct avfilter_atempo*)avf;
 
     atempo_free(dobj->atempo);
-    aos_free(dobj->obuf);
+    av_free(dobj->obuf);
     return 0;
 }
 
@@ -127,7 +127,7 @@ avfilter_t *avf_atempo_open(const char *inst_name, const atempo_avfp_t *atempop)
         LOGE(TAG, "atempo param failed");
         return NULL;
     }
-    dobj = aos_zalloc(sizeof(struct avfilter_atempo));
+    dobj = av_zalloc(sizeof(struct avfilter_atempo));
     f         = (avfilter_t*)dobj;
     f->ops    = &avf_ops_atempo;
     f->dobj   = dobj;
@@ -151,7 +151,7 @@ avfilter_t *avf_atempo_open(const char *inst_name, const atempo_avfp_t *atempop)
     return (avfilter_t*)dobj;
 err:
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

@@ -25,7 +25,7 @@ static int _demux_rawaudio_open(demux_cls_t *o)
     sf_t sf = 0;
     struct rawaudio_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct rawaudio_priv));
+    priv = av_zalloc(sizeof(struct rawaudio_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     url_get_item_value(stream_get_url(o->s), "avcodec", priv->avcodec, sizeof(priv->avcodec));
@@ -77,7 +77,7 @@ static int _demux_rawaudio_open(demux_cls_t *o)
     o->priv          = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -85,7 +85,7 @@ static int _demux_rawaudio_close(demux_cls_t *o)
 {
     struct rawaudio_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

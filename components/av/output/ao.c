@@ -2,6 +2,7 @@
  * Copyright (C) 2018-2020 Alibaba Group Holding Limited
  */
 
+#include "avutil/vol_scale.h"
 #include "output/ao.h"
 #include "output/mixer.h"
 
@@ -104,15 +105,15 @@ static int __ao_open(ao_cls_t *ao, sf_t sf, const ao_conf_t *ao_cnf)
     UNUSED(ao);
     ao_ref_lock();
     if (ao_ref_open_get() == 0) {
-        o = aos_zalloc(sizeof(ao_cls_t));
+        o = av_zalloc(sizeof(ao_cls_t));
         CHECK_RET_TAG_WITH_GOTO(o, err);
 
         if (ao_cnf->eq_segments) {
-            o->eq_params = aos_zalloc(sizeof(eqfp_t) * ao_cnf->eq_segments);
+            o->eq_params = av_zalloc(sizeof(eqfp_t) * ao_cnf->eq_segments);
             CHECK_RET_TAG_WITH_GOTO(o->eq_params, err);
         }
         if (ao_cnf->aef_conf && ao_cnf->aef_conf_size) {
-            o->aef_conf = aos_malloc(ao_cnf->aef_conf_size);
+            o->aef_conf = av_malloc(ao_cnf->aef_conf_size);
             CHECK_RET_TAG_WITH_GOTO(o->aef_conf, err);
             memcpy(o->aef_conf, ao_cnf->aef_conf, ao_cnf->aef_conf_size);
             o->aef_conf_size = ao_cnf->aef_conf_size;
@@ -165,9 +166,9 @@ static int __ao_open(ao_cls_t *ao, sf_t sf, const ao_conf_t *ao_cnf)
 err:
     ao_ref_unlock();
     if (o) {
-        aos_free(o->eq_params);
-        aos_free(o->aef_conf);
-        aos_free(o);
+        av_free(o->eq_params);
+        av_free(o->aef_conf);
+        av_free(o);
     }
     avframe_free(&frame);
     return -1;
@@ -433,9 +434,9 @@ static int __ao_close(ao_cls_t *ao)
 
         avf_chain_close(o->avfc);
         avframe_free(&o->oframe);
-        aos_free(o->eq_params);
-        aos_free(o->aef_conf);
-        aos_free(o);
+        av_free(o->eq_params);
+        av_free(o->aef_conf);
+        av_free(o);
 #else
         ao_cls_t *o = ao;
 
@@ -474,7 +475,6 @@ int ao_ops_register(const struct ao_ops *ops)
 {
     int i;
 
-    _ao_init();
     if (ops && (g_aoers.cnt < AO_OPS_MAX)) {
         for (i = 0; i < g_aoers.cnt; i++) {
             if (strcmp(ops->name, g_aoers.ops[i]->name) == 0) {
@@ -507,6 +507,8 @@ int ao_conf_init(ao_conf_t *ao_cnf)
     ao_cnf->speed      = 1;
     ao_cnf->period_ms  = AO_ONE_PERIOD_MS;
     ao_cnf->period_num = AO_TOTAL_PERIOD_NUM;
+    ao_cnf->db_min     = VOL_SCALE_DB_MIN;
+    ao_cnf->db_max     = VOL_SCALE_DB_MAX;
 
     return 0;
 }
@@ -639,7 +641,7 @@ static int _ao_filters_open2(ao_cls_t *o)
 
 #ifdef AO_DEBUG
     if (!g_dump_data)
-        g_dump_data = aos_malloc(AO_DUMP_SIZE);
+        g_dump_data = av_malloc(AO_DUMP_SIZE);
     g_dump_size = 0;
 #endif
 
@@ -763,8 +765,10 @@ ao_cls_t* ao_open(sf_t sf, const ao_conf_t *ao_cnf)
     ao_conf_t ocnf, *iao_cnf = &ocnf;
 
     CHECK_PARAM(sf && ao_cnf && ao_cnf->name, NULL);
+    CHECK_PARAM(ao_cnf->db_min != ao_cnf->db_max, NULL);
     _ao_init();
-    o = aos_zalloc(sizeof(ao_cls_t));
+    vol_scale_init(ao_cnf->db_min, ao_cnf->db_max);
+    o = av_zalloc(sizeof(ao_cls_t));
     CHECK_RET_TAG_WITH_RET(o, NULL);
 
     //patch for tmall resampler
@@ -775,11 +779,11 @@ ao_cls_t* ao_open(sf_t sf, const ao_conf_t *ao_cnf)
     }
 #if !(CONFIG_AO_MIXER_SUPPORT)
     if (iao_cnf->eq_segments) {
-        o->eq_params = aos_zalloc(sizeof(eqfp_t) * iao_cnf->eq_segments);
+        o->eq_params = av_zalloc(sizeof(eqfp_t) * iao_cnf->eq_segments);
         CHECK_RET_TAG_WITH_GOTO(o->eq_params, err);
     }
     if (iao_cnf->aef_conf && iao_cnf->aef_conf_size) {
-        o->aef_conf = aos_malloc(iao_cnf->aef_conf_size);
+        o->aef_conf = av_malloc(iao_cnf->aef_conf_size);
         CHECK_RET_TAG_WITH_GOTO(o->aef_conf, err);
         memcpy(o->aef_conf, iao_cnf->aef_conf, iao_cnf->aef_conf_size);
         o->aef_conf_size = iao_cnf->aef_conf_size;
@@ -871,9 +875,9 @@ ao_cls_t* ao_open(sf_t sf, const ao_conf_t *ao_cnf)
     return o;
 err:
     if (o) {
-        aos_free(o->eq_params);
-        aos_free(o->aef_conf);
-        aos_free(o);
+        av_free(o->eq_params);
+        av_free(o->aef_conf);
+        av_free(o);
     }
     if (cnl) {
 #if CONFIG_AO_MIXER_SUPPORT
@@ -902,6 +906,7 @@ int ao_control(ao_cls_t *o, int cmd, void *arg, size_t *arg_size)
     size_t size;
 
     CHECK_PARAM(o, -1);
+    o->interrupt = 1;
     aos_mutex_lock(&o->lock, AOS_WAIT_FOREVER);
     switch (cmd) {
 #if CONFIG_AO_MIXER_SUPPORT
@@ -1003,6 +1008,7 @@ int ao_control(ao_cls_t *o, int cmd, void *arg, size_t *arg_size)
         break;
     }
     aos_mutex_unlock(&o->lock);
+    o->interrupt = 0;
 
     return rc;
 }
@@ -1017,7 +1023,6 @@ int ao_start(ao_cls_t *o)
     int rc = 0;
 
     CHECK_PARAM(o, -1);
-    o->interrupt = 0;
     aos_mutex_lock(&o->lock, AOS_WAIT_FOREVER);
     if (!o->start) {
         rc = __ao_start(o);
@@ -1053,6 +1058,7 @@ int ao_stop(ao_cls_t *o)
         }
     }
     aos_mutex_unlock(&o->lock);
+    o->interrupt = 0;
 
     return rc;
 }
@@ -1103,6 +1109,11 @@ int ao_write(ao_cls_t *o, const uint8_t *buf, size_t count)
     if (!(o && buf && count)) {
         LOGE(TAG, "param err, %s\n", __FUNCTION__);
         return -1;
+    }
+    //FIXME:
+    if (o->interrupt) {
+        LOGD(TAG, "write interrupt");
+        return 0;
     }
 
     aos_mutex_lock(&o->lock, AOS_WAIT_FOREVER);
@@ -1171,7 +1182,6 @@ int ao_close(ao_cls_t *o)
     int ret = -1;
 
     CHECK_PARAM(o, -1);
-    o->interrupt = 1;
 #if CONFIG_AO_MIXER_SUPPORT
     ao_ref_lock();
     mixer_dettach(ao_get_mixer(), o->cnl);
@@ -1189,9 +1199,9 @@ int ao_close(ao_cls_t *o)
     avframe_free(&o->oframe);
     mixer_cnl_free(o->cnl);
     aos_mutex_free(&o->lock);
-    aos_free(o->eq_params);
-    aos_free(o->aef_conf);
-    aos_free(o);
+    av_free(o->eq_params);
+    av_free(o->aef_conf);
+    av_free(o);
 
     return ret;
 }

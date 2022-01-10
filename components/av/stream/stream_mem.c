@@ -21,10 +21,11 @@ static int _stream_mem_open(stream_cls_t *o, int mode)
     struct mem_priv *priv = NULL;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct mem_priv));
+    priv = av_zalloc(sizeof(struct mem_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
-    rc = url_get_item_value_int(o->url, "addr", (int*)&priv->data);
+    /* for 32/64 system */
+    rc = url_get_item_value_long(o->url, "addr", (long*)&priv->data);
     CHECK_RET_TAG_WITH_GOTO(rc == 0, err);
     rc = url_get_item_value_int(o->url, "size", &priv->size);
     CHECK_RET_TAG_WITH_GOTO(rc == 0, err);
@@ -38,7 +39,7 @@ static int _stream_mem_open(stream_cls_t *o, int mode)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -46,7 +47,7 @@ static int _stream_mem_close(stream_cls_t *o)
 {
     struct mem_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

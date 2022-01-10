@@ -24,6 +24,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef CONFIG_USING_TLS
 #include "transport/transport_ssl.h"
@@ -263,7 +264,7 @@ static int http_on_body(http_parser *parser, const char *at, size_t length)
 
 static int http_on_message_complete(http_parser *parser)
 {
-    LOGD(TAG, "http_on_message_complete, parser=%x", (int)parser);
+    LOGD(TAG, "http_on_message_complete, parser=0x%x", (unsigned long)parser);
     http_client_handle_t client = parser->data;
     client->is_chunk_complete = true;
     return 0;
@@ -869,7 +870,7 @@ int http_client_read(http_client_handle_t client, char *buffer, int len)
         } else {
             is_data_remain = client->response->data_process < client->response->content_length;
         }
-        LOGD(TAG, "is_data_remain=%d, is_chunked=%d", is_data_remain, client->response->is_chunked);
+        LOGD(TAG, "is_data_remain=%d, is_chunked=%d, content_length=%d", is_data_remain, client->response->is_chunked, client->response->content_length);
         if (!is_data_remain) {
             break;
         }
@@ -877,11 +878,26 @@ int http_client_read(http_client_handle_t client, char *buffer, int len)
         if (byte_to_read > client->buffer_size) {
             byte_to_read = client->buffer_size;
         }
+        errno = 0;
         rlen = transport_read(client->transport, res_buffer->data, byte_to_read, client->timeout_ms);
         LOGD(TAG, "need_read=%d, byte_to_read=%d, rlen=%d, ridx=%d", need_read, byte_to_read, rlen, ridx);
 
         if (rlen <= 0) {
-            return ridx;
+            if (errno != 0) {
+                /* On connection close from server, recv should ideally return 0 but we have error conversion
+                 * in `tcp_transport` SSL layer which translates it `-1` and hence below additional checks */
+                if (rlen == -1 && errno == ENOTCONN && client->response->is_chunked) {
+                    /* Explicit call to parser for invoking `message_complete` callback */
+                    http_parser_execute(client->parser, client->parser_settings, res_buffer->data, 0);
+                    /* ...and lowering the message severity, as closed connection from server side is expected in chunked transport */
+                }
+                LOGW(TAG, "transport_read returned:%d and errno:%d ", rlen, errno);
+            }
+            if (rlen < 0 && ridx == 0 && !http_client_is_complete_data_received(client)) {
+                return -1;
+            } else {
+                return ridx;
+            }
         }
         res_buffer->output_ptr = buffer + ridx;
         http_parser_execute(client->parser, client->parser_settings, res_buffer->data, rlen);

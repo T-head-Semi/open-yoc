@@ -29,7 +29,7 @@ int avpacket_new(avpacket_t *pkt, size_t size)
 
     CHECK_PARAM(pkt && size, -1);
     memset(pkt, 0, sizeof(avpacket_t));
-    pkt->data = aos_zalloc(size);
+    pkt->data = av_zalloc(size);
     if (pkt->data) {
         pkt->size = size;
         rc        = 0;
@@ -50,7 +50,7 @@ int avpacket_grow(avpacket_t *pkt, size_t size)
 
     CHECK_PARAM(pkt && size, -1);
     if (pkt->size < size) {
-        void *data = aos_realloc(pkt->data, size);
+        void *data = av_realloc(pkt->data, size);
         if (data) {
             pkt->data = data;
             pkt->size = size;
@@ -94,7 +94,7 @@ int avpacket_free(avpacket_t *pkt)
     CHECK_PARAM(pkt, -1);
     pkt->len  = 0;
     pkt->size = 0;
-    aos_freep((char**)&pkt->data);
+    av_freep((char**)&pkt->data);
     return 0;
 }
 

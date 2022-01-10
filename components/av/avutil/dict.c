@@ -13,7 +13,7 @@
 int dict_init(dict_t *d, int capacity)
 {
     if (d && (capacity > 0)) {
-        keyval_t *c = aos_zalloc(sizeof(keyval_t) * capacity);
+        keyval_t *c = av_zalloc(sizeof(keyval_t) * capacity);
         CHECK_RET_WITH_RET(c, -1);
 
         d->keyvals = c;
@@ -44,7 +44,7 @@ int dict_increase(dict_t *d, size_t inc)
     if (capacity > d->alloc) {
         keyval_t *keyvals;
 
-        keyvals = aos_realloc(d->keyvals, sizeof(keyval_t) * capacity);
+        keyvals = av_realloc(d->keyvals, sizeof(keyval_t) * capacity);
         CHECK_RET_WITH_RET(keyvals, -1);
 
         d->alloc   = capacity;
@@ -82,8 +82,8 @@ int dict_add(dict_t *d, const char *key, const char *val)
         return 0;
     }
 
-    aos_free(k);
-    aos_free(v);
+    av_free(k);
+    av_free(v);
 
     return -1;
 }
@@ -117,8 +117,8 @@ int dict_addn(dict_t *d, const char *key, const char *val, size_t valn)
         return 0;
     }
 
-    aos_free(k);
-    aos_free(v);
+    av_free(k);
+    av_free(v);
 
     return -1;
 }
@@ -154,7 +154,7 @@ int dict_shrink(dict_t *d)
     }
 
     if (d->alloc > d->count) {
-        keyval_t *keyvals = aos_realloc(d->keyvals, sizeof(keyval_t) * d->count);
+        keyval_t *keyvals = av_realloc(d->keyvals, sizeof(keyval_t) * d->count);
         CHECK_RET_WITH_RET(keyvals, -1);
 
         d->alloc   = d->count;
@@ -188,10 +188,10 @@ int dict_uninit(dict_t *d)
         if (keyvals) {
             cnt = d->count;
             for (i = 0; i < cnt; i++) {
-                aos_free(keyvals[i].key);
-                aos_free(keyvals[i].val);
+                av_free(keyvals[i].key);
+                av_free(keyvals[i].val);
             }
-            aos_free(keyvals);
+            av_free(keyvals);
         }
 
         memset(d, 0, sizeof(dict_t));

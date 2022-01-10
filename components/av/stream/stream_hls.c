@@ -9,13 +9,19 @@
 #include "avutil/dync_buf.h"
 #include "stream/stream.h"
 
-#define TAG                    "s_hls"
-
-#define list_lock()            (aos_mutex_lock(&priv->list_lock, AOS_WAIT_FOREVER))
-#define list_unlock()          (aos_mutex_unlock(&priv->list_lock))
+#ifdef __linux__
+#include "aos_port/list.h"
+#else
+#include <aos/list.h>
 
 #define LIST_TASK_QUIT_EVT     (0x01)
 #define LIST_SEG_UPDATE_EVT    (0x02)
+#endif
+
+#define TAG                    "s_hls"
+
+#define list_lock()            (aos_mutex_lock(&priv->lock, AOS_WAIT_FOREVER))
+#define list_unlock()          (aos_mutex_unlock(&priv->lock))
 
 struct seg_node {
     char                       *url;                        ///< segment play url
@@ -52,8 +58,14 @@ struct hls_priv {
     uint32_t                   flush_interval;              ///< may be for live, ms. get new play-list per interval-ms
     slist_t                    seg_plist;                   ///< segment playlist
     slist_t                    master_plist;                ///< master playlist
+
+    aos_task_t                 list_task;
+#ifdef __linux__
+    pthread_cond_t             cond;
+#else
     aos_event_t                evt;
-    aos_mutex_t                list_lock;                   ///< lock for play list
+#endif
+    aos_mutex_t                lock;                        ///< lock for play list
 };
 
 static int _is_interrupt(struct hls_priv *priv)
@@ -79,8 +91,8 @@ static void _free_seg_plist(slist_t *list)
 
     slist_for_each_entry_safe(list, tmp, seg, struct seg_node, node) {
         slist_del(&seg->node, list);
-        aos_free(seg->url);
-        aos_free(seg);
+        av_free(seg->url);
+        av_free(seg);
     }
 }
 
@@ -91,8 +103,8 @@ static void _free_master_plist(slist_t *list)
 
     slist_for_each_entry_safe(list, tmp, xs, struct xstm_node, node) {
         slist_del(&xs->node, list);
-        aos_free(xs->url);
-        aos_free(xs);
+        av_free(xs->url);
+        av_free(xs);
     }
 }
 
@@ -110,10 +122,9 @@ static uint64_t _get_total_duration(slist_t *seg_plist)
 }
 #endif
 
-static int _get_play_url(struct hls_priv *priv, uint32_t timeout_ms)
+static int _get_play_url(struct hls_priv *priv, uint32_t timeout)
 {
     int rc;
-    unsigned int flag;
     char *url = NULL;
     struct seg_node *seg;
     char *seg_url = priv->seg_url;
@@ -129,9 +140,28 @@ retry:
                         url = strdup(seg->url);
                     } else {
                         if (priv->is_live) {
-                            list_unlock();
-                            rc = aos_event_get(&priv->evt, LIST_SEG_UPDATE_EVT, AOS_EVENT_OR_CLEAR, &flag, timeout_ms);
-                            if (rc < 0) {
+#ifdef __linux__
+                            {
+                                uint64_t nsec;
+                                struct timespec ts;
+                                struct timeval now;
+
+                                gettimeofday(&now, NULL);
+                                nsec       = now.tv_usec * 1000 + (timeout % 1000) * 1000000;
+                                ts.tv_nsec = nsec % 1000000000;
+                                ts.tv_sec  = now.tv_sec + nsec / 1000000000 + timeout / 1000;
+                                rc = pthread_cond_timedwait(&priv->cond, &priv->lock, &ts);
+                                list_unlock();
+                            }
+#else
+                            {
+                                unsigned int flag;
+
+                                list_unlock();
+                                rc = aos_event_get(&priv->evt, LIST_SEG_UPDATE_EVT, AOS_EVENT_OR_CLEAR, &flag, timeout);
+                            }
+#endif
+                            if (rc != 0) {
                                 return -1;
                             }
                             goto retry;
@@ -150,7 +180,7 @@ retry:
     }
 
 quit:
-    aos_freep(&priv->seg_url);
+    av_freep(&priv->seg_url);
     priv->seg_url = url;
     list_unlock();
 
@@ -166,7 +196,7 @@ static char* _get_real_url(const char *hls_url, const char *seg_url)
         return strdup(seg_url);
     }
 
-    url = aos_zalloc(strlen(hls_url) + strlen(seg_url) + 1);
+    url = av_zalloc(strlen(hls_url) + strlen(seg_url) + 1);
     if (url) {
         //FIXME:
         if (strncmp(seg_url, "//", 2) == 0) {
@@ -182,7 +212,7 @@ static char* _get_real_url(const char *hls_url, const char *seg_url)
 
     return url;
 err:
-    aos_free(url);
+    av_free(url);
     return NULL;
 }
 
@@ -220,7 +250,7 @@ parse:
         } else {
             //FIXME:
             if (xs_next && strlen(dbuf.data)) {
-                xs           = aos_zalloc(sizeof(struct xstm_node));
+                xs           = av_zalloc(sizeof(struct xstm_node));
                 xs->url      = strdup(dbuf.data);
                 slist_add_tail(&xs->node, list);
                 xs_next = 0;
@@ -284,7 +314,7 @@ parse:
         } else {
             //FIXME:
             if (seg_next && strlen(dbuf.data)) {
-                seg           = aos_zalloc(sizeof(struct seg_node));
+                seg           = av_zalloc(sizeof(struct seg_node));
                 seg->url      = strdup(dbuf.data);
                 seg->duration = dur * 1000;  ///< ms
                 slist_add_tail(&seg->node, &psinfo->list);
@@ -325,7 +355,7 @@ retry:
         LOGE(TAG, "s = %p, fsize = %d, url = %s", s, fsize, url);
         goto err;
     }
-    buf = aos_zalloc(fsize + 1);
+    buf = av_zalloc(fsize + 1);
     rc = stream_read(s, buf, fsize);
     if (rc != fsize) {
         LOGE(TAG, "buf = %p, rc = %d, fsize = %d", buf, rc, fsize);
@@ -345,7 +375,7 @@ retry:
             priv->rate_url = strdup(xs->url);
             url            = priv->rate_url;
             stream_close(s);
-            aos_freep((char**)&buf);
+            av_freep((char**)&buf);
             goto retry;
         } else {
             LOGE(TAG, "have master play list already");
@@ -373,7 +403,11 @@ retry:
         priv->is_end = psinfo->is_end;
         LOGD(TAG, "nb_segs = %d, live = %d, end = %d", psinfo->nb_segs, priv->is_live, psinfo->is_end);
         memcpy(&priv->seg_plist, &psinfo->list, sizeof(slist_t));
+#ifdef __linux__
+        pthread_cond_signal(&priv->cond);
+#else
         aos_event_set(&priv->evt, LIST_SEG_UPDATE_EVT, AOS_EVENT_OR);
+#endif
         ret = 0;
     } else {
         ret = 1;
@@ -384,7 +418,7 @@ err:
     if (ret != 0) {
         _free_seg_plist(&psinfo->list);
     }
-    aos_free(buf);
+    av_free(buf);
     stream_close(s);
     return ret;
 }
@@ -425,13 +459,13 @@ retry:
                 goto retry;
             }
             CHECK_RET_TAG_WITH_GOTO(rs, err);
-            aos_free(url);
+            av_free(url);
         }
     }
 
     return rs;
 err:
-    aos_free(url);
+    av_free(url);
     return NULL;
 }
 
@@ -463,7 +497,9 @@ retry:
         }
     }
 
+#ifndef __linux__
     aos_event_set(&priv->evt, LIST_TASK_QUIT_EVT, AOS_EVENT_OR);
+#endif
 }
 
 static void _reset_hls_priv(struct hls_priv *priv)
@@ -479,27 +515,30 @@ static void _reset_hls_priv(struct hls_priv *priv)
 
     _free_master_plist(&priv->master_plist);
     _free_seg_plist(&priv->seg_plist);
-    aos_freep(&priv->seg_url);
-    aos_freep(&priv->rate_url);
+    av_freep(&priv->seg_url);
+    av_freep(&priv->rate_url);
 }
 
 static int _stream_hls_open(stream_cls_t *o, int mode)
 {
     int rc;
-    aos_task_t task;
     stm_conf_t *stm_cnf;
     stream_cls_t *rs       = NULL;
     struct hls_priv *priv = NULL;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct hls_priv));
+    priv = av_zalloc(sizeof(struct hls_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     priv->last_sequence = -1;
     o->priv = priv;
     stm_cnf = &priv->stm_cnf;
 
+#ifdef __linux__
+    pthread_cond_init(&priv->cond, NULL);
+#else
     aos_event_new(&priv->evt, 0);
-    aos_mutex_new(&priv->list_lock);
+#endif
+    aos_mutex_new(&priv->lock);
     stream_conf_init(stm_cnf);
     stm_cnf->cache_size  = 0;
     stm_cnf->need_parse  = 0;
@@ -512,7 +551,7 @@ static int _stream_hls_open(stream_cls_t *o, int mode)
     rs = _get_real_stream(priv, stream_get_url(o));
     CHECK_RET_TAG_WITH_GOTO(rs, err);
     if (priv->is_live) {
-        aos_task_new_ext(&task, "_hls_list_task", _hls_list_task, (void *)o, 2 * 1024, AOS_DEFAULT_APP_PRI - 2);
+        aos_task_new_ext(&priv->list_task, "_hls_list_task", _hls_list_task, (void *)o, 4 * 1024, AOS_DEFAULT_APP_PRI - 2);
     }
 
     priv->rs        = rs;
@@ -524,9 +563,13 @@ err:
     stream_close(rs);
     if (priv) {
         _reset_hls_priv(priv);
-        aos_mutex_free(&priv->list_lock);
+        aos_mutex_free(&priv->lock);
+#ifdef __linux__
+        pthread_cond_destroy(&priv->cond);
+#else
         aos_event_free(&priv->evt);
-        aos_free(priv);
+#endif
+        av_free(priv);
     }
     o->priv = NULL;
     return -1;
@@ -534,18 +577,32 @@ err:
 
 static int _stream_hls_close(stream_cls_t *o)
 {
-    unsigned int flag;
     struct hls_priv *priv = o->priv;
 
     priv->eof = 1;
     if (priv->is_live) {
-        aos_event_get(&priv->evt, LIST_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+#ifdef __linux__
+        if (priv->list_task) {
+            pthread_join(priv->list_task, NULL);
+            priv->list_task = 0;
+        }
+#else
+        {
+            unsigned int flag;
+
+            aos_event_get(&priv->evt, LIST_TASK_QUIT_EVT, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+        }
+#endif
     }
 
     _reset_hls_priv(priv);
-    aos_mutex_free(&priv->list_lock);
+    aos_mutex_free(&priv->lock);
+#ifdef __linux__
+    pthread_cond_destroy(&priv->cond);
+#else
     aos_event_free(&priv->evt);
-    aos_free(priv);
+#endif
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

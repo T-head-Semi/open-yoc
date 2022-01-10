@@ -16,7 +16,7 @@ struct ad_mulaw_priv {
 
 static int _ad_mulaw_open(ad_cls_t *o)
 {
-    o->priv = aos_zalloc(sizeof(struct ad_mulaw_priv));
+    o->priv = av_zalloc(sizeof(struct ad_mulaw_priv));
 
     return o->priv ? 0 : -1;
 }
@@ -79,7 +79,7 @@ static int _ad_mulaw_close(ad_cls_t *o)
 {
     struct ad_mulaw_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

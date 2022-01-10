@@ -6,7 +6,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include <aos/aos.h>
+#include <aos/kernel.h>
 #include <alsa/pcm.h>
 #include <alsa/snd.h>
 

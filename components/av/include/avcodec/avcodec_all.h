@@ -5,7 +5,6 @@
 #ifndef __AVCODEC_ALL_H__
 #define __AVCODEC_ALL_H__
 
-#include <aos/aos.h>
 #include "avutil/av_config.h"
 #include "avcodec/ad.h"
 #include "avcodec/avcodec.h"

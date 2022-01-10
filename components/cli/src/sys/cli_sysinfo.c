@@ -38,8 +38,45 @@ static void cmd_get_sysinfo_func(char *wbuf, int wbuf_len, int argc, char **argv
                 return;
             }
         } else if (0 == strcmp(argv[1], "crash")) {
-            int *ptr = (int *)0x7f000001;
-            *ptr = 1;
+            // int *ptr = (int *)0x7f000001;
+            // *ptr = 1;
+
+            if (argc <= 2) {
+                int a = 100;
+                int b = 0;
+                int c = a / b;
+                printf("a/b=%d\r\n", c);
+            } else {
+                int type = atoi(argv[2]);
+                switch(type) {
+                    case 0: {
+                        int *nullprt = NULL;
+                        *nullprt = 1;
+                        break;
+                    }
+                    case 1: {
+                        typedef void (*func_ptr_t)();
+                        func_ptr_t f = (func_ptr_t)0x12345678;
+                        f();
+                        break;
+                    }
+                    case 2: {
+                        int a = 100;
+                        int b = 0;
+                        int c = a / b;
+                        printf("a/b=%d\r\n", c);
+                        break;
+                    }
+                    default: {
+                        int a = 100;
+                        int b = 0;
+                        int c = a / b;
+                        printf("a/b=%d\r\n", c);
+                        break;
+                    }
+         
+                }
+            }
             return;
         }
     }

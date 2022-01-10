@@ -1,6 +1,6 @@
 /**
  * @file cli.h
- * @copyright Copyright (C) 2015-2018 Alibaba Group Holding Limited
+ * @copyright Copyright (C) 2015-2021 Alibaba Group Holding Limited
  */
 
 #ifndef AOS_CLI_H
@@ -10,20 +10,46 @@
 extern "C" {
 #endif
 
-/**
- * @addtogroup aos_cli cli
- * Cli AOS API.
- * Used for APP.
+/** @defgroup cli_aos_api cli
  * @{
  */
 
 /* This struct is used to define the cli cmd format */
-struct cli_command {
-    const char *name;   /**< cmd name */
-    const char *help;   /**< cmd help info */
+typedef void (*cmd_fun_t)(char *outbuf, int len, int argc, char **argv);
 
-    void (*function)(char *outbuf, int len, int argc, char **argv); /**< cmd process function */
+struct cli_command
+{
+    const char *name;
+    const char *help;
+    cmd_fun_t   function;
 };
+
+#define SECTION(x) __attribute__((section(x)))
+#define USED __attribute__((used))
+
+typedef int (*cli_region_func)(int argc, char **argv);
+
+/* cli region table */
+struct cli_region
+{
+    const char *name;     /* the name of cli cmd*/
+    const char *desc;     /* description of cli cmd */
+    cli_region_func func; /* the cli function */
+};
+
+#define ALIOS_CLI_CMD_REGISTER(name, cmd, desc)                        \
+    const char __clisym_##cmd##_name[] SECTION(".rodata") = #cmd;      \
+    const char __clisym_##cmd##_desc[] SECTION(".rodata") = #desc;     \
+    static void name##_stub(char *buf, int len, int argc, char **argv) \
+    {                                                                  \
+        name(argc, argv);                                              \
+    }                                                                  \
+    USED const struct cli_region __clisym_##cmd SECTION("CliRegion") = \
+        {                                                              \
+            __clisym_##cmd##_name,                                     \
+            __clisym_##cmd##_desc,                                     \
+            (cli_region_func)&name##_stub};
+
 
 /**
  * @brief Initialize the CLI module
@@ -34,23 +60,7 @@ struct cli_command {
 int aos_cli_init(void);
 
 /**
- * @brief Stop the CLI task and carry out the cleanup
- *
- * @return 0 on success, otherwise failed
- *
- */
-int aos_cli_stop(void);
-
-/**
- * @brief Get CLI tag string for print
- *
- * @return CLI tag storing buffer
- *
- */
-const char *aos_cli_get_tag(void);
-
-/**
- * @brief This function registers a command with the command-line interface
+ * @brief This function register a command with the command-line interface
  *
  * @param[in] cmd the structure to regiter one CLI command
  *
@@ -60,7 +70,7 @@ const char *aos_cli_get_tag(void);
 int aos_cli_register_command(const struct cli_command *cmd);
 
 /**
- * @brief This function unregisters a command from the command-line interface
+ * @brief This function unregister a command from the command-line interface
  *
  * @param[in] cmd the structure to unregister one CLI command
  *
@@ -70,7 +80,7 @@ int aos_cli_register_command(const struct cli_command *cmd);
 int aos_cli_unregister_command(const struct cli_command *cmd);
 
 /**
- * @brief This function registers a batch of CLI commands
+ * @brief This function register multi CLI commands
  *
  * @param[in] cmds pointer to an array of commands
  * @param[in] num  number of commands in the array
@@ -81,7 +91,7 @@ int aos_cli_unregister_command(const struct cli_command *cmd);
 int aos_cli_register_commands(const struct cli_command *cmds, int num);
 
 /**
- * @brief This function unregisters a batch of CLI commands
+ * @brief This function unregisters multi CLI commands
  *
  * @param[in] cmds pointer to an array of commands
  * @param[in] num  number of command in the array
@@ -92,7 +102,7 @@ int aos_cli_register_commands(const struct cli_command *cmds, int num);
 int aos_cli_unregister_commands(const struct cli_command *cmds, int num);
 
 /**
- * @brief Print CLI message
+ * @brief use aos_cli_printf instead of printf in cli cmd
  *
  * @param[in] fmt pointer to a char * buffer
  *
@@ -101,22 +111,24 @@ int aos_cli_unregister_commands(const struct cli_command *cmds, int num);
 int aos_cli_printf(const char *fmt, ...);
 
 /**
- * @brief Set cli login password
- *
- * @param[in] old_passwd
- * @param[in] new_passwd
+ * @brief Suspend cli task
  *
  * @return 0 on success, otherwise failed
  *
  */
-int aos_cli_chg_passwd(char *old_passwd, char *new_passwd);
+int aos_cli_suspend(void);
 
-#define cli_service_reg_cmd           aos_cli_register_command
-#define cli_service_unreg_cmd		  aos_cli_unregister_command
-#define cli_service_reg_cmds          aos_cli_register_commands
-#define cli_service_unreg_cmds        aos_cli_unregister_commands
+/**
+ * @brief Resume cli task
+ *
+ * @return 0 on success, otherwise failed
+ *
+ */
+int aos_cli_resume(void);
 
-/** @} */
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }

@@ -19,6 +19,9 @@ ktask_t *g_preferred_ready_task[RHINO_CONFIG_CPU_NUM];
 /* current active task */
 ktask_t *g_active_task[RHINO_CONFIG_CPU_NUM];
 
+/* global task ID */
+uint32_t g_task_id;
+
 /* idle task attribute */
 ktask_t      g_idle_task[RHINO_CONFIG_CPU_NUM];
 idle_count_t g_idle_count[RHINO_CONFIG_CPU_NUM];

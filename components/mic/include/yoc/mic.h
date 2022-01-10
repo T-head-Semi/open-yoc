@@ -28,7 +28,7 @@ typedef enum {
     MIC_CTRL_SET_VAD_PARAM,  /* 设置VAD参数 */
     MIC_CTRL_SET_AEC_PARAM,  /* 设置AEC参数 */
     MIC_CTRL_AUDIO,          /* 音频输出控制 */
-    MIC_CTRL_DEBUG           /* 设置调试模式1 */
+    MIC_CTRL_DEBUG           /* 设置调试模式 */
 } mic_ctrl_cmd_t;
 
 typedef enum {
@@ -64,17 +64,35 @@ typedef struct {
     void *priv;
 } mic_aec_param_t;
 
+typedef struct vad_thresh {
+	float vad_thresh_sp;    /* VAD起点阈值，取值范围[-1, 1] */
+	float vad_thresh_ep;    /* VAD尾点阈值，取值范围[-1, 1] */
+} vad_thresh_t;
+
 typedef struct {
-    int   vadmode;          /* VAD等级 0~3 等级逐步加强 */
-    int   vadswitch;        /* 0 关闭VAD，1 打开, 2 打开起点关闭尾点 */
-    int   vadfilter;        /* VAD过滤器类型， 0 关闭过滤器， 1~3 不同过滤器类型 */
-    void *priv;             /* 预留 */
+    int          vadmode;          /* VAD等级 0~3 等级逐步加强 */
+    int          vadswitch;        /* 0 关闭VAD，1 打开, 2 打开起点关闭尾点 */
+    int          vadfilter;        /* VAD过滤器类型， 0 关闭过滤器， 1~3 不同过滤器类型 */
+    int          vadkws_strategy;  /* VAD KWS策略 */
+    vad_thresh_t vadthresh_kws;    /* KWS VAD阈值 */
+    vad_thresh_t vadthresh_asr;    /* ASR VAD阈值 */
+    void         *priv;            /* 预留 */
 } mic_vad_param_t;
 
 typedef struct mic_kws{
     int id;
     char *word;
 } mic_kws_t;
+
+typedef struct mic_pcm_vad_data {
+    int vad_tag;
+    int len;
+    char data[0];
+} mic_pcm_vad_data_t;
+
+#define KWS_ID_WWV_MASK     0x10000
+#define KWS_ID_P2T_MASK     0x20000
+#define KWS_ID_MASK         0x0FFFF
 
 /**
  * 麦克风事件回调
@@ -92,7 +110,6 @@ int aui_mic_deinit(void);
 
 /**
  * 启动麦克风服务
- * @param task 传入服务绑定的任务
  * @return 0:成功
  */
 int aui_mic_start(void);
@@ -181,6 +198,7 @@ typedef struct {
 } voice_adpator_param_t;
 
 void voice_mic_register(void);
+void mic_mind_register(void);
 void mic_thead_v1_register(void);
 
 #ifdef __cplusplus

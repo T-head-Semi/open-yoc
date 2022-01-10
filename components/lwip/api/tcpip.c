@@ -601,6 +601,18 @@ tcpip_callbackmsg_trycallback_fromisr(struct tcpip_callback_msg *msg)
 void
 tcpip_init(tcpip_init_done_fn initfunc, void *arg)
 {
+  static int lwip_inited = 0;
+  if (lwip_inited) {
+    if (initfunc != NULL) {
+      tcpip_init_done = initfunc;
+      tcpip_init_done_arg = arg;
+      initfunc(arg);
+    }
+    return;
+  }
+  
+  lwip_inited = 1;
+
   lwip_init();
 
   tcpip_init_done = initfunc;

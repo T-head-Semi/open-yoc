@@ -4,7 +4,14 @@
 
 #if defined(CONFIG_STREAMER_FILE) && CONFIG_STREAMER_FILE
 #include "stream/stream_cls.h"
+#ifdef __linux__
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#else
 #include "vfs.h"
+#endif
 
 #define TAG "s_file"
 
@@ -44,12 +51,16 @@ static char* _get_file_name(const char *url)
 static int _stream_file_open(stream_cls_t *o, int mode)
 {
     int ret = -1, fd;
+#ifdef __linux__
     struct stat st;
+#else
+    struct aos_stat st;
+#endif
     char *path = NULL;
     struct file_priv *priv = NULL;
 
     UNUSED(mode);
-    priv = aos_zalloc(sizeof(struct file_priv));
+    priv = av_zalloc(sizeof(struct file_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     path = _get_file_name(o->url);
@@ -69,8 +80,8 @@ static int _stream_file_open(stream_cls_t *o, int mode)
     return 0;
 err:
     LOGE(TAG, "open fail. ret = %d, url = %s", ret, o->url);
-    aos_free(path);
-    aos_free(priv);
+    av_free(path);
+    av_free(priv);
     return -1;
 }
 
@@ -79,8 +90,8 @@ static int _stream_file_close(stream_cls_t *o)
     struct file_priv *priv = o->priv;
 
     aos_close(priv->fd);
-    aos_free(priv->path);
-    aos_free(priv);
+    av_free(priv->path);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

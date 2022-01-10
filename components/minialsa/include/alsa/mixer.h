@@ -3,7 +3,6 @@
  */
 
 #include <stdio.h>
-#include <devices/driver.h>
 
 #ifndef __AOS_MIXER__
 #define __AOS_MIXER__
@@ -66,43 +65,22 @@ typedef struct aos_mixer aos_mixer_t;
 typedef struct _aos_mixer_elem aos_mixer_elem_t;
 
 struct aos_mixer {
-    const char *card_name;
-    card_dev_t *card;
-    aos_mixer_elem_t *cur_elem;
-    slist_t elems_head;
+    aos_mixer_elem_t *playback_elem;
+    aos_mixer_elem_t *capture_elem;
 };
 
 struct _aos_mixer_elem {
     const char *name;
     elem_inter_t vol_l;
     elem_inter_t vol_r;
-    elem_inter_t dB_l;
-    elem_inter_t dB_r;
     aos_mixer_t *mixer;
     aos_mutex_t mutex;
     void *hdl;
     struct sm_elem_ops *ops;
-    slist_t next;
 };
 
 typedef struct sm_elem_ops {
-    // int (*open)(aos_mixer_elem_t *elem);
-    // int (*is)(aos_mixer_elem_t *elem, int dir, int cmd, int val);
-    // int (*get_range)(aos_mixer_elem_t *elem, int dir, int *min, int *max);
-    // int (*set_range)(aos_mixer_elem_t *elem, int dir, int min, int max);
-    // int (*get_dB_range)(aos_mixer_elem_t *elem, int dir, int *min, int *max);
-    // int (*ask_vol_dB)(aos_mixer_elem_t *elem, int dir, int value, int *dbValue);
-    // int (*ask_dB_vol)(aos_mixer_elem_t *elem, int dir, int dbValue, int *value, int xdir);
-    // int (*get_volume)(aos_mixer_elem_t *elem, int dir, aos_mixer_selem_channel_id_t channel, int *value);
-    // int (*get_dB)(aos_mixer_elem_t *elem, int dir, aos_mixer_selem_channel_id_t channel, int *value);
-    // int (*set_volume)(aos_mixer_elem_t *elem, int dir, aos_mixer_selem_channel_id_t channel, int value);
-    int (*set_dB)(aos_mixer_elem_t *elem, int l_dB, int r_dB);
-    int (*volume_to_dB)(aos_mixer_elem_t *elem, int value);
-    // int (*get_switch)(aos_mixer_elem_t *elem, int dir, aos_mixer_selem_channel_id_t channel, int *value);
-    // int (*set_switch)(aos_mixer_elem_t *elem, int dir, aos_mixer_selem_channel_id_t channel, int value);
-    // int (*enum_item_name)(aos_mixer_elem_t *elem, unsigned int item, size_t maxlen, char *buf);
-    // int (*get_enum_item)(aos_mixer_elem_t *elem, aos_mixer_selem_channel_id_t channel, unsigned int *itemp);
-    // int (*set_enum_item)(aos_mixer_elem_t *elem, aos_mixer_selem_channel_id_t channel, unsigned int item);
+    int (*set_volume)(aos_mixer_elem_t *elem, int l_value, int r_value);
 } sm_elem_ops_t;
 
 int aos_mixer_open(aos_mixer_t **mixer, int mode);
@@ -122,16 +100,6 @@ aos_mixer_elem_t *aos_mixer_last_elem(aos_mixer_t *mixer);
 aos_mixer_elem_t *aos_mixer_elem_next(aos_mixer_elem_t *elem);
 aos_mixer_elem_t *aos_mixer_elem_prev(aos_mixer_elem_t *elem);
 int aos_mixer_attach(aos_mixer_t *mixer, const char *name);
-// void aos_mixer_set_callback(aos_mixer_t *obj, aos_mixer_callback_t val);
-// void aos_mixer_set_callback_private(aos_mixer_t *mixer, void * val);
-// void * aos_mixer_get_callback_private(const aos_mixer_t *mixer);
-// unsigned int aos_mixer_get_count(const aos_mixer_t *mixer);
-// void aos_mixer_elem_set_callback(aos_mixer_elem_t *mixer,
-//               aos_mixer_elem_callback_t val);
-// void aos_mixer_elem_set_callback_private(aos_mixer_elem_t *mixer, void * val);
-// void * aos_mixer_elem_get_callback_private(const aos_mixer_elem_t *mixer);
-// aos_mixer_elem_type_t aos_mixer_elem_get_type(const aos_mixer_elem_t *mixer);
-// int aos_mixer_set_compare(aos_mixer_t *mixer, aos_mixer_compare_t compare);
 
 #ifdef __cplusplus
 }

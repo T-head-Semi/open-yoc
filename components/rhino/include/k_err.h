@@ -1,11 +1,14 @@
-/**
- * @file k_err.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_ERR_H
 #define K_ERR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include <limits.h>
 
 /** @addtogroup aos_rhino err
  *  System error code, and error hook.
@@ -121,6 +124,10 @@ extern void k_err_proc_debug(kstat_t err, char *file, int line);
 #define k_err_proc(err) k_err_proc_debug(err, __FILE__, __LINE__)
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_ERR_H */
 

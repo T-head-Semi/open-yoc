@@ -18,16 +18,12 @@ extern "C" {
 #define CONFIG_MAX_PARTITION_NUM 12
 #endif
 
-#ifndef CONFIG_MTB_CRC_NO_CHECK
-#define CONFIG_MTB_CRC_NO_CHECK 0
-#endif
-
 #ifndef CONFIG_PARITION_NO_VERIFY
 #define CONFIG_PARITION_NO_VERIFY 1
 #endif
 
 #ifndef CONFIG_NOT_SUPORRT_SASC
-#define CONFIG_NOT_SUPORRT_SASC 0
+#define CONFIG_NOT_SUPORRT_SASC 1
 #endif
 
 typedef int partition_t;

@@ -106,18 +106,18 @@ ad_icore_t* ad_icore_open(avcodec_id_t id, const adi_conf_t *adi_cnf)
         return NULL;
     }
 
-    hdl = aos_zalloc(sizeof(ad_icore_t));
+    hdl = av_zalloc(sizeof(ad_icore_t));
     CHECK_RET_TAG_WITH_RET(hdl, NULL);
 
-    es_orip = aos_zalloc(ICORE_ALIGN_BUFZ(AD_ICORE_ES_SIZE));
+    es_orip = av_zalloc(ICORE_ALIGN_BUFZ(AD_ICORE_ES_SIZE));
     CHECK_RET_TAG_WITH_GOTO(es_orip, err);
     es_data = ICORE_ALIGN(es_orip);
 
-    pool_orip = aos_zalloc(ICORE_ALIGN_BUFZ(AD_ICORE_FRAME_POOL_SIZE));
+    pool_orip = av_zalloc(ICORE_ALIGN_BUFZ(AD_ICORE_FRAME_POOL_SIZE));
     CHECK_RET_TAG_WITH_GOTO(pool_orip, err);
     pool = ICORE_ALIGN(pool_orip);
 
-    priv = aos_zalloc(sizeof(struct ad_icore_ap_priv));
+    priv = av_zalloc(sizeof(struct ad_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(priv, err);
 
     msg_dec = icore_msg_new(ICORE_CMD_AD_DECODE, sizeof(ad_icore_decode_t));
@@ -129,7 +129,7 @@ ad_icore_t* ad_icore_open(avcodec_id_t id, const adi_conf_t *adi_cnf)
     inp = icore_get_msg(msg, ad_icore_open_t);
     inp->id = id;
     if (adi_cnf->extradata && adi_cnf->extradata_size) {
-        extradata_orip = aos_zalloc(ICORE_ALIGN_BUFZ(adi_cnf->extradata_size));
+        extradata_orip = av_zalloc(ICORE_ALIGN_BUFZ(adi_cnf->extradata_size));
         CHECK_RET_TAG_WITH_GOTO(extradata_orip, err);
         extradata = ICORE_ALIGN(extradata_orip);
 
@@ -153,15 +153,15 @@ ad_icore_t* ad_icore_open(avcodec_id_t id, const adi_conf_t *adi_cnf)
     hdl->sf   = inp->sf;
     hdl->priv = priv;
     icore_msg_free(msg);
-    aos_free(extradata_orip);
+    av_free(extradata_orip);
 
     return hdl;
 err:
-    aos_free(extradata_orip);
-    aos_free(hdl);
-    aos_free(es_orip);
-    aos_free(pool_orip);
-    aos_free(priv);
+    av_free(extradata_orip);
+    av_free(hdl);
+    av_free(es_orip);
+    av_free(pool_orip);
+    av_free(priv);
     icore_msg_free(msg);
     icore_msg_free(msg_dec);
     return NULL;
@@ -283,11 +283,11 @@ int ad_icore_close(ad_icore_t *hdl)
         icore_msg_free(msg);
     }
 
-    aos_free(priv->es_orip);
-    aos_free(priv->pool_orip);
+    av_free(priv->es_orip);
+    av_free(priv->pool_orip);
     icore_msg_free(priv->msg_dec);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

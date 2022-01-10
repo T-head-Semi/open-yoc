@@ -330,24 +330,26 @@ static int ls_handler(const char *dirpath,
     /* Check if any options will require that we stat the file */
 
     if ((lsflags & (LSFLAGS_SIZE | LSFLAGS_LONG)) != 0) {
-        struct stat buf = {0};
+        struct aos_stat buf = {0};
 
         /* stat the file */
 
         if (entryp != NULL) {
             char *fullpath = aos_malloc(strlen(dirpath) + strlen(entryp->d_name) + 1);
+            printf("fullpath: %s\n", fullpath);
 
             if (fullpath == NULL) {
                 return -1;
             }
 
             sprintf(fullpath, "%s/%s", dirpath, entryp->d_name);
+            printf("2fullpath: %s\n", fullpath);
             ret = aos_stat(fullpath, &buf);
 
             aos_free(fullpath);
         } else {
             /* A NULL entryp signifies that we are running ls on a single file */
-
+            printf("%s,%d\n", __func__, __LINE__);
             ret = aos_stat(dirpath, &buf);
         }
 
@@ -435,9 +437,9 @@ static int ls_handler(const char *dirpath,
 
 void cmd_ls(char *wbuf, int wbuf_len, int argc, char **argv)
 {
-    struct stat st = {0};
+    struct aos_stat st = {0};
     char *path;
-    unsigned int lsflags = 0;
+    unsigned long lsflags = 0;
     uint8_t badarg = 0;
     int len;
     int ret;
@@ -534,7 +536,7 @@ void cmd_rm(char *wbuf, int wbuf_len, int argc, char **argv)
     int ret = -1;
     char *path;
     int len;
-    struct stat st;
+    struct aos_stat st;
 
     if (argc != 2) {
         printf(g_fmtarginvalid, argv[0]);

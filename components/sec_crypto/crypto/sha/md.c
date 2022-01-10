@@ -31,8 +31,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define mbedtls_calloc(...) NULL
-#define mbedtls_free(...)
+#define mbedtls_calloc calloc
+#define mbedtls_free free
 
 /* Implementation that should never be optimized out by the compiler */
 static void mbedtls_zeroize(void *v, size_t n)

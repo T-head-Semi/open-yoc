@@ -35,8 +35,8 @@ Rhino 支持stack溢出、内存泄漏、内存损坏的检测，有助于开发
 ### 内存管理
 
 RTOS 提供多种内存管理方案，满足不同应用的需要。动态内存管理是最常见的一种方式。常见的操作有：
-分配内存：`void *aos_malloc(unsigned int size);` `void *aos_calloc(unsigned int size, int num);`
-重新分配内存： `void *aos_realloc(void *mem, unsigned int size);`
+分配内存：`void *aos_malloc(size_t size);` `void *aos_calloc(size_t size, int num);`
+重新分配内存： `void *aos_realloc(void *mem, size_t size);`
 内存释放：`void aos_free(void *mem);`
 
 ### 互斥锁
@@ -61,7 +61,7 @@ RTOS 提供多种内存管理方案，满足不同应用的需要。动态内存
 2. 消息队列允许一个或多个任务向它写入与读取消息
 3. 消息队列可以实现消息的随机查询,消息不一定要以先进先出的次序读取,也可以按消息的类型读取.比FIFO更有优势
 消息队列的基本操作：
-- 创建 Create：`int aos_queue_new(aos_queue_t *queue, void *buf, unsigned int size, int max_msg);`
+- 创建 Create：`int aos_queue_new(aos_queue_t *queue, void *buf, size_t size, int max_msg);`
 - 发送消息 Send： `int aos_queue_send(aos_queue_t *queue, void *msg, unsigned int size);`
 - 接收消息 Recv： `int aos_queue_recv(aos_queue_t *queue, unsigned int ms, void *msg, unsigned int *size);`
 - 销毁 Destroy： `void aos_queue_free(aos_queue_t *queue);`
@@ -437,7 +437,7 @@ yoc install aos
    - 私有区域某索引内容。
 
 ### aos_realloc
-`void *aos_realloc(void *mem, unsigned int size);`
+`void *aos_realloc(void *mem, size_t size);`
 
 - 功能描述:
    - 重新调整所分配的内存块的大小。
@@ -452,7 +452,7 @@ yoc install aos
    - 空（NULL）: 分配失败。
    
 ### aos_realloc_check
-`void *aos_realloc_check(void *mem, unsigned int size);`
+`void *aos_realloc_check(void *mem, size_t size);`
 
 - 功能描述:
    - 重新调整所分配的内存块的大小，如果失败，系统做异常处理。
@@ -467,7 +467,7 @@ yoc install aos
    - 空（NULL）: 分配失败。
 
 ### aos_malloc
-`void *aos_malloc(unsigned int size);`
+`void *aos_malloc(size_t size);`
 
 - 功能描述:
    - 从系统堆中分配size字节内存区域。
@@ -480,7 +480,7 @@ yoc install aos
    - 空（NULL）: 分配失败。
 
 ### aos_malloc_check
-void *aos_malloc_check(unsigned int size);
+`void *aos_malloc_check(size_t size);`
 
 - 功能描述:
    - 从系统堆中分配size字节内存区域。如果分配失败，系统做异常处理。
@@ -493,7 +493,7 @@ void *aos_malloc_check(unsigned int size);
    - 空（NULL）: 分配失败。
 
 ### aos_zalloc
-`void *aos_zalloc(unsigned int size);`
+`void *aos_zalloc(size_t size);`
 
 - 功能描述:
    - 从系统堆中分配size字节内存区域，并将内存初始化填充0。
@@ -506,7 +506,7 @@ void *aos_malloc_check(unsigned int size);
    - 空（NULL）: 分配失败。
 
 ### aos_zalloc_check
-`void *aos_zalloc_check(unsigned int size);`
+`void *aos_zalloc_check(size_t size);`
 
 - 功能描述:
    - 从系统堆中分配size字节内存区域，并将内存初始化填充0。如果分配失败，系统做异常处理。
@@ -519,7 +519,7 @@ void *aos_malloc_check(unsigned int size);
    - 空（NULL）: 分配失败。
    
 ### aos_calloc
-`void *aos_calloc(unsigned int size, int num);`
+`void *aos_calloc(size_t size, size_t num);`
 
 - 功能描述:
    - 从系统堆中分配nitems * size字节连续内存区域，并将内存区域初始化填充0。
@@ -533,7 +533,7 @@ void *aos_malloc_check(unsigned int size);
    - 空（NULL）: 分配失败。
 
 ### aos_calloc_check
-`void *aos_calloc_check(unsigned int size, int num);`
+`void *aos_calloc_check(size_t size, size_t num);`
 
 - 功能描述:
    - 从系统堆中分配nitems * size字节连续内存区域，并将内存区域初始化填充0。如果分配失败，系统做异常处理。
@@ -775,7 +775,7 @@ void *aos_malloc_check(unsigned int size);
    - 无。
    
 ### aos_queue_new
-`int aos_queue_new(aos_queue_t *queue, void *buf, unsigned int size, int max_msg);`
+`int aos_queue_new(aos_queue_t *queue, void *buf, size_t size, int max_msg);`
 
 - 功能描述:
    - 创建一个队列。
@@ -1975,9 +1975,5 @@ static void test_workqueue()
 
 ## 组件参考
 无。
-
-
-
-
 
 

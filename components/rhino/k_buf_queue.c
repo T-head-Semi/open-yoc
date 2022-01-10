@@ -63,7 +63,7 @@ kstat_t krhino_buf_queue_create(kbuf_queue_t *queue, const name_t *name,
 }
 
 kstat_t krhino_fix_buf_queue_create(kbuf_queue_t *queue, const name_t *name,
-                                   void *buf, size_t msg_size, size_t msg_num)
+                                    void *buf, size_t msg_size, size_t msg_num)
 {
     return buf_queue_create(queue, name, buf, msg_size * msg_num, msg_size, K_OBJ_STATIC_ALLOC, RINGBUF_TYPE_FIX);
 }
@@ -71,7 +71,6 @@ kstat_t krhino_fix_buf_queue_create(kbuf_queue_t *queue, const name_t *name,
 kstat_t krhino_buf_queue_del(kbuf_queue_t *queue)
 {
     CPSR_ALLOC();
-
     klist_t *head;
 
     NULL_PARA_CHK(queue);
@@ -96,7 +95,6 @@ kstat_t krhino_buf_queue_del(kbuf_queue_t *queue)
 
     /* all task blocked on this queue is waken up */
     while (!is_klist_empty(head)) {
-
         pend_task_rm(krhino_list_entry(head->next, ktask_t, task_list));
     }
 
@@ -211,7 +209,6 @@ kstat_t krhino_buf_queue_dyn_del(kbuf_queue_t *queue)
 static kstat_t buf_queue_send(kbuf_queue_t *queue, void *msg, size_t msg_size)
 {
     CPSR_ALLOC();
-
     klist_t *head;
     ktask_t *task;
     kstat_t  err;
@@ -294,7 +291,6 @@ kstat_t krhino_buf_queue_send(kbuf_queue_t *queue, void *msg, size_t size)
 kstat_t krhino_buf_queue_recv(kbuf_queue_t *queue, tick_t ticks, void *msg, size_t *size)
 {
     CPSR_ALLOC();
-
     kstat_t ret;
     uint8_t cur_cpu_num;
 
@@ -319,7 +315,7 @@ kstat_t krhino_buf_queue_recv(kbuf_queue_t *queue, tick_t ticks, void *msg, size
 
     if (queue->cur_num > 0u) {
         ringbuf_pop(&(queue->ringbuf), msg, size);
-        queue->cur_num --;
+        queue->cur_num--;
         RHINO_CRITICAL_EXIT();
         return RHINO_SUCCESS;
     }
@@ -403,12 +399,12 @@ kstat_t krhino_buf_queue_info_get(kbuf_queue_t *queue, kbuf_queue_info_t *info)
         return RHINO_KOBJ_TYPE_ERR;
     }
 
-    info->free_buf_size = queue->ringbuf.freesize;
+    info->free_buf_size     = queue->ringbuf.freesize;
     info->min_free_buf_size = queue->min_free_buf_size;
-    info->buf_size = queue->ringbuf.end - queue->ringbuf.buf;
-    info->max_msg_size = queue->max_msg_size;
-    info->cur_num = queue->cur_num;
-    info->peak_num = queue->peak_num;
+    info->buf_size          = queue->ringbuf.end - queue->ringbuf.buf;
+    info->max_msg_size      = queue->max_msg_size;
+    info->cur_num           = queue->cur_num;
+    info->peak_num          = queue->peak_num;
 
     RHINO_CRITICAL_EXIT();
 

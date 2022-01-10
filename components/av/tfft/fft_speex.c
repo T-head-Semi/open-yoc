@@ -18,7 +18,7 @@ static int _fft_speex_init(fftx_t *fft, size_t size)
     void *hdl = NULL;
     struct fft_speex_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct fft_speex_priv));
+    priv = av_zalloc(sizeof(struct fft_speex_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = spx_fft_init(size);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -27,7 +27,7 @@ static int _fft_speex_init(fftx_t *fft, size_t size)
     fft->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -54,7 +54,7 @@ static int _fft_speex_uninit(fftx_t *fft)
     struct fft_speex_priv *priv = fft->priv;
 
     spx_fft_destroy(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     fft->priv = NULL;
     return 0;
 }

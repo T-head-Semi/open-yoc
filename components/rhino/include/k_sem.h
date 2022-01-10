@@ -1,11 +1,13 @@
-/**
- * @file k_sem.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_SEM_H
 #define K_SEM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino sem
  *  Semaphore can be used for mutual exclusion between tasks, or tasks synchronize.
@@ -124,6 +126,10 @@ kstat_t krhino_sem_count_set(ksem_t *sem, sem_count_t  count);
 kstat_t krhino_sem_count_get(ksem_t *sem, sem_count_t *count);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_SEM_H */
 

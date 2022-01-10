@@ -11,7 +11,7 @@
 #define LOG_TAG "[KM]"
 
 #ifdef CONFIG_DEBUG
-#if CONFIG_DEBUG == 3
+#if CONFIG_DEBUG >= 3
 #define KM_LOGD(format, ...) printf(LOG_TAG"[D] ""[%d]"format"\r\n", __LINE__, ##__VA_ARGS__)
 #define KM_LOGI(format, ...) printf(LOG_TAG"[I] ""[%d]"format"\r\n", __LINE__, ##__VA_ARGS__)
 #define KM_LOGW(format, ...) printf(LOG_TAG"[W] ""[%d]"format"\r\n", __LINE__, ##__VA_ARGS__)

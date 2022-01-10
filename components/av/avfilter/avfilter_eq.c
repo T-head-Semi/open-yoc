@@ -98,7 +98,7 @@ avfilter_t *avf_eq_open(const char *inst_name, const eq_avfp_t *eqp)
         LOGE(TAG, "eq param failed");
         return NULL;
     }
-    dobj = aos_zalloc(sizeof(struct avfilter_eq));
+    dobj = av_zalloc(sizeof(struct avfilter_eq));
     CHECK_RET_TAG_WITH_RET(dobj, NULL);
     f       = (avfilter_t*)dobj;
     f->ops  = &avf_ops_eq;
@@ -120,7 +120,7 @@ avfilter_t *avf_eq_open(const char *inst_name, const eq_avfp_t *eqp)
     return (avfilter_t*)dobj;
 err:
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

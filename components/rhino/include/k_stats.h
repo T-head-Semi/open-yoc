@@ -1,11 +1,13 @@
-/**
- * @file k_stats.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_STATS_H
 #define K_STATS_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino stats
  *  OS statistic
@@ -71,6 +73,10 @@ uint32_t krhino_get_cpu_usage(void);
 #endif
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_STATS_H */
 

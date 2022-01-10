@@ -148,10 +148,10 @@ bool sc_rsa_verify(sc_rsa_t *rsa, sc_rsa_context_t *context, void *src, uint32_t
     int32_t ret;
     uint8_t result;
     rsa_padding_t pad;
-    CHECK_PARAM(rsa, SC_PARAM_INV);
-    CHECK_PARAM(context, SC_PARAM_INV);
-    CHECK_PARAM(src, SC_PARAM_INV);
-    CHECK_PARAM(signature, SC_PARAM_INV);
+    CHECK_PARAM(rsa, false);
+    CHECK_PARAM(context, false);
+    CHECK_PARAM(src, false);
+    CHECK_PARAM(signature, false);
     pad.padding_type = context->padding_type;
     pad.hash_type = hash_type;
 

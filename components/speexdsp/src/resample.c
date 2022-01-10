@@ -448,7 +448,7 @@ static int resampler_basic_interpolate_single(SpeexResamplerState *st, spx_uint3
    spx_word32_t sum;
 #ifdef FIXED_POINT
 #ifdef DB_DOWN_441_PATCH
-   int patch_left_shift = ((st->out_rate == 44100) || (st->in_rate == 44100)) ? 1 : 0;
+   int patch_left_shift = ((st->out_rate % 11025 == 0) || (st->in_rate % 11025 == 0)) ? 1 : 0;
 #endif
 #endif
 

@@ -19,7 +19,7 @@ static int _resample_speex_init(resx_t *r)
     SpeexResamplerState* srs = NULL;
     struct res_speex_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct res_speex_priv));
+    priv = av_zalloc(sizeof(struct res_speex_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     srs = speex_resampler_init((spx_uint32_t)r->channels, (spx_uint32_t)r->irate, (spx_uint32_t)r->orate, 0, &error);
@@ -30,7 +30,7 @@ static int _resample_speex_init(resx_t *r)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -60,7 +60,7 @@ static int _resample_speex_uninit(resx_t *r)
     SpeexResamplerState* srs    = priv->srs;
 
     speex_resampler_destroy(srs);
-    aos_free(priv);
+    av_free(priv);
     r->priv = NULL;
     return 0;
 }

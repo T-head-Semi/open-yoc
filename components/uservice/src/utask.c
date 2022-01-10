@@ -4,12 +4,14 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <uservice/uservice.h>
 
+#ifdef __linux__
+#else
 #include <aos/kernel.h>
 #include <aos/debug.h>
 #include <aos/wdt.h>
-
-#include <uservice/uservice.h>
+#endif
 
 #include "internal.h"
 
@@ -17,9 +19,40 @@
 
 static int g_utask_softwdt_timeout = 0;
 static AOS_SLIST_HEAD(utask_list);
-
 #define LOOP_TIME_MS 1000
 #define MIN_SOFTWDT_TIME 2000 /*ms*/
+
+#ifdef __linux__
+static void utask_entry(void *data)
+{
+    rpc_t  rpc;
+    utask_t *task = (utask_t *)data;
+    uint64_t nsec;
+    struct timespec ts;
+    struct timeval now;
+    unsigned int timeout = LOOP_TIME_MS;
+
+    while (task->running) {
+        gettimeofday(&now, NULL);
+        nsec       = now.tv_usec * 1000 + (timeout % 1000) * 1000000;
+        ts.tv_nsec = nsec % 1000000000;
+        ts.tv_sec  = now.tv_sec + nsec / 1000000000 + timeout / 1000;
+
+        if (mq_timedreceive(task->queue, (char*)&rpc, sizeof(rpc_t), NULL, &ts) == sizeof(rpc_t)) {
+            if (rpc.srv->process_rpc) {
+                task->current_rpc = &rpc;
+                rpc.srv->process_rpc(rpc.srv->context, &rpc);
+                task->current_rpc = NULL;
+            } else {
+                rpc_reply(&rpc);
+            }
+        }
+    }
+
+    aos_sem_signal(&task->running_wait);
+}
+
+#else
 
 static void task_will(void *args)
 {
@@ -90,11 +123,19 @@ static void utask_entry(void *data)
 
     aos_sem_signal(&task->running_wait);
 }
+#endif
 
 utask_t *utask_new(const char *name, size_t stack_size, int queue_count, int prio)
 {
+#ifdef __linux__
+    if (!(name && stack_size && queue_count)) {
+        LOGE(TAG, "utask new param invalid!");
+        return NULL;
+    }
+#else
     if (stack_size <= 0 || queue_count <= 0)
         return NULL;
+#endif
     int queue_buffer_size = queue_count * sizeof(rpc_t);
 
     utask_t *task = aos_zalloc(sizeof(utask_t) + queue_buffer_size);
@@ -107,11 +148,32 @@ utask_t *utask_new(const char *name, size_t stack_size, int queue_count, int pri
     slist_init(&task->rpc_buffer_gc_cache);
     slist_add_tail(&task->node, &utask_list);
 
-    task->queue_count = queue_count;
-    task->queue_buffer = (uint8_t*)task + sizeof(utask_t);
+#ifdef __linux__
+    {
+        struct mq_attr mqa = {0};
+        size_t nlen = strlen(name);
 
+        mqa.mq_maxmsg  = 10;//queue_count;
+        mqa.mq_msgsize = sizeof(rpc_t);
+
+        task->qname    = aos_malloc(nlen + 2);
+        task->qname[0] = '/';
+        strcpy(task->qname + 1, name);
+        task->qname[nlen + 1] = '\0';
+
+        mq_unlink(task->qname);
+        task->queue = mq_open(task->qname, O_CREAT | O_RDWR, 0600, &mqa);
+        if (task->queue == -1) {
+            LOGE(TAG, "queue open fail, qname = %s", task->qname);
+            goto out0;
+        }
+    }
+#else
+    task->queue_count  = queue_count;
+    task->queue_buffer = (uint8_t*)task + sizeof(utask_t);
     if (aos_queue_new(&task->queue, task->queue_buffer, queue_buffer_size, sizeof(rpc_t)) != 0)
         goto out0;
+#endif
 
     if (aos_mutex_new(&task->mutex) != 0)
         goto out1;
@@ -129,8 +191,20 @@ out3:
 out2:
     aos_mutex_free(&task->mutex);
 out1:
-    aos_queue_free(&task->queue);
+#ifdef __linux__
+    if (task->queue >= 0) {
+        mq_close(task->queue);
+        mq_unlink(task->qname);
+    }
+#else
+    if (aos_queue_is_valid(&task->queue)) {
+        aos_queue_free(&task->queue);
+    }
+#endif
 out0:
+#ifdef __linux__
+    aos_free(task->qname);
+#endif
     aos_free(task);
 
     return NULL;
@@ -153,7 +227,13 @@ void utask_join(utask_t *task)
 
     aos_sem_free(&task->running_wait);
     aos_mutex_free(&task->mutex);
+#ifdef __linux__
+    mq_close(task->queue);
+    mq_unlink(task->qname);
+    aos_free(task->qname);
+#else
     aos_queue_free(&task->queue);
+#endif
     aos_free(task);
 }
 

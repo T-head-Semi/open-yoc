@@ -6,11 +6,13 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifndef __linux__
 #include <aos/debug.h>
 #include <aos/list.h>
+#include <devices/driver.h>
+#endif
 #include <uservice/uservice.h>
 #include <uservice/event.h>
-#include <devices/driver.h>
 #include <sys/select.h>
 
 #include "internal.h"
@@ -25,7 +27,9 @@ static struct event_call {
     void        *data;
     aos_task_t   select_task;
     aos_sem_t    select_sem;
+#ifndef __linux__
     aos_event_t  wait_event;
+#endif
 } ev_service;
 
 struct event_param {
@@ -91,12 +95,14 @@ static int process_rpc(void *context, rpc_t *rpc)
             timer->event_id = param->event_id;
             timer->data = param->data;
 
+            uservice_lock(ev_service.svr);
             struct event_param *node;
             dlist_for_each_entry(&ev_service.timeouts, node, struct event_param, next) {
                 if (timer->timeout < node->timeout)
                     break;
             }
             dlist_add_tail(&timer->next, &node->next);
+            uservice_unlock(ev_service.svr);
             aos_sem_signal(&ev_service.select_sem);
         } else {
             eventlist_publish(&ev_service.event, param->event_id, param->data);
@@ -113,7 +119,7 @@ static int process_rpc(void *context, rpc_t *rpc)
 int event_service_init(utask_t *task)
 {
     if (task == NULL)
-        task = utask_new("event_svr", 2*1024, QUEUE_MSG_COUNT * 5, AOS_DEFAULT_APP_PRI);
+        task = utask_new("event_svr", CONFIG_USERVICE_EVENT_TASK_STACK_SIZE, QUEUE_MSG_COUNT * 5, AOS_DEFAULT_APP_PRI);
 
     if (task == NULL)
         return -1;
@@ -123,9 +129,11 @@ int event_service_init(utask_t *task)
     aos_sem_new(&ev_service.select_sem, 0);
 
     ev_service.svr = uservice_new("event_svr", process_rpc, NULL);
+#ifndef __linux__
     aos_event_new(&ev_service.wait_event, 0);
+#endif
     aos_task_new_ext(&ev_service.select_task, "select", select_task_entry, NULL,
-                     1024, AOS_DEFAULT_APP_PRI);
+                     1024*2, AOS_DEFAULT_APP_PRI);
     utask_add(task, ev_service.svr);
 
     return 0;
@@ -243,6 +251,17 @@ static int do_time_event()
     return delayed_ms;
 }
 
+#ifdef __linux__
+static void select_task_entry(void *arg)
+{
+    while (1) {
+        int time_ms = do_time_event();
+
+        aos_msleep(time_ms);
+    }
+}
+
+#else
 #define SELECT_TIMEOUT (10)
 static void select_task_entry(void *arg)
 {
@@ -280,3 +299,7 @@ static void select_task_entry(void *arg)
 
     aos_task_exit(0);
 }
+#endif
+
+
+

@@ -1,11 +1,13 @@
-/**
- * @file k_ringbuf.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_MM_RINGBUF_H
 #define K_MM_RINGBUF_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino ringbuf
  *  Ringbuf is a FIFO communication mechanism.
@@ -82,6 +84,10 @@ RHINO_INLINE kstat_t ringbuf_queue_pop(k_ringbuf_t *p_ringbuf, void *pdata, size
 }
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_RINGBUF_H */
 

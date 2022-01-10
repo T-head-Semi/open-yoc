@@ -10,6 +10,11 @@
 
 #include "lfs.h"
 #include "littlefs_vfs.h"
+#include "lfs_util.h"
+
+/* lookahead size should be 8 bytes aligned */
+#define _ALIGN8(n) (((n)+7) & (~7))
+#define GET_LOOKAHEAD_SIZE(blks) (_ALIGN8((blks)>>4) > 16 ? _ALIGN8((blks)>>4) : 16)
 
 #define WAIT_FOREVER 0xFFFFFFFF
 
@@ -23,9 +28,9 @@ typedef struct {
 
 typedef struct _lfsvfs_dir_t
 {
-    aos_dir_t    dir;
+    vfs_dir_t    dir;
     lfs_dir_t    lfsdir;
-    aos_dirent_t cur_dirent;
+    vfs_dirent_t cur_dirent;
 } lfsvfs_dir_t;
 
 partition_t lfs_hdl;
@@ -76,17 +81,26 @@ static void lfs_lock_create(lfs_lock_t *lock)
 /* Global FS lock destroy */
 static void lfs_lock_destory(lfs_lock_t *lock)
 {
-    aos_mutex_free(lock);
+    if (lock) {
+        aos_mutex_free(lock);
+        LFS_TRACE("%s: lock %p destroyed", aos_task_name(), lock);
+    }
 }
 
 static void lfs_lock(lfs_lock_t *lock)
 {
-    aos_mutex_lock(lock, WAIT_FOREVER);
+    if (lock) {
+        aos_mutex_lock(lock, WAIT_FOREVER);
+        LFS_TRACE("%s: lock %p locked", aos_task_name(), lock);
+    }
 }
 
 static void lfs_unlock(lfs_lock_t *lock)
 {
-    aos_mutex_unlock(lock);
+    if (lock) {
+        LFS_TRACE("%s: lock %p to be unlocked", aos_task_name(), lock);
+        aos_mutex_unlock(lock);
+    }
 }
 
 /* Relative path convert */
@@ -113,8 +127,13 @@ static char *path_convert(const char *path)
 
     memset(target_path, 0, len + 1);
     if (len > 0) {
-        p = (char *)(path + prefix + 1);
-        memcpy(target_path, p, len - 1);
+        if (strcmp(lfs_mount_path, "/") == 0) {
+            p = (char *)(path + prefix);
+            memcpy(target_path, p, len);
+        } else {
+            p = (char *)(path + prefix + 1);
+            memcpy(target_path, p, len - 1);
+        }
     }
 
     target_path[len] = '\0';
@@ -147,6 +166,36 @@ static int32_t mode_convert(int32_t flags)
         res |= LFS_O_CREAT | LFS_O_APPEND;
     }
     return res;
+}
+
+static int lfs_ret_value_convert(int lfs_ret)
+{
+    int ret;
+
+    if (lfs_ret > 0) {
+        return lfs_ret;
+    }
+
+    switch(lfs_ret) {
+        case LFS_ERR_OK: ret = 0; break;
+        case LFS_ERR_IO: ret = -EIO; break;
+        case LFS_ERR_CORRUPT: ret = -EIO; break;
+        case LFS_ERR_NOENT: ret = -ENOENT; break;
+        case LFS_ERR_EXIST: ret = -EEXIST; break;
+        case LFS_ERR_NOTDIR: ret = -ENOTDIR; break;
+        case LFS_ERR_ISDIR: ret = -EISDIR; break;
+        case LFS_ERR_NOTEMPTY: ret = -ENOTEMPTY; break;
+        case LFS_ERR_BADF: ret = -EBADF; break;
+        case LFS_ERR_FBIG: ret = -EFBIG; break;
+        case LFS_ERR_INVAL: ret = -EINVAL; break;
+        case LFS_ERR_NOSPC: ret = -ENOSPC; break;
+        case LFS_ERR_NOMEM: ret = -ENOMEM; break;
+        case LFS_ERR_NOATTR: ret = -ENODATA; break;
+        case LFS_ERR_NAMETOOLONG: ret = -ENAMETOOLONG; break;
+        default: ret = lfs_ret; break;
+    }
+
+    return ret;
 }
 
 static int32_t _lfs_deinit(void)
@@ -187,7 +236,7 @@ ERROR:
     return -1;
 }
 
-static int32_t lfs_vfs_open(file_t *fp, const char *path, int32_t flags)
+static int32_t lfs_vfs_open(vfs_file_t *fp, const char *path, int flags)
 {
     int res;
     char *target_path = NULL;
@@ -225,7 +274,7 @@ static int32_t lfs_vfs_open(file_t *fp, const char *path, int32_t flags)
     return res;
 }
 
-static int32_t lfs_vfs_close(file_t *fp)
+static int32_t lfs_vfs_close(vfs_file_t *fp)
 {
     int res = LFS_ERR_INVAL;
     lfs_file_t *file = (lfs_file_t *)(fp->f_arg);
@@ -241,7 +290,7 @@ static int32_t lfs_vfs_close(file_t *fp)
     return res;
 }
 
-static ssize_t lfs_vfs_read(file_t *fp, char *buf, size_t len)
+static int32_t lfs_vfs_read(vfs_file_t *fp, char *buf, uint32_t len)
 {
     int nbytes;
 
@@ -254,7 +303,7 @@ static ssize_t lfs_vfs_read(file_t *fp, char *buf, size_t len)
     return nbytes;
 }
 
-static ssize_t lfs_vfs_write(file_t *fp, const char *buf, size_t len)
+static int32_t lfs_vfs_write(vfs_file_t *fp, const char *buf, uint32_t len)
 {
     int nbytes;
 
@@ -267,7 +316,7 @@ static ssize_t lfs_vfs_write(file_t *fp, const char *buf, size_t len)
     return nbytes;
 }
 
-static off_t lfs_vfs_lseek(file_t *fp, off_t off, int32_t whence)
+static uint32_t lfs_vfs_lseek(vfs_file_t *fp, int64_t off, int32_t whence)
 {
     off_t res;
 
@@ -280,7 +329,7 @@ static off_t lfs_vfs_lseek(file_t *fp, off_t off, int32_t whence)
     return res;
 }
 
-static int32_t lfs_vfs_sync(file_t *fp)
+static int32_t lfs_vfs_sync(vfs_file_t *fp)
 {
     int res;
 
@@ -293,7 +342,32 @@ static int32_t lfs_vfs_sync(file_t *fp)
     return res;
 }
 
-static int32_t lfs_vfs_stat(file_t *fp, const char *path, struct stat *st)
+static int32_t lfs_vfs_fstat(vfs_file_t *fp, vfs_stat_t *st)
+{
+    struct lfs_info s;
+    int32_t ret;
+
+    lfs_file_t *file = (lfs_file_t*)(fp->f_arg);
+
+    lfs_lock(g_lfs_manager.lock);
+    ret = lfs_fstat(g_lfs_manager.lfs, file, &s);
+    lfs_unlock(g_lfs_manager.lock);
+
+    ret = lfs_ret_value_convert(ret);
+    if (ret == 0){
+        st->st_size = s.size;
+        st->st_mode = S_IRWXU | S_IRWXG | S_IRWXO |
+                      ((s.type == LFS_TYPE_DIR) ? S_IFDIR : S_IFREG);
+#ifdef FS_TIMESTAMP_WORKAROUND
+        st->st_actime = time(NULL);
+        st->st_modtime = time(NULL);
+#endif
+    }
+
+    return ret;
+}
+
+static int32_t lfs_vfs_stat(vfs_file_t *fp, const char *path, vfs_stat_t *st)
 {
     struct lfs_info s;
     int res;
@@ -318,7 +392,50 @@ static int32_t lfs_vfs_stat(file_t *fp, const char *path, struct stat *st)
     return res;
 }
 
-static int32_t lfs_vfs_remove(file_t *fp, const char *path)
+static int32_t lfs_vfs_access(vfs_file_t *fp, const char *path, int mode)
+{
+    vfs_stat_t s;
+    int ret;
+
+    ret = lfs_vfs_stat(fp, path, &s);
+    ret = lfs_ret_value_convert(ret);
+    if (ret == 0) {
+        switch(mode) {
+            case F_OK: return 0;
+            case R_OK: return s.st_mode & S_IRUSR ? 0 : 1;
+            case W_OK: return s.st_mode & S_IWUSR ? 0 : 1;
+            case X_OK: return s.st_mode & S_IXUSR ? 0 : 1;
+        }
+    }
+
+    return ret;
+}
+
+static int32_t lfs_vfs_statfs(vfs_file_t *fp, const char *path, vfs_statfs_t *sfs)
+{
+    int32_t block_used;
+    int ret;
+
+    lfs_lock(g_lfs_manager.lock);
+    ret = lfs_fs_size(g_lfs_manager.lfs);
+    lfs_unlock(g_lfs_manager.lock);
+    ret = lfs_ret_value_convert(ret);
+    if (ret >= 0) {
+        block_used = ret;
+        memset(sfs, 0, sizeof(vfs_statfs_t));
+        sfs->f_type = 0xd3fc;
+        sfs->f_bsize = g_lfs_manager.config->block_size;
+        sfs->f_blocks = g_lfs_manager.config->block_count;
+        sfs->f_bfree = g_lfs_manager.config->block_count - block_used;
+        sfs->f_bavail = sfs->f_bfree;
+        sfs->f_files = 1024;
+        ret = 0;
+    }
+
+    return ret;
+}
+
+static int32_t lfs_vfs_remove(vfs_file_t *fp, const char *path)
 {
     int res;
     char *target_path = NULL;
@@ -336,7 +453,7 @@ static int32_t lfs_vfs_remove(file_t *fp, const char *path)
     return res;
 }
 
-static int32_t lfs_vfs_rename(file_t *fp, const char *oldpath, const char *newpath)
+static int32_t lfs_vfs_rename(vfs_file_t *fp, const char *oldpath, const char *newpath)
 {
     int32_t ret;
 
@@ -364,7 +481,7 @@ static int32_t lfs_vfs_rename(file_t *fp, const char *oldpath, const char *newpa
     return ret;
 }
 
-static aos_dir_t *lfs_vfs_opendir(file_t *fp, const char *path)
+static vfs_dir_t *lfs_vfs_opendir(vfs_file_t *fp, const char *path)
 {
     lfsvfs_dir_t *lfsvfs_dir = NULL;
     char *relpath = NULL;
@@ -394,10 +511,10 @@ static aos_dir_t *lfs_vfs_opendir(file_t *fp, const char *path)
     }
 
     aos_free(relpath);
-    return (aos_dir_t *)lfsvfs_dir;
+    return (vfs_dir_t *)lfsvfs_dir;
 }
 
-static aos_dirent_t *lfs_vfs_readdir(file_t *fp, aos_dir_t *dir)
+static vfs_dirent_t *lfs_vfs_readdir(vfs_file_t *fp, vfs_dir_t *dir)
 {
     lfsvfs_dir_t *lfsvfs_dir = (lfsvfs_dir_t*)dir;
     struct lfs_info info;
@@ -427,7 +544,7 @@ static aos_dirent_t *lfs_vfs_readdir(file_t *fp, aos_dir_t *dir)
     return &lfsvfs_dir->cur_dirent;
 }
 
-static int32_t lfs_vfs_closedir(file_t *fp, aos_dir_t *dir)
+static int32_t lfs_vfs_closedir(vfs_file_t *fp, vfs_dir_t *dir)
 {
     lfsvfs_dir_t *lfsvfs_dir = (lfsvfs_dir_t *)dir;
     int32_t ret;
@@ -448,7 +565,7 @@ static int32_t lfs_vfs_closedir(file_t *fp, aos_dir_t *dir)
     return ret;
 }
 
-static int32_t lfs_vfs_mkdir(file_t *fp, const char *path)
+static int32_t lfs_vfs_mkdir(vfs_file_t *fp, const char *path)
 {
     int32_t ret;
     char *pathname = NULL;
@@ -467,7 +584,7 @@ static int32_t lfs_vfs_mkdir(file_t *fp, const char *path)
     return ret;
 }
 
-static int32_t lfs_vfs_rmdir(file_t *fp, const char *path)
+static int32_t lfs_vfs_rmdir (vfs_file_t *fp, const char *path)
 {
     int32_t ret;
     char *pathname = NULL;
@@ -486,8 +603,54 @@ static int32_t lfs_vfs_rmdir(file_t *fp, const char *path)
     return ret;
 }
 
+static void lfs_vfs_rewinddir(vfs_file_t *fp, vfs_dir_t *dir)
+{
+    lfsvfs_dir_t *lfsvfs_dir = (lfsvfs_dir_t *)dir;
 
-static const fs_ops_t littlefs_ops = {
+    if (!lfsvfs_dir) {
+        return;
+    }
+
+    lfs_lock(g_lfs_manager.lock);
+    lfs_dir_rewind(g_lfs_manager.lfs, &lfsvfs_dir->lfsdir);
+    lfs_unlock(g_lfs_manager.lock);
+}
+
+static int32_t lfs_vfs_telldir(vfs_file_t *fp, vfs_dir_t *dir)
+{
+    lfsvfs_dir_t *lfsvfs_dir = (lfsvfs_dir_t *)dir;
+    int32_t ret;
+
+    if (!lfsvfs_dir) {
+        return -EINVAL;
+    }
+
+    lfs_lock(g_lfs_manager.lock);
+    ret = lfs_dir_tell(g_lfs_manager.lfs, &lfsvfs_dir->lfsdir);
+    lfs_unlock(g_lfs_manager.lock);
+
+    return lfs_ret_value_convert(ret);
+}
+
+static void lfs_vfs_seekdir(vfs_file_t *fp, vfs_dir_t *dir, int32_t loc)
+{
+    lfsvfs_dir_t *lfsvfs_dir = (lfsvfs_dir_t*)dir;
+
+    if (!lfsvfs_dir) {
+        return;
+    }
+
+    lfs_lock(g_lfs_manager.lock);
+    lfs_dir_seek(g_lfs_manager.lfs, &lfsvfs_dir->lfsdir, (lfs_off_t)loc);
+    lfs_unlock(g_lfs_manager.lock);
+}
+
+static int32_t lfs_vfs_utime(vfs_file_t *fp, const char *path, const vfs_utimbuf_t *times)
+{
+    return lfs_ret_value_convert(LFS_ERR_OK);
+}
+
+static vfs_filesystem_ops_t littlefs_ops = {
     .open       = &lfs_vfs_open,
     .close      = &lfs_vfs_close,
     .read       = &lfs_vfs_read,
@@ -496,13 +659,21 @@ static const fs_ops_t littlefs_ops = {
     .sync       = &lfs_vfs_sync,
     .stat       = &lfs_vfs_stat,
     .unlink     = &lfs_vfs_remove,
+    .remove     = &lfs_vfs_remove,
     .rename     = &lfs_vfs_rename,
+    .access     = &lfs_vfs_access,
+    .fstat      = &lfs_vfs_fstat,
+    .statfs     = &lfs_vfs_statfs,
     .opendir    = &lfs_vfs_opendir,
     .readdir    = &lfs_vfs_readdir,
     .closedir   = &lfs_vfs_closedir,
     .mkdir      = &lfs_vfs_mkdir,
     .rmdir      = &lfs_vfs_rmdir,
+    .rewinddir  = &lfs_vfs_rewinddir,
+    .telldir    = &lfs_vfs_telldir,
+    .seekdir    = &lfs_vfs_seekdir,
     .ioctl      = NULL,
+    .utime      = &lfs_vfs_utime,
 };
 
 int lfs_vfs_mount(void)
@@ -555,21 +726,58 @@ int32_t vfs_lfs_register(char *partition_desc)
 
     aos_check(lfs_hdl > 0, EIO);
 
-    lfs_mount_path = (char *)aos_malloc(sizeof(partition_desc) + 1);
-    sprintf(lfs_mount_path, "/%s", partition_desc);
+    lfs_mount_path = (char *)aos_malloc(sizeof(LFS_MOUNTPOINT) + 1);
+    sprintf(lfs_mount_path, "%s", LFS_MOUNTPOINT);
+
     // block device configuration
     partition_info_t *part_info = hal_flash_get_info(lfs_hdl);
+#ifdef CONFIG_LFS_BLOCK_SIZE
+    default_cfg.block_size     = LFS_BLOCK_SIZE;
+#else
     default_cfg.block_size     = part_info->sector_size;
+#endif
+#ifdef CONFIG_LFS_BLOCK_COUNT
+    default_cfg.block_count    = LFS_BLOCK_COUNT;
+#else
     default_cfg.block_count    = part_info->length / part_info->sector_size;
+#endif
+#ifdef CONFIG_LFS_READ_SIZE
+    default_cfg.read_size      = LFS_READ_SIZE;
+#else
     default_cfg.read_size      = 256;
+#endif
+#ifdef CONFIG_LFS_PROG_SIZE
+    default_cfg.prog_size      = LFS_PROG_SIZE;
+#else
     default_cfg.prog_size      = 256;
-    default_cfg.cache_size     = 256;
-    default_cfg.lookahead_size = 16;
+#endif
+#ifdef CONFIG_LFS_CACHE_SIZE
+    default_cfg.cache_size     = LFS_CACHE_SIZE;
+#else
+    default_cfg.cache_size     = default_cfg.prog_size;
+#endif
+#ifdef CONFIG_LFS_LOOKAHEAD_SIZE
+    default_cfg.lookahead_size = LFS_LOOKAHEAD_SIZE;
+#else
+    default_cfg.lookahead_size = GET_LOOKAHEAD_SIZE(default_cfg.block_count);
+#endif
+#ifdef CONFIG_LFS_BLOCK_CYCLES
+    default_cfg.block_cycles   = LFS_BLOCK_CYCLES;
+#else
     default_cfg.block_cycles   = 1000;
+#endif
+
+    // printf("default_cfg.block_size: %d\n", default_cfg.block_size);
+    // printf("default_cfg.block_count: %d\n", default_cfg.block_count);
+    // printf("default_cfg.read_size: %d\n", default_cfg.read_size);
+    // printf("default_cfg.prog_size: %d\n", default_cfg.prog_size);
+    // printf("default_cfg.cache_size: %d\n", default_cfg.cache_size);
+    // printf("default_cfg.lookahead_size: %d\n", default_cfg.lookahead_size);
+    // printf("default_cfg.block_cycles: %d\n", default_cfg.block_cycles);
 
     int res = lfs_vfs_mount();
     if (res == LFS_ERR_OK) {
-        return aos_register_fs(lfs_mount_path, &littlefs_ops, NULL);
+        return vfs_register_fs(lfs_mount_path, &littlefs_ops, NULL);
     }
     return res;
 }
@@ -578,7 +786,7 @@ int32_t vfs_lfs_unregister(void)
 {
     lfs_vfs_unmount();
     partition_close(lfs_hdl);
-    aos_unregister_fs(lfs_mount_path);
+    vfs_unregister_fs(lfs_mount_path);
     free(lfs_mount_path);
     return 0;
 }

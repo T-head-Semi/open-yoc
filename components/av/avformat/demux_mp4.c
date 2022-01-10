@@ -134,32 +134,32 @@ static void _mp4_read_close(demux_cls_t *o)
 {
     struct mp4_priv *priv = o->priv;
 
-    aos_freep((char**)&priv->chunk_offsets);
-    aos_freep((char**)&priv->sample_sizes);
-    aos_freep((char**)&priv->stsc_data);
-    aos_freep((char**)&priv->stts_data);
+    av_freep((char**)&priv->chunk_offsets);
+    av_freep((char**)&priv->sample_sizes);
+    av_freep((char**)&priv->stsc_data);
+    av_freep((char**)&priv->stts_data);
 #if CONFIG_AV_MP4_IDX_OPT
-    aos_freep((char**)&priv->seg_idxes);
+    av_freep((char**)&priv->seg_idxes);
 #endif
     if (priv->cenc_encrypted) {
         if (priv->encrypt_samples) {
-            aos_freep((char **)&priv->encrypt_samples[0].iv);
-            aos_freep((char **)&priv->encrypt_samples);
+            av_freep((char **)&priv->encrypt_samples[0].iv);
+            av_freep((char **)&priv->encrypt_samples);
         }
 
         if (priv->aes_param) {
             mbedtls_aes_free(&priv->aes_param->ctx);
-            aos_freep((char **)&priv->aes_param);
+            av_freep((char **)&priv->aes_param);
         }
 
         if (priv->default_encrypt_sample && priv->default_encrypt_sample->iv) {
-            aos_freep((char **)&priv->default_encrypt_sample->iv);
+            av_freep((char **)&priv->default_encrypt_sample->iv);
         }
 
-        aos_freep((char **)&priv->default_encrypt_sample);
+        av_freep((char **)&priv->default_encrypt_sample);
     }
 
-    aos_freep((char**)&priv->indexes);
+    av_freep((char**)&priv->indexes);
 }
 
 static int _mp4_read_hdlr(demux_cls_t *o, mp4_atom_t *atom)
@@ -325,7 +325,7 @@ static int _mp4_read_stco(demux_cls_t *o, mp4_atom_t *atom)
         return -1;
     }
 
-    priv->chunk_offsets = aos_zalloc(entries * sizeof(int64_t));
+    priv->chunk_offsets = av_zalloc(entries * sizeof(int64_t));
     if (!priv->chunk_offsets) {
         LOGE(TAG, "stco err, oom. ");
         return -1;
@@ -394,10 +394,10 @@ static int _mp4_get_extradata(demux_cls_t *o, size_t size)
     int ret;
     stream_cls_t *s       = o->s;
 
-    aos_freep((char**)&o->ash.extradata);
+    av_freep((char**)&o->ash.extradata);
     o->ash.extradata_size = 0;
 
-    o->ash.extradata = aos_malloc(size);
+    o->ash.extradata = av_malloc(size);
     if (NULL == o->ash.extradata) {
         LOGE(TAG, "read descr fail. oom");
         return -1;
@@ -406,7 +406,7 @@ static int _mp4_get_extradata(demux_cls_t *o, size_t size)
     ret = stream_read(s, o->ash.extradata, size);
     if (ret != size) {
         LOGE(TAG, "read descr fail, ret = %d, size = %d", ret, size);
-        aos_freep((char**)&o->ash.extradata);
+        av_freep((char**)&o->ash.extradata);
         return -1;
     }
     o->ash.extradata_size = size;
@@ -578,7 +578,7 @@ static int _mp4_read_stsc(demux_cls_t *o, mp4_atom_t *atom)
         return -1;
     }
 
-    priv->stsc_data = aos_zalloc(entries * sizeof(mp4_stsc_t));
+    priv->stsc_data = av_zalloc(entries * sizeof(mp4_stsc_t));
     if (!priv->stsc_data) {
         LOGE(TAG, "stts data malloc fail, oom.");
         return -1;
@@ -617,7 +617,7 @@ static int _mp4_read_stsz(demux_cls_t *o, mp4_atom_t *atom)
 
     priv->sample_count = entries;
     /* FIXME: sample_sizes may be too large */
-    priv->sample_sizes = aos_zalloc(entries * sizeof(AUDIO_SAMPLE_SIZE_TYPE));
+    priv->sample_sizes = av_zalloc(entries * sizeof(AUDIO_SAMPLE_SIZE_TYPE));
     if (!priv->sample_sizes) {
         LOGE(TAG, "stsz fail, oom.");
         return -1;
@@ -644,8 +644,8 @@ static int _mp4_read_stts(demux_cls_t *o, mp4_atom_t *atom)
         return -1;
     }
 
-    aos_free(priv->stts_data);
-    priv->stts_data = aos_zalloc(entries * sizeof(mp4_stts_t));
+    av_free(priv->stts_data);
+    priv->stts_data = av_zalloc(entries * sizeof(mp4_stts_t));
     if (!priv->stts_data) {
         LOGE(TAG, "stts data malloc fail, oom.");
         return -1;
@@ -689,14 +689,14 @@ static int _mp4_create_indexes(demux_cls_t *o, int start_idx)
         indexes = priv->indexes;
         memset(priv->indexes, 0, sizeof(index_entry_t) * nb_idxes);
     } else {
-        indexes = aos_zalloc(sizeof(index_entry_t) * nb_idxes);
+        indexes = av_zalloc(sizeof(index_entry_t) * nb_idxes);
         if (!indexes) {
             LOGE(TAG, "alloc fail, oom, sample_count = %d", nb_idxes);
             return -1;
         }
 
         priv->nb_seg_idxes = (priv->sample_count + (IDX_NB_PER_SEGMENT - 1)) / IDX_NB_PER_SEGMENT;
-        priv->seg_idxes    = aos_zalloc(sizeof(seg_idx_t) * priv->nb_seg_idxes);
+        priv->seg_idxes    = av_zalloc(sizeof(seg_idx_t) * priv->nb_seg_idxes);
         for (i = 0; i < priv->nb_seg_idxes; i++) {
             priv->seg_idxes[i].start = i * IDX_NB_PER_SEGMENT;
             priv->seg_idxes[i].end   = (i + 1) * IDX_NB_PER_SEGMENT - 1;
@@ -754,7 +754,7 @@ quit:
 
     return 0;
 err:
-    aos_free(indexes);
+    av_free(indexes);
     return -1;
 }
 #else
@@ -768,7 +768,7 @@ static int _mp4_create_indexes(demux_cls_t *o)
     uint32_t cur_sample    = 0, sample_size;
     uint32_t stts_sample   = 0, stts_index = 0;
 
-    indexes = aos_zalloc(sizeof(index_entry_t) * priv->sample_count);
+    indexes = av_zalloc(sizeof(index_entry_t) * priv->sample_count);
     if (!indexes) {
         /* FIXME: sample count may be too large for big m4a */
         LOGE(TAG, "alloc fail, oom, sample_count = %d\n", priv->sample_count);
@@ -806,7 +806,7 @@ static int _mp4_create_indexes(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(indexes);
+    av_free(indexes);
     return -1;
 }
 #endif
@@ -839,16 +839,16 @@ static int _mp4_read_trak(demux_cls_t *o, mp4_atom_t *atom)
 err:
 #if CONFIG_AV_MP4_IDX_OPT
     if (ret < 0) {
-        aos_freep((char**)&priv->chunk_offsets);
-        aos_freep((char**)&priv->sample_sizes);
-        aos_freep((char**)&priv->stsc_data);
-        aos_freep((char**)&priv->stts_data);
+        av_freep((char**)&priv->chunk_offsets);
+        av_freep((char**)&priv->sample_sizes);
+        av_freep((char**)&priv->stsc_data);
+        av_freep((char**)&priv->stts_data);
     }
 #else
-    aos_freep((char**)&priv->chunk_offsets);
-    aos_freep((char**)&priv->sample_sizes);
-    aos_freep((char**)&priv->stsc_data);
-    aos_freep((char**)&priv->stts_data);
+    av_freep((char**)&priv->chunk_offsets);
+    av_freep((char**)&priv->sample_sizes);
+    av_freep((char**)&priv->stsc_data);
+    av_freep((char**)&priv->stts_data);
 #endif
 
     return ret;
@@ -910,7 +910,7 @@ static int _mp4_read_tenc(demux_cls_t *o, mp4_atom_t *atom)
     priv->per_sample_iv_size = per_sample_iv_size;
     stream_skip(s, 16); // skip red the default key id
     if (is_protected && !per_sample_iv_size) {
-        priv->default_encrypt_sample = aos_zalloc(sizeof(encrypt_info_t));
+        priv->default_encrypt_sample = av_zalloc(sizeof(encrypt_info_t));
         if (!priv->default_encrypt_sample) {
             LOGE(TAG, "tenc malloc err ");
             return -1;
@@ -920,7 +920,7 @@ static int _mp4_read_tenc(demux_cls_t *o, mp4_atom_t *atom)
         CHECK_RET_TAG_WITH_GOTO(default_iv_size == 8 || default_iv_size == 16, err);
 
         priv->default_encrypt_sample->iv_size = default_iv_size;
-        priv->default_encrypt_sample->iv      = aos_zalloc(default_iv_size);
+        priv->default_encrypt_sample->iv      = av_zalloc(default_iv_size);
         CHECK_RET_TAG_WITH_GOTO(priv->default_encrypt_sample->iv, err);
 
         ret = stream_read(s, priv->default_encrypt_sample->iv, default_iv_size);
@@ -929,8 +929,8 @@ static int _mp4_read_tenc(demux_cls_t *o, mp4_atom_t *atom)
     return 0;
 
 err:
-    aos_freep((char **)&priv->default_encrypt_sample);
-    aos_freep((char **)&priv->default_encrypt_sample->iv);
+    av_freep((char **)&priv->default_encrypt_sample);
+    av_freep((char **)&priv->default_encrypt_sample->iv);
     return -1;
 }
 
@@ -960,8 +960,8 @@ static int _mp4_read_senc(demux_cls_t *o, mp4_atom_t *atom)
         return -1;
     }
     if (priv->encrypt_samples) {
-        aos_freep((char **)&priv->encrypt_samples[0].iv);
-        aos_freep((char **)&priv->encrypt_samples);
+        av_freep((char **)&priv->encrypt_samples[0].iv);
+        av_freep((char **)&priv->encrypt_samples);
     }
 
     if (priv->per_sample_iv_size > 0) {
@@ -971,9 +971,9 @@ static int _mp4_read_senc(demux_cls_t *o, mp4_atom_t *atom)
             return -1;
         }
 
-        priv->encrypt_samples = aos_zalloc(sample_cnt * sizeof(encrypt_info_t));
+        priv->encrypt_samples = av_zalloc(sample_cnt * sizeof(encrypt_info_t));
         CHECK_RET_TAG_WITH_RET(priv->encrypt_samples, -1);
-        ives = aos_zalloc(rc);
+        ives = av_zalloc(rc);
         CHECK_RET_TAG_WITH_GOTO(ives, err);
         for (i = 0; i < sample_cnt; i++) {
             priv->encrypt_samples[i].iv = ives + (i * priv->per_sample_iv_size);
@@ -984,8 +984,8 @@ static int _mp4_read_senc(demux_cls_t *o, mp4_atom_t *atom)
 
     return 0;
 err:
-    aos_freep((char **)&ives);
-    aos_freep((char **)&priv->encrypt_samples);
+    av_freep((char **)&ives);
+    av_freep((char **)&priv->encrypt_samples);
     LOGE(TAG, "senc init iv failed");
     return -1;
 }
@@ -1169,7 +1169,7 @@ static int _demux_mp4_open(demux_cls_t *o)
     stream_cls_t *s       = o->s;
     struct mp4_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct mp4_priv));
+    priv = av_zalloc(sizeof(struct mp4_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     o->priv = priv;
 
@@ -1192,7 +1192,7 @@ static int _demux_mp4_open(demux_cls_t *o)
         struct mp3_hdr_info hinfo;
 
         if (priv->cenc_encrypted) {
-            priv->aes_param = aos_zalloc(sizeof(aes_crypt_t));
+            priv->aes_param = av_zalloc(sizeof(aes_crypt_t));
             CHECK_RET_TAG_WITH_GOTO(priv->aes_param, err);
             mbedtls_aes_init(&priv->aes_param->ctx);
             mbedtls_aes_setkey_enc(&priv->aes_param->ctx, priv->cenc_key, AES_128_BITS);
@@ -1211,7 +1211,7 @@ static int _demux_mp4_open(demux_cls_t *o)
     return 0;
 err:
     _mp4_read_close(o);
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -1221,7 +1221,7 @@ static int _demux_mp4_close(demux_cls_t *o)
 
     _mp4_read_close(o);
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

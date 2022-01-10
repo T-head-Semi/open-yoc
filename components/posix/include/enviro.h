@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2015-2017 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2020 Alibaba Group Holding Limited
  */
 
-#ifndef ENVIRO_H
-#define ENVIRO_H
+#ifndef _ENVIRO_H
+#define _ENVIRO_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,17 +73,18 @@ struct utsname {
 };
 
 /* definition for environment variable */
-typedef struct _pthread_environ {
+typedef struct pthread_environ {
     char *envname;
     char *envval;
 
-    struct _pthread_environ *next;
-} _pthread_environ_t;
+    struct pthread_environ *next;
+} pthread_environ_t;
 
 int   setenv(const char *envname, const char *envval, int overwrite);
 char *getenv(const char *name);
 int   unsetenv(const char *name);
 int   putenv(char *string);
+int   clearenv (void);
 
 int    uname(struct utsname *name);
 long   sysconf(int name);
@@ -91,6 +92,6 @@ size_t confstr(int name, char *buf, size_t len);
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
 
-#endif /* ENVIRO_H */
+#endif /* _ENVIRO_H */

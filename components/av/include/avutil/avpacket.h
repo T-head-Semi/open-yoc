@@ -6,6 +6,9 @@
 #define __AV_PACKET_H__
 
 #include "avutil/common.h"
+#ifdef __linux__
+#include "aos_port/list.h"
+#endif
 
 __BEGIN_DECLS__
 

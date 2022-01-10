@@ -21,7 +21,7 @@ mixer_cnl_t* mixer_cnl_new(sf_t sf, size_t fsize)
     sfifo_t *fifo = NULL;
 
     CHECK_PARAM(sf && fsize && (fsize % 8 == 0), NULL);
-    cnl = aos_zalloc(sizeof(mixer_cnl_t));
+    cnl = av_zalloc(sizeof(mixer_cnl_t));
     CHECK_RET_TAG_WITH_RET(cnl, NULL);
     fifo = sfifo_create(fsize);
     CHECK_RET_TAG_WITH_GOTO(fifo, err);
@@ -33,7 +33,7 @@ mixer_cnl_t* mixer_cnl_new(sf_t sf, size_t fsize)
 
     return cnl;
 err:
-    aos_free(cnl);
+    av_free(cnl);
     return NULL;
 }
 
@@ -66,7 +66,11 @@ int mixer_cnl_write(mixer_cnl_t *cnl, uint8_t *buf, size_t size, uint32_t timeou
         wlen = wlen > remain ? remain : wlen;
         memcpy(pos, buf + rc, wlen);
         sfifo_set_wpos(fifo, wlen);
+#ifdef __linux__
+        pthread_cond_signal(&cnl->mixer->cond);
+#else
         aos_event_set(&cnl->mixer->evt, MIXER_READ_EVENT, AOS_EVENT_OR);
+#endif
         rc     += wlen;
         remain -= wlen;
     }
@@ -107,7 +111,7 @@ int mixer_cnl_free(mixer_cnl_t *cnl)
 
     sfifo_destroy(cnl->fifo);
     aos_mutex_free(&cnl->lock);
-    aos_free(cnl);
+    av_free(cnl);
 
     return 0;
 }

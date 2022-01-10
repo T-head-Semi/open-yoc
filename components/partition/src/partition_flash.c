@@ -26,7 +26,7 @@ int part_flash_info_get(void *handle, partition_flash_info_t *info)
     return 0;
 }
 
-int part_flash_read(void *handle, uint32_t addr, void *data, size_t data_len)
+int part_flash_read(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     (void)handle;
     memcpy(data, (void *)addr, data_len);
@@ -34,14 +34,14 @@ int part_flash_read(void *handle, uint32_t addr, void *data, size_t data_len)
     return 0;
 }
 
-int part_flash_write(void *handle, uint32_t addr, void *data, size_t data_len)
+int part_flash_write(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     (void)handle;
 
     return 0;
 }
 
-int part_flash_erase(void *handle, uint32_t addr, size_t len)
+int part_flash_erase(void *handle, unsigned long addr, size_t len)
 {
     (void)handle;
 
@@ -84,7 +84,7 @@ int part_flash_info_get(void *handle, partition_flash_info_t *info)
             info->start_addr   = partition.partition_start_addr;
             info->sector_size  = partition.partition_length / partition.partition_options;
             info->sector_count = partition.partition_options;
-            MTB_LOGD("info->start_addr:0x%x", info->start_addr);
+            MTB_LOGD("info->start_addr:0x%lx", info->start_addr);
             MTB_LOGD("info->sector_size:0x%x", info->sector_size);
             MTB_LOGD("info->sector_count:0x%x", info->sector_count);
             return 0;
@@ -93,7 +93,7 @@ int part_flash_info_get(void *handle, partition_flash_info_t *info)
     return -EINVAL;
 }
 
-int part_flash_read(void *handle, uint32_t addr, void *data, size_t data_len)
+int part_flash_read(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     int rc, offset;
 
@@ -115,7 +115,7 @@ int part_flash_read(void *handle, uint32_t addr, void *data, size_t data_len)
     return -EINVAL;
 }
 
-int part_flash_write(void *handle, uint32_t addr, void *data, size_t data_len)
+int part_flash_write(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     int rc, offset;
 
@@ -137,7 +137,7 @@ int part_flash_write(void *handle, uint32_t addr, void *data, size_t data_len)
     return -EINVAL;
 }
 
-int part_flash_erase(void *handle, uint32_t addr, size_t len)
+int part_flash_erase(void *handle, unsigned long addr, size_t len)
 {
     int rc, offset;
 
@@ -245,7 +245,7 @@ int partition_flash_info_get(void *handle, partition_flash_info_t *info)
     return -1;
 }
 
-int partition_flash_read(void *handle, uint32_t addr, void *data, size_t data_len)
+int partition_flash_read(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     int ret;
     void *hd;
@@ -262,7 +262,7 @@ int partition_flash_read(void *handle, uint32_t addr, void *data, size_t data_le
     return ret;
 }
 
-int partition_flash_write(void *handle, uint32_t addr, void *data, size_t data_len)
+int partition_flash_write(void *handle, unsigned long addr, void *data, size_t data_len)
 {
     void *hd;
     uint32_t id;
@@ -276,7 +276,7 @@ int partition_flash_write(void *handle, uint32_t addr, void *data, size_t data_l
     return -1;
 }
 
-int partition_flash_erase(void *handle, uint32_t addr, size_t len)
+int partition_flash_erase(void *handle, unsigned long addr, size_t len)
 {
     void *hd;
     uint32_t id;

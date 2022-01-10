@@ -3,6 +3,7 @@
  */
 
 #if defined(CONFIG_DEMUXER_TS) && CONFIG_DEMUXER_TS
+#include "avutil/common.h"
 #include "avutil/misc.h"
 #include "avutil/mem_block.h"
 #include "avformat/avformat_utils.h"
@@ -162,7 +163,7 @@ static tsf_t* _tsf_new(struct ts_priv *priv, uint16_t pid, enum tsf_type type, s
         return NULL;
     }
 
-    f = aos_zalloc(fsize);
+    f = av_zalloc(fsize);
     CHECK_RET_TAG_WITH_RET(f, NULL);
 
     f->type    = type;
@@ -182,11 +183,11 @@ static void _tsf_free(struct ts_priv *priv, tsf_t *f)
     } else if (f->type == TSF_TYPE_SECTION) {
         struct tsf_section *sec = (struct tsf_section*)f;
 
-        aos_free(sec->buf);
+        av_free(sec->buf);
     }
 
     slist_del(&f->node, &priv->tsf_list);
-    aos_free(f);
+    av_free(f);
 }
 
 static void _free_all_tsf(struct ts_priv *priv)
@@ -208,7 +209,7 @@ static tsf_t* _section_filter_new(struct ts_priv *priv, uint16_t pid, section_cb
     f = _tsf_new(priv, pid, TSF_TYPE_SECTION, sizeof(struct tsf_section));
     CHECK_RET_TAG_WITH_RET(f, NULL);
 
-    buf = aos_zalloc(SECTION_SIZE_MAX);
+    buf = av_zalloc(SECTION_SIZE_MAX);
     CHECK_RET_TAG_WITH_GOTO(buf, err);
     sec           = (struct tsf_section*)f;
     sec->cb       = cb;
@@ -422,7 +423,7 @@ static int _demux_ts_open(demux_cls_t *o)
     int esize;
     struct ts_priv *priv;
 
-    priv = aos_zalloc(sizeof(struct ts_priv));
+    priv = av_zalloc(sizeof(struct ts_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     o->priv = priv;
 
@@ -445,7 +446,7 @@ static int _demux_ts_open(demux_cls_t *o)
         o->ash.sf = sf_make_channel(hinfo.channel) | sf_make_rate(hinfo.freq) | sf_make_bit(bits) | sf_make_signed(bits > 8);
 
         esize = o->fpkt.len;
-        extradata = aos_zalloc(esize);
+        extradata = av_zalloc(esize);
         CHECK_RET_TAG_WITH_GOTO(extradata, err);
         memcpy(extradata, o->fpkt.data, esize);
         o->ash.extradata      = extradata;
@@ -460,10 +461,10 @@ static int _demux_ts_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(extradata);
+    av_free(extradata);
     if (priv) {
         _free_all_tsf(priv);
-        aos_free(priv);
+        av_free(priv);
     }
     o->priv = NULL;
     return -1;
@@ -474,7 +475,7 @@ static int _demux_ts_close(demux_cls_t *o)
     struct ts_priv *priv = o->priv;
 
     _free_all_tsf(priv);
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

@@ -57,7 +57,7 @@ static int _ad_adpcm_open(ad_cls_t *o)
         LOGE(TAG, "adpcm, block_align or channel is invalid, %u, %d", o->ash.block_align, sf_get_channel(o->ash.sf));
         return -1;
     }
-    priv = aos_zalloc(sizeof(struct ad_adpcm_priv));
+    priv = av_zalloc(sizeof(struct ad_adpcm_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     o->priv = priv;
@@ -150,7 +150,7 @@ static int _ad_adpcm_close(ad_cls_t *o)
 {
     struct ad_adpcm_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

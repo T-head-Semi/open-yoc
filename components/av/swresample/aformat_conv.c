@@ -225,7 +225,7 @@ afconv_t *afconv_new(const aformat_t *inf, const aformat_t *outf, uint8_t channe
         return NULL;
     }
 
-    ac = aos_zalloc(sizeof(afconv_t));
+    ac = av_zalloc(sizeof(afconv_t));
     CHECK_RET_TAG_WITH_GOTO(ac, err);
 
     ac->iplanar = channels == 1 ? 1 : inf->planar;
@@ -244,7 +244,7 @@ afconv_t *afconv_new(const aformat_t *inf, const aformat_t *outf, uint8_t channe
 
     return ac;
 err:
-    aos_free(ac);
+    av_free(ac);
     return NULL;
 }
 
@@ -278,7 +278,7 @@ void afconv_free(afconv_t *ac)
 {
     if (ac) {
         aos_mutex_free(&ac->lock);
-        aos_free(ac);
+        av_free(ac);
     }
 }
 

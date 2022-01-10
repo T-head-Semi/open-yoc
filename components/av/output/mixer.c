@@ -19,12 +19,16 @@ mixer_t* mixer_new(sf_t sf)
     mixer_t *mixer;
 
     CHECK_PARAM(sf, NULL);
-    mixer = aos_zalloc(sizeof(mixer_t));
+    mixer = av_zalloc(sizeof(mixer_t));
     CHECK_RET_TAG_WITH_RET(mixer, NULL);
 
     mixer->sf = sf;
     slist_init(&mixer->lists);
+#ifdef __linux__
+    pthread_cond_init(&mixer->cond, NULL);
+#else
     aos_event_new(&mixer->evt, 0);
+#endif
     aos_mutex_new(&mixer->lock);
 
     return mixer;
@@ -103,7 +107,6 @@ int mixer_read(mixer_t *mixer, uint8_t *buf, size_t size, uint32_t timeout)
     sfifo_t *fifo;
     mixer_cnl_t *cnl;
     struct mix_buf *mbufs;
-    unsigned int flag;
     int16_t *s, *d = (int16_t*)buf;
     int rlen, i, count = 0, rmin = size;
 
@@ -125,12 +128,35 @@ retry:
     }
 
     if (!count) {
+#ifdef __linux__
+        {
+            uint64_t nsec;
+            struct timespec ts;
+            struct timeval now;
+
+            gettimeofday(&now, NULL);
+            nsec       = now.tv_usec * 1000 + (timeout % 1000) * 1000000;
+            ts.tv_nsec = nsec % 1000000000;
+            ts.tv_sec  = now.tv_sec + nsec / 1000000000 + timeout / 1000;
+            rc = pthread_cond_timedwait(&mixer->cond, &mixer->lock, &ts);
+            mixer_unlock();
+            if (rc != 0)
+            {
+                return 0;
+            }
+            goto retry;
+        }
+#else
         mixer_unlock();
-        rc = aos_event_get(&mixer->evt, MIXER_READ_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
-        if (rc < 0) {
+        {
+            unsigned int flag;
+            rc = aos_event_get(&mixer->evt, MIXER_READ_EVENT, AOS_EVENT_OR_CLEAR, &flag, timeout);
+        }
+        if (rc != 0) {
             return 0;
         }
         goto retry;
+#endif
     }
 
     if (count > 1) {
@@ -176,7 +202,7 @@ int mixer_attach(mixer_t *mixer, mixer_cnl_t *cnl)
 
     if (mixer->nb_mbufs < mixer->nb_cnls + 1) {
         mixer->nb_mbufs += 4;
-        mbufs = (struct mix_buf*)aos_realloc(mixer->mbufs, mixer->nb_mbufs * sizeof(struct mix_buf));
+        mbufs = (struct mix_buf*)av_realloc(mixer->mbufs, mixer->nb_mbufs * sizeof(struct mix_buf));
         if (!mbufs) {
             LOGE(TAG, "may be oom, %d", mixer->nb_mbufs);
             mixer_unlock();
@@ -241,10 +267,14 @@ int mixer_free(mixer_t *mixer)
         LOGE(TAG, "not dettach all yet! nb_cnls = %u", mixer->nb_cnls);
         return -1;
     }
+#ifdef __linux__
+    pthread_cond_destroy(&mixer->cond);
+#else
     aos_event_free(&mixer->evt);
+#endif
     aos_mutex_free(&mixer->lock);
-    aos_free(mixer->mbufs);
-    aos_free(mixer);
+    av_free(mixer->mbufs);
+    av_free(mixer);
 
     return 0;
 }

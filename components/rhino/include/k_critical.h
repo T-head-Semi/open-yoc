@@ -1,11 +1,13 @@
-/**
- * @file k_critical.h
- *
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_CRITICAL_H
 #define K_CRITICAL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @addtogroup aos_rhino critical
  *  Critical zone protection, os use internally.
@@ -66,6 +68,10 @@
 #endif
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* K_CRITICAL_H */
 

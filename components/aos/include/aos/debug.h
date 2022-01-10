@@ -63,7 +63,7 @@ extern "C" {
 #define CHECK_RET_WITH_GOTO(x, label) \
 	do { \
 		if (!(x)) { \
-			printf("%s, %d fail.\n", __FUNCTION__, __LINE__); \
+			LOGE(__FILE__, "%s, %d fail.", __FUNCTION__, __LINE__); \
 			goto label; \
 		}\
 	} while (0)
@@ -73,7 +73,7 @@ extern "C" {
 #define CHECK_RET_WITH_RET(x, ret) \
 	do { \
 		if (!(x)) { \
-			printf("%s, %d fail.\n", __FUNCTION__, __LINE__); \
+			LOGE(__FILE__, "%s, %d fail.", __FUNCTION__, __LINE__); \
 			return ret; \
 		}\
 	} while (0)

@@ -1,6 +1,5 @@
-/**
- * @file k_default_config.h
- * @copyright Copyright (C) 2015-2019 Alibaba Group Holding Limited
+/*
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
 #ifndef K_DEFAULT_CONFIG_H
@@ -68,7 +67,7 @@
 #endif
 
 #ifndef RHINO_CONFIG_MUTEX_INHERIT
-#define RHINO_CONFIG_MUTEX_INHERIT           1
+#define RHINO_CONFIG_MUTEX_INHERIT           0
 #endif
 
 #if (RHINO_CONFIG_WORKQUEUE > 0)
@@ -78,55 +77,10 @@
 #endif
 
 #ifndef RHINO_CONFIG_WORKQUEUE_TASK_PRIO
-#define RHINO_CONFIG_WORKQUEUE_TASK_PRIO     9
+#define RHINO_CONFIG_WORKQUEUE_TASK_PRIO     20
 #endif
 
 #endif /* RHINO_CONFIG_WORKQUEUE */
-
-/* heap config */
-#ifndef RHINO_CONFIG_MM_TLF
-#define RHINO_CONFIG_MM_TLF                  1
-#endif
-
-#if (RHINO_CONFIG_MM_TLF > 0)
-
-#ifndef RHINO_CONFIG_MM_MINISIZEBIT
-#define RHINO_CONFIG_MM_MINISIZEBIT          6
-#endif
-
-#ifndef RHINO_CONFIG_MM_MAXMSIZEBIT
-#define RHINO_CONFIG_MM_MAXMSIZEBIT          20
-#endif
-
-#ifndef RHINO_CONFIG_MM_QUICK
-#define RHINO_CONFIG_MM_QUICK                0
-#endif
-
-#ifndef RHINO_CONFIG_MM_DEBUG
-#define RHINO_CONFIG_MM_DEBUG                0
-#endif
-
-#ifndef RHINO_CONFIG_MM_REGION_MUTEX
-#define RHINO_CONFIG_MM_REGION_MUTEX         1
-#endif
-
-#ifndef RHINO_CONFIG_MM_BLK
-#define RHINO_CONFIG_MM_BLK                  1
-#endif
-
-#if (RHINO_CONFIG_MM_BLK > 0)
-
-#ifndef RHINO_CONFIG_MM_BLK_SIZE
-#define RHINO_CONFIG_MM_BLK_SIZE             32
-#endif
-
-#ifndef RHINO_CONFIG_MM_TLF_BLK_SIZE
-#define RHINO_CONFIG_MM_TLF_BLK_SIZE         8192
-#endif
-
-#endif /* RHINO_CONFIG_MM_BLK */
-
-#endif /* RHINO_CONFIG_MM_TLF */
 
 /* kernel task config */
 #ifndef RHINO_CONFIG_TASK_INFO

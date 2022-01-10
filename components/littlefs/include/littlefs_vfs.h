@@ -12,6 +12,33 @@
 extern "C" {
 #endif
 
+#ifdef CONFIG_LFS_MOUNTPOINT
+#define LFS_MOUNTPOINT CONFIG_LFS_MOUNTPOINT
+#else
+#define LFS_MOUNTPOINT "/"
+#endif
+#ifdef CONFIG_LFS_BLOCK_SIZE
+#define LFS_BLOCK_SIZE CONFIG_LFS_BLOCK_SIZE
+#endif
+#ifdef CONFIG_LFS_BLOCK_COUNT
+#define LFS_BLOCK_COUNT CONFIG_LFS_BLOCK_COUNT
+#endif
+#ifdef CONFIG_LFS_READ_SIZE
+#define LFS_READ_SIZE CONFIG_LFS_READ_SIZE
+#endif
+#ifdef CONFIG_LFS_PROG_SIZE
+#define LFS_PROG_SIZE CONFIG_LFS_PROG_SIZE
+#endif
+#ifdef CONFIG_LFS_CACHE_SIZE
+#define LFS_CACHE_SIZE CONFIG_LFS_CACHE_SIZE
+#endif
+#ifdef CONFIG_LFS_LOOKAHEAD_SIZE
+#define LFS_LOOKAHEAD_SIZE CONFIG_LFS_LOOKAHEAD_SIZE
+#endif
+#ifdef CONFIG_LFS_BLOCK_CYCLES
+#define LFS_BLOCK_CYCLES CONFIG_LFS_BLOCK_CYCLES
+#endif
+
 /**
  * @brief  register little file system
  * @param  [in] partition_desc: partion table

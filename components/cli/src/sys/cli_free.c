@@ -145,7 +145,7 @@ void cmd_free_func(char *wbuf, int wbuf_len, int argc, char **argv)
         return;
     } else if ((argc >= 2) && (0 == strcmp(argv[1], "list"))) {
         free_func();
-        aos_malloc_show(argc == 3); //use dumpsys mm_info
+        //aos_malloc_show(argc == 3); //use dumpsys mm_info
         return;
 #endif
 

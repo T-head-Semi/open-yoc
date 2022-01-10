@@ -63,8 +63,8 @@ atempo_icore_t* atempo_icore_new(uint32_t rate)
     atempo_icore_new_t *inp;
 
     CHECK_PARAM(rate, NULL);
-    hdl  = aos_zalloc(sizeof(atempo_icore_t));
-    priv = aos_zalloc(sizeof(struct atempo_icore_ap_priv));
+    hdl  = av_zalloc(sizeof(atempo_icore_t));
+    priv = av_zalloc(sizeof(struct atempo_icore_ap_priv));
     CHECK_RET_TAG_WITH_GOTO(hdl && priv, err);
 
     in_mb = mblock_new(ATEMPO_MB_SIZE_DEFAULT, 16);
@@ -92,8 +92,8 @@ err:
     mblock_free(in_mb);
     mblock_free(out_mb);
     icore_msg_free(msg_new);
-    aos_free(hdl);
-    aos_free(priv);
+    av_free(hdl);
+    av_free(priv);
     return NULL;
 }
 
@@ -259,8 +259,8 @@ int atempo_icore_free(atempo_icore_t *hdl)
     icore_msg_free(msg);
     mblock_free(priv->in_mb);
     mblock_free(priv->out_mb);
-    aos_free(hdl->priv);
-    aos_free(hdl);
+    av_free(hdl->priv);
+    av_free(hdl);
 
     return rc;
 }

@@ -5,8 +5,6 @@
 #ifndef __ICORE_MSG_H__
 #define __ICORE_MSG_H__
 
-#include <aos/types.h>
-#include <aos/aos.h>
 #include "avutil/common.h"
 
 __BEGIN_DECLS__

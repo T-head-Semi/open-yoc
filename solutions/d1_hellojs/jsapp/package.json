@@ -1,0 +1,33 @@
+{
+  "name": "hello_falcon",
+  "version": "1.0.0",
+  "appid": "801000",
+  "description": "hello",
+  "quickjs": {
+    "version": "20200705",
+    "bigNum": false
+  },
+  "simulator": {
+    "path": "",
+    "page": ""
+  },
+  "single-js-bundle": false,
+  "scripts": {
+    "start": "aiot-cli preview",
+    "build": "aiot-cli -p",
+    "build:dev": "aiot-cli",
+    "build:bin": "aiot-cli -q -p",
+    "build:prod": "aiot-cli -c -q -p",
+    "build:bin-nopack": "aiot-cli -q",
+    "build:web": "aiot-cli build-web",
+    "build:simulator": "aiot-cli simulator ./"
+  },
+  "keywords": [
+    "iot",
+    "miniapp"
+  ],
+  "devDependencies": {},
+  "dependencies": {
+    "falcon-ui": "^1.0.3"
+  }
+}

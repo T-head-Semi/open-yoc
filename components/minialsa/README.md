@@ -1289,7 +1289,7 @@ void playback (void)
 ### A Minimal Capture Program
 
 ```c
-void captrue(void)
+void capture(void)
 {
     int i;
     int err;

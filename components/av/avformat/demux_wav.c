@@ -92,7 +92,7 @@ static int _demux_wav_open(demux_cls_t *o)
     unsigned int riff_size, fmt_size;
     unsigned int format_tag, channels, rate, bits, isfloat;
 
-    priv = aos_zalloc(sizeof(struct wav_priv));
+    priv = av_zalloc(sizeof(struct wav_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     rc = _read_chunk_header(o->s, "RIFF", &riff_size);
@@ -195,7 +195,7 @@ static int _demux_wav_open(demux_cls_t *o)
 
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -203,7 +203,7 @@ static int _demux_wav_close(demux_cls_t *o)
 {
     struct wav_priv *priv = o->priv;
 
-    aos_free(priv);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

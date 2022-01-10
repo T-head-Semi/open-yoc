@@ -449,7 +449,7 @@ int mbedtls_net_send( void *ctx, const unsigned char *buf, size_t len )
         if( errno == EPIPE || errno == ECONNRESET )
             return( MBEDTLS_ERR_NET_CONN_RESET );
 
-        if( errno == EINTR )
+        if ((errno == EINTR) || (errno == EAGAIN))
             return( MBEDTLS_ERR_SSL_WANT_WRITE );
 
         return( MBEDTLS_ERR_NET_SEND_FAILED );

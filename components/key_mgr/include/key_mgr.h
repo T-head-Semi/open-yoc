@@ -37,8 +37,15 @@ typedef enum {
     KEY_ID_IMG_DECRYPT_KEY          = 14,
     KEY_ID_CHALLENGE_KEY            = 15,
     KEY_ID_RPMB_KEY	                = 16,
+    KEY_ID_MAC                      = 30,
+    KEY_ID_MESSAGE_AUTH             = 31,
+    KEY_ID_PRODUCT_KEY              = 32,
+    KEY_ID_PRODUCT_SECRET           = 33,
+    KEY_ID_PRODUCT_ID               = 34,
+    KEY_ID_DEVICE_NAME              = 35,
+    KEY_ID_DEVICE_SECRET            = 36,    
     /* yoc */
-    KM_ID_PUBKEY_E                 = 49,
+    KM_ID_PUBKEY_E                  = 49,
     /* user */
     KEY_ID_USER_DEFINE_BASE         = 64,
     /* NOTE add user key type here */

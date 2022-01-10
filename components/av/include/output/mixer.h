@@ -24,7 +24,11 @@ struct mixer_struct {
     uint8_t                         nb_mbufs;       ///< nubmer of mix buf
     struct mix_buf                  *mbufs;         ///< array of mix buf
     aos_mutex_t                     lock;
+#ifdef __linux__
+    pthread_cond_t                  cond;
+#else
     aos_event_t                     evt;
+#endif
     slist_t                         lists;
 };
 

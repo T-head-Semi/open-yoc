@@ -79,6 +79,7 @@ void sc_sha_detach_callback(sc_sha_t *sha)
 uint32_t sc_sha_start(sc_sha_t *sha, sc_sha_context_t *context, sc_sha_mode_t mode)
 {
     int is224 = 0;
+    CHECK_PARAM(sha, SC_PARAM_INV);
     CHECK_PARAM(context, SC_PARAM_INV);
 
     context->mode = mode;
@@ -107,6 +108,7 @@ uint32_t sc_sha_start(sc_sha_t *sha, sc_sha_context_t *context, sc_sha_mode_t mo
 */
 uint32_t sc_sha_update(sc_sha_t *sha, sc_sha_context_t *context, const void *input, uint32_t size)
 {
+    CHECK_PARAM(sha, SC_PARAM_INV);
     CHECK_PARAM(context, SC_PARAM_INV);
     CHECK_PARAM(input, SC_PARAM_INV);
 
@@ -146,6 +148,7 @@ uint32_t sc_sha_update_async(sc_sha_t *sha, sc_sha_context_t *context, const voi
 uint32_t sc_sha_finish(sc_sha_t *sha, sc_sha_context_t *context, void *output, uint32_t *out_size)
 {
     uint32_t lens[] = {20, 32, 28, 48, 64};
+    CHECK_PARAM(sha, SC_PARAM_INV);
     CHECK_PARAM(context, SC_PARAM_INV);
     CHECK_PARAM(output, SC_PARAM_INV);
 

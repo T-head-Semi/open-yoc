@@ -58,7 +58,7 @@ resx_t *resx_new(uint32_t irate, uint32_t orate, uint8_t channels, uint8_t bits)
         return NULL;
     }
 
-    r = aos_zalloc(sizeof(resx_t));
+    r = av_zalloc(sizeof(resx_t));
     CHECK_RET_TAG_WITH_RET(r, NULL);
 
     r->irate    = irate;
@@ -72,7 +72,7 @@ resx_t *resx_new(uint32_t irate, uint32_t orate, uint8_t channels, uint8_t bits)
     aos_mutex_new(&r->lock);
     return r;
 err:
-    aos_free(r);
+    av_free(r);
     return NULL;
 }
 
@@ -133,7 +133,7 @@ void resx_free(resx_t *r)
     if (r) {
         r->ops->uninit(r);
         aos_mutex_free(&r->lock);
-        aos_free(r);
+        av_free(r);
     }
 }
 

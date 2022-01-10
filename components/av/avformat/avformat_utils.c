@@ -54,20 +54,11 @@ size_t get_id3v2_size(const uint8_t *buf, size_t buf_size)
 
 /**
  * @brief  new a track info
- * @param  [in] type : a/v
  * @return NULL on error
  */
-track_info_t* track_info_new(avmedia_type_t type)
+track_info_t* track_info_new()
 {
-    track_info_t *track;
-
-    CHECK_PARAM(type == AVMEDIA_TYPE_AUDIO || type == AVMEDIA_TYPE_VIDEO, NULL);
-    track = aos_zalloc(sizeof(track_info_t));
-    if (track) {
-        track->type = type;
-    }
-
-    return track;
+    return av_zalloc(sizeof(track_info_t));
 }
 
 /**
@@ -79,12 +70,12 @@ int track_info_free(track_info_t *track)
 {
     CHECK_PARAM(track, -1);
     if (track->type == AVMEDIA_TYPE_AUDIO) {
-        aos_freep(&track->t.a.artist);
-        aos_freep(&track->t.a.album);
-        aos_freep(&track->t.a.title);
+        av_freep(&track->t.a.artist);
+        av_freep(&track->t.a.album);
+        av_freep(&track->t.a.title);
     }
-    aos_freep(&track->codec_name);
-    aos_free(track);
+    av_freep(&track->codec_name);
+    av_free(track);
 
     return 0;
 }
@@ -132,4 +123,87 @@ int tracks_info_add(track_info_t **ptracks, const track_info_t *track)
 
     return 0;
 }
+
+/**
+ * @brief  duplicate the media-track
+ * @param  [in] track
+ * @return NULL on error
+ */
+track_info_t* track_info_dup(const track_info_t *track)
+{
+    track_info_t* tck;
+
+    CHECK_PARAM(track && track->type != AVMEDIA_TYPE_UNKNOWN, NULL);
+    tck = track_info_new();
+    switch (track->type) {
+    case AVMEDIA_TYPE_AUDIO:
+        tck->t.a.sf     = track->t.a.sf;
+        tck->t.a.artist = track->t.a.artist ? strdup(track->t.a.artist) : NULL;
+        tck->t.a.album  = track->t.a.album ? strdup(track->t.a.album) : NULL;
+        tck->t.a.title  = track->t.a.title ? strdup(track->t.a.title) : NULL;
+        break;
+    case AVMEDIA_TYPE_VIDEO:
+        tck->t.v.width  = track->t.v.width;
+        tck->t.v.height = track->t.v.height;
+        break;
+    default:
+        break;
+    }
+    tck->type       = track->type;
+    tck->codec_id   = track->codec_id;
+    tck->bps        = track->bps;
+    tck->duration   = track->duration;
+    tck->codec_name = track->codec_name ? strdup(track->codec_name) : NULL;
+
+    return tck;
+}
+
+/**
+ * @brief  duplicate the media-track list
+ * @param  [in] tracks : media track list
+ * @return NULL on error
+ */
+track_info_t* tracks_info_dup(const track_info_t *tracks)
+{
+    track_info_t* tck;
+    track_info_t* tcks;
+    track_info_t* itcks = (track_info_t*)tracks;
+
+    CHECK_PARAM(tracks && tracks->type != AVMEDIA_TYPE_UNKNOWN, NULL);
+    tcks = track_info_dup(tracks);
+    while (itcks->next) {
+        tck = track_info_dup(itcks->next);
+        tracks_info_add(&tcks, tck);
+        itcks = itcks->next;
+    }
+
+    return tcks;
+}
+
+/**
+ * @brief  init the media-info
+ * @param  [in] info
+ * @return 0/-1
+ */
+int media_info_init(media_info_t *info)
+{
+    CHECK_PARAM(info, -1);
+    memset(info, 0, sizeof(media_info_t));
+    return 0;
+}
+
+/**
+ * @brief  uninit the media-info
+ * @param  [in] info
+ * @return
+ */
+void media_info_uninit(media_info_t *info)
+{
+    if (info) {
+        /* release track list info */
+        tracks_info_freep(&info->tracks);
+        memset(info, 0, sizeof(media_info_t));
+    }
+}
+
 

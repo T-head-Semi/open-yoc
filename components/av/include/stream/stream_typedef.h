@@ -5,7 +5,7 @@
 #ifndef __STREAM_TYPEDEF_H__
 #define __STREAM_TYPEDEF_H__
 
-#include <aos/aos.h>
+#include "avutil/common.h"
 
 __BEGIN_DECLS__
 

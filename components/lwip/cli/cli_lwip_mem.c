@@ -19,7 +19,7 @@ static void cmd_lwip_mem_func(char *wbuf, int wbuf_len, int argc, char **argv)
 
     printf("LwIP memory heap info:\r\n"
            "avail: %8d, "
-           "used : 8d, "
+           "used : %8d, "
            "max  : %8d\r\n\r\n",
            lwip_stats.mem.avail, lwip_stats.mem.used, lwip_stats.mem.max);
 

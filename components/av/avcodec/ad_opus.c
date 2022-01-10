@@ -25,11 +25,11 @@ static int _ad_opus_open(ad_cls_t *o)
     OpusDecoder *dec          = NULL;
     struct ad_opus_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct ad_opus_priv));
+    priv = av_zalloc(sizeof(struct ad_opus_priv));
     dec = opus_decoder_create(sf_get_rate(sf), sf_get_channel(sf), &err);
     CHECK_RET_TAG_WITH_GOTO(priv && dec, err);
 
-    obuf   = aos_malloc(OPUSDEC_OBUF_SIZE);
+    obuf   = av_malloc(OPUSDEC_OBUF_SIZE);
     CHECK_RET_TAG_WITH_GOTO(obuf, err);
 
     priv->dec  = dec;
@@ -38,8 +38,8 @@ static int _ad_opus_open(ad_cls_t *o)
     return 0;
 err:
     opus_decoder_destroy(dec);
-    aos_free(obuf);
-    aos_free(priv);
+    av_free(obuf);
+    av_free(priv);
     return -1;
 }
 
@@ -88,8 +88,8 @@ static int _ad_opus_close(ad_cls_t *o)
     struct ad_opus_priv *priv = o->priv;
 
     opus_decoder_destroy(priv->dec);
-    aos_free(priv->obuf);
-    aos_free(priv);
+    av_free(priv->obuf);
+    av_free(priv);
     o->priv = NULL;
 
     return 0;

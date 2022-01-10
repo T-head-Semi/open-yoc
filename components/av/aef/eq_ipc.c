@@ -22,7 +22,7 @@ static int _eq_ipc_init(eqx_t *eq, uint32_t rate, uint8_t eq_segments)
     rc = eq_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct eq_ipc_priv));
+    priv = av_zalloc(sizeof(struct eq_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = eq_icore_new(rate, eq_segments);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -31,7 +31,7 @@ static int _eq_ipc_init(eqx_t *eq, uint32_t rate, uint8_t eq_segments)
     eq->priv  = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -70,7 +70,7 @@ static int _eq_ipc_uninit(eqx_t *eq)
     struct eq_ipc_priv *priv = eq->priv;
 
     eq_icore_free(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     eq->priv = NULL;
     return 0;
 }

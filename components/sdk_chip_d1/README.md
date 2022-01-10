@@ -1,0 +1,1 @@
+sdk chip for d1

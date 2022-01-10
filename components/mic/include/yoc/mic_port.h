@@ -13,22 +13,23 @@
 #define MIC_EVENT_KWS_FLAG (1 << 1)
 #define MIC_EVENT_ALL_FLAG (MIC_EVENT_VAD_FLAG | MIC_EVENT_KWS_FLAG)
 
-typedef struct mic_ops {
-    int (*init)(mic_t *mic, mic_event_t mic_event); //Ä£¿é³õÊ¼»¯
-    int (*deinit)(mic_t *mic); //È¥³õÊ¼»¯
-    int (*start)(mic_t *mic); //Æô¶¯Ä£¿é
-    int (*stop)(mic_t *mic); //Í£Ö¹Ä£¿é
-    
-    int (*set_param)(mic_t *mic, mic_param_t *param); // pcm²ÎÊýÉèÖÃ
-    int (*ai_ctl)(mic_t *mic, int cmd, void *param);  // vad¡¢aecµÈ²ÎÊýÉèÖÃ
+typedef struct mic_ops
+{
+    int (*init)(mic_t *mic, mic_event_t mic_event); /* æ¨¡å—åˆå§‹åŒ– */
+    int (*deinit)(mic_t *mic);                      /* åŽ»åˆå§‹åŒ– */
+    int (*start)(mic_t *mic);                       /* å¯åŠ¨æ¨¡å— */
+    int (*stop)(mic_t *mic);                        /* åœæ­¢æ¨¡å— */
 
-    int (*event_control)(mic_t *mic, int flag); // ÊÂ¼þ¿ØÖÆ
-    
-    int (*audio_control)(mic_t *mic, int enable, int timeout); // ÊäÈëµ½Ëã·¨µÄÒôÆµ¿ØÖÆ¿ØÖÆ
-    int (*pcm_data_control)(mic_t *mic, int type, int enable);//Êý¾Ý»ØÁ÷¿ª¹Ø
-    
-    int (*debug_control)(mic_t *mic, int level);//µ÷ÊÔÊ¹ÄÜ¿ª¹Ø   
-    int (*kws_wakeup)(mic_t *mic, int en); //Ç¿ÖÆ»½ÐÑ
+    int (*set_param)(mic_t *mic, mic_param_t *param); /* pcmå‚æ•°è®¾ç½® */
+    int (*ai_ctl)(mic_t *mic, int cmd, void *param);  /* vadã€aecç­‰å‚æ•°è®¾ç½® */
+
+    int (*event_control)(mic_t *mic, int flag); /*äº‹ä»¶æŽ§åˆ¶*/
+
+    int (*audio_control)(mic_t *mic, int enable, int timeout); /* è¾“å…¥åˆ°ç®—æ³•çš„éŸ³é¢‘æŽ§åˆ¶ */
+    int (*pcm_data_control)(mic_t *mic, int type, int enable); /* æ•°æ®å›žæµå¼€å…³ */
+
+    int (*debug_control)(mic_t *mic, int level);         /* è°ƒè¯•ä½¿èƒ½å¼€å…³ */
+    int (*kws_wakeup)(mic_t *mic, int en, int vad_flag); /* å¼ºåˆ¶å”¤é†’ */
 } mic_ops_t;
 
 int mic_ops_register(mic_ops_t *ops);

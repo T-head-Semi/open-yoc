@@ -43,7 +43,7 @@ static kstat_t queue_create(kqueue_t *queue, const name_t *name, void **start,
     queue->msg_q.peak_num = 0u;
     queue->mm_alloc_flag  = mm_alloc_flag;
 #if (RHINO_CONFIG_TASK_DEL > 0)
-    queue->blk_obj.cancel     = 1u;
+    queue->blk_obj.cancel = 1u;
 #endif
 
 #if (RHINO_CONFIG_KOBJ_LIST > 0)
@@ -66,7 +66,6 @@ kstat_t krhino_queue_create(kqueue_t *queue, const name_t *name, void **start,
 kstat_t krhino_queue_del(kqueue_t *queue)
 {
     CPSR_ALLOC();
-
     klist_t *blk_list_head;
 
     NULL_PARA_CHK(queue);
@@ -111,7 +110,7 @@ kstat_t krhino_queue_dyn_create(kqueue_t **queue, const name_t *name,
 {
     kstat_t   stat;
     kqueue_t *queue_obj;
-    void     *msg_start;
+    void     **msg_start;
 
     NULL_PARA_CHK(queue);
 
@@ -142,7 +141,6 @@ kstat_t krhino_queue_dyn_create(kqueue_t **queue, const name_t *name,
 kstat_t krhino_queue_dyn_del(kqueue_t *queue)
 {
     CPSR_ALLOC();
-
     klist_t *blk_list_head;
 
     NULL_PARA_CHK(queue);
@@ -188,7 +186,6 @@ kstat_t krhino_queue_dyn_del(kqueue_t *queue)
 static kstat_t msg_send(kqueue_t *p_q, void *p_void, uint8_t opt_wake_all)
 {
     CPSR_ALLOC();
-
     klist_t *blk_list_head;
 
     NULL_PARA_CHK(p_q);
@@ -251,7 +248,6 @@ kstat_t krhino_queue_all_send(kqueue_t *queue, void *msg)
 kstat_t krhino_queue_recv(kqueue_t *queue, tick_t ticks, void **msg)
 {
     CPSR_ALLOC();
-
     kstat_t ret;
     uint8_t cur_cpu_num;
 
@@ -326,7 +322,6 @@ kstat_t krhino_queue_recv(kqueue_t *queue, tick_t ticks, void **msg)
 kstat_t krhino_queue_is_full(kqueue_t *queue)
 {
     CPSR_ALLOC();
-
     kstat_t ret;
 
     NULL_PARA_CHK(queue);
@@ -375,7 +370,6 @@ kstat_t krhino_queue_flush(kqueue_t *queue)
 kstat_t krhino_queue_info_get(kqueue_t *queue, msg_info_t *info)
 {
     CPSR_ALLOC();
-
     klist_t *blk_list_head;
 
     if (queue == NULL) {

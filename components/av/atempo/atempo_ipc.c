@@ -22,7 +22,7 @@ static int _atempo_ipc_init(atempo_t *atempo)
     rc = atempo_icore_init();
     CHECK_RET_TAG_WITH_RET(rc == 0, -1);
 
-    priv = aos_zalloc(sizeof(struct atempo_ipc_priv));
+    priv = av_zalloc(sizeof(struct atempo_ipc_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
     hdl = atempo_icore_new(atempo->rate);
     CHECK_RET_TAG_WITH_GOTO(hdl, err);
@@ -31,7 +31,7 @@ static int _atempo_ipc_init(atempo_t *atempo)
     atempo->priv = priv;
     return 0;
 err:
-    aos_free(priv);
+    av_free(priv);
     return -1;
 }
 
@@ -80,7 +80,7 @@ static int _atempo_ipc_uninit(atempo_t *atempo)
     struct atempo_ipc_priv *priv = atempo->priv;
 
     atempo_icore_free(priv->hdl);
-    aos_free(priv);
+    av_free(priv);
     atempo->priv = NULL;
     return 0;
 }

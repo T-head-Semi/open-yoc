@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2018 Alibaba Group Holding Limited
+ * Copyright (C) 2015-2017 Alibaba Group Holding Limited
  */
 
-#ifndef __k_ffs_h__
-#define __k_ffs_h__
+#ifndef K_FFS_H
+#define K_FFS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,5 +21,5 @@ extern int ffs32_msb (uint32_t i);
 }
 #endif
 
-#endif /* __k_ffs_h__ */
+#endif /* K_FFS_H */
 

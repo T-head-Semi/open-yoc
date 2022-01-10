@@ -104,7 +104,7 @@ avfilter_t *avf_atempo2_open(const char *inst_name, const atempo_avfp_t *atempop
         LOGE(TAG, "atempo2 param failed");
         return NULL;
     }
-    dobj = aos_zalloc(sizeof(struct avfilter_atempo2));
+    dobj = av_zalloc(sizeof(struct avfilter_atempo2));
     f         = (avfilter_t*)dobj;
     f->ops    = &avf_ops_atempo2;
     f->dobj   = dobj;
@@ -153,7 +153,7 @@ err:
     avf_close(dobj->avf_swr2);
     avf_close(dobj->avf_atempo);
     avf_uninit(f);
-    aos_free(dobj);
+    av_free(dobj);
     return NULL;
 }
 

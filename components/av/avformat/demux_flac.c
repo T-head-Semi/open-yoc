@@ -52,7 +52,7 @@ static int _demux_flac_open(demux_cls_t *o)
     uint8_t *extradata     = NULL;
     struct flac_priv *priv = NULL;
 
-    priv = aos_zalloc(sizeof(struct flac_priv));
+    priv = av_zalloc(sizeof(struct flac_priv));
     CHECK_RET_TAG_WITH_RET(priv, -1);
 
     stream_read(o->s, hdr, 4);
@@ -73,7 +73,7 @@ static int _demux_flac_open(demux_cls_t *o)
                 LOGE(TAG, "flac streaminfo size may be wrong");
                 goto err;
             }
-            extradata = aos_zalloc(FLAC_STREAMINFO_SIZE);
+            extradata = av_zalloc(FLAC_STREAMINFO_SIZE);
             CHECK_RET_TAG_WITH_GOTO(extradata, err);
             rc = stream_read(o->s, extradata, FLAC_STREAMINFO_SIZE);
             CHECK_RET_TAG_WITH_GOTO(rc == FLAC_STREAMINFO_SIZE, err);
@@ -96,7 +96,7 @@ static int _demux_flac_open(demux_cls_t *o)
         goto err;
     }
     priv->sync_hdr_max = si->fsize_max >= FLAC_SYNC_HDR_MAX ? si->fsize_max + 128 : FLAC_SYNC_HDR_MAX;
-    priv->fsb.data     = aos_malloc(priv->sync_hdr_max);
+    priv->fsb.data     = av_malloc(priv->sync_hdr_max);
     CHECK_RET_TAG_WITH_GOTO(priv->fsb.data, err);
     priv->fsb.cap          = priv->sync_hdr_max;
     priv->fsb.offset_sync1 = -1;
@@ -121,10 +121,10 @@ static int _demux_flac_open(demux_cls_t *o)
     return 0;
 err:
     if (priv) {
-        aos_free(priv);
-        aos_free(priv->fsb.data);
+        av_free(priv);
+        av_free(priv->fsb.data);
     }
-    aos_free(extradata);
+    av_free(extradata);
     return -1;
 }
 
@@ -132,8 +132,8 @@ static int _demux_flac_close(demux_cls_t *o)
 {
     struct flac_priv *priv = o->priv;
 
-    aos_free(priv->fsb.data);
-    aos_free(priv);
+    av_free(priv->fsb.data);
+    av_free(priv);
     o->priv = NULL;
     return 0;
 }

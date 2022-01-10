@@ -26,6 +26,9 @@ typedef struct ao_conf {
     uint8_t                   vol_index;     ///< soft vol scale index (0~255)
     uint8_t                   atempo_play_en;///< atempo play enable
     float                     speed;         ///< atempo play speed.suggest: 0.5 ~ 2.0;
+
+    int32_t                   db_min;        ///< min db for digital volume curve
+    int32_t                   db_max;        ///< max db for digital volume curve
 } ao_conf_t;
 
 /**

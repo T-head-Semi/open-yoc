@@ -3,12 +3,14 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 
-#include <aos/aos.h>
+#include <aos/kernel.h>
 #include <alsa/pcm.h>
 #include <alsa/snd.h>
+#include <aos/debug.h>
 
 #define TAG "pcm"
 
@@ -23,59 +25,31 @@ typedef struct {
     int offset;
 } pcm_access_t;
 
-static void pcm_event(aos_pcm_t *pcm, int event_id, void *priv)
-{
-    if (event_id == PCM_EVT_XRUN) {
-        aos_event_set(&pcm->evt, 0, AOS_EVENT_AND);
-    }
-
-    aos_event_set(&pcm->evt, event_id, AOS_EVENT_OR);
-}
+extern aos_pcm_ops_t g_pcm_ops;
 
 int aos_pcm_new(aos_pcm_t **pcm_ret, int type, const char *name, aos_pcm_stream_t stream, int mode)
 {
-    aos_pcm_t *pcm = aos_calloc_check(sizeof(aos_pcm_t), 1);
-
-    pcm->pcm_name = name;
-    pcm->mode = mode;
-    pcm->stream = stream;
-    *pcm_ret = pcm;
 
     return 0;
 }
 
 int aos_pcm_open(aos_pcm_t **pcm_ret, const char *name, aos_pcm_stream_t stream, int mode)
 {
-    aos_pcm_t *pcm;
-    card_dev_t *card;
-
-    aos_card_attach("card0", &card); // Do not put it behind of " (aos_pcm_dev_t *)device_open(name)"
-
-    if (card == NULL) {
-        *pcm_ret = NULL;
+    aos_pcm_t *pcm = calloc(sizeof(aos_pcm_t), 1);
+    if (!pcm) {
         return -1;
     }
 
-    aos_pcm_dev_t *dev = (aos_pcm_dev_t *)device_open(name);
-
-    if(dev == NULL) {
-        *pcm_ret = NULL;
-        return -1;
-    }
-
-    pcm = &dev->pcm;
-
-    aos_mutex_new(&pcm->mutex);
-    aos_event_new(&pcm->evt, 0);
     pcm->stream = stream;
-    if(mode == 0) {
-        pcm->event.cb = pcm_event;
-        pcm->event.priv = NULL;
-    }
     pcm->mode   = mode;
-    ringbuffer_create(&pcm->ringbuffer, aos_malloc_check(1024), 1024);
-    pcm->state = AOS_PCM_STATE_OPEN;
-    pcm->pcm_name = name;
+    pcm->state  = AOS_PCM_STATE_OPEN;
+    pcm->name   = strdup(name);
+    pcm->ops    = &g_pcm_ops;
+
+    if(pcm->ops->open)
+        pcm->ops->open(pcm);
+    aos_mutex_new(&pcm->mutex);
+
     *pcm_ret = pcm;
     return 0;
 }
@@ -84,25 +58,14 @@ int aos_pcm_close(aos_pcm_t *pcm)
 {
     aos_check_return_einval(pcm);
 
-    //LOGE(TAG, "pcm close");
-    //FIXME: close pcm-device first
-    aos_dev_t *dev = (aos_dev_t *)(((int)(pcm)) + sizeof(aos_pcm_t) - sizeof(aos_pcm_dev_t));
-
-    device_close(dev);
-
+    PCM_LOCK(pcm);
+    if(pcm->ops->close) {
+        pcm->ops->close(pcm);
+    }
+    PCM_UNLOCK(pcm);
     aos_mutex_free(&pcm->mutex);
-    aos_event_free(&pcm->evt);
-
-    if (pcm->hw_params) {
-        aos_free(pcm->hw_params);
-    }
-
-    if (pcm->sw_params) {
-        aos_free(pcm->sw_params);
-    }
-
-    aos_free(pcm->ringbuffer.buffer);
-    ringbuffer_destroy(&pcm->ringbuffer);
+    free(pcm->name);
+    free(pcm);
 
     return 0;
 }
@@ -259,16 +222,12 @@ aos_pcm_sframes_t aos_pcm_writei(aos_pcm_t *pcm, const void *buffer, aos_pcm_ufr
 
     int ret = -1;
     int w_size = aos_pcm_frames_to_bytes(pcm, size);
-    unsigned int actl_flags = 0;
     char *send = (char *)buffer;
 
     while (w_size) {
         ret = pcm->ops->write(pcm, (void *)(send), w_size);
         if (ret < w_size) {
-            aos_event_get(&pcm->evt, PCM_EVT_WRITE | PCM_EVT_XRUN, AOS_EVENT_OR_CLEAR, &actl_flags, AOS_WAIT_FOREVER);
-            if ((actl_flags | PCM_EVT_XRUN) == PCM_EVT_XRUN) {
-                LOGW(TAG,"pcm write PCM_EVT_XRUN\r\n");
-            }
+            aos_msleep(10);
         }
 
         w_size -= ret;
@@ -279,11 +238,11 @@ aos_pcm_sframes_t aos_pcm_writei(aos_pcm_t *pcm, const void *buffer, aos_pcm_ufr
 
     return ret;
 }
-
+#if 0
 static void pcm_access(aos_pcm_t *pcm, void *buffer, int bytes)
 {
-    char *recv = aos_malloc_check(bytes);
-    pcm_access_t *c = aos_malloc_check(pcm->hw_params->channels * sizeof(pcm_access_t));
+    char *recv = malloc(bytes);
+    pcm_access_t *c = malloc(pcm->hw_params->channels * sizeof(pcm_access_t));
     int channel_size = bytes / pcm->hw_params->channels;
     int frame_size = pcm->hw_params->format / 8;
 
@@ -309,6 +268,7 @@ static void pcm_access(aos_pcm_t *pcm, void *buffer, int bytes)
     aos_free(recv);
     aos_free(c);
 }
+#endif
 
 aos_pcm_sframes_t aos_pcm_readi(aos_pcm_t *pcm, void *buffer, aos_pcm_uframes_t size)
 {
@@ -319,7 +279,7 @@ aos_pcm_sframes_t aos_pcm_readi(aos_pcm_t *pcm, void *buffer, aos_pcm_uframes_t 
     int bytes = pcm->ops->read(pcm, buffer, aos_pcm_frames_to_bytes(pcm, size));
     PCM_UNLOCK(pcm);
 
-    pcm_access(pcm, buffer, aos_pcm_frames_to_bytes(pcm, size));
+    // pcm_access(pcm, buffer, aos_pcm_frames_to_bytes(pcm, size));
 
     return (aos_pcm_bytes_to_frames(pcm, bytes));
 }
@@ -332,26 +292,28 @@ aos_pcm_sframes_t aos_pcm_readn(aos_pcm_t *pcm, void **bufs, aos_pcm_uframes_t s
     PCM_LOCK(pcm);
     int bytes = pcm->ops->read(pcm, (void *)bufs, aos_pcm_frames_to_bytes(pcm, size));
     PCM_UNLOCK(pcm);
+    // TODO not access
 
     return (aos_pcm_bytes_to_frames(pcm, bytes));
 }
 
 int aos_pcm_hw_params_alloca(aos_pcm_hw_params_t **p)
 {
-    *p = aos_zalloc_check(sizeof(aos_pcm_hw_params_t));
+    *p = calloc(sizeof(aos_pcm_hw_params_t), 1);
 
     return 0;
 }
 
 int aos_pcm_sw_params_alloca(aos_pcm_sw_params_t **p)
 {
-    *p = aos_malloc_check(sizeof(aos_pcm_sw_params_t));
+    *p = malloc(sizeof(aos_pcm_sw_params_t));
 
     return 0;
 }
 
 int aos_pcm_drop(aos_pcm_t *pcm)
 {
+    aos_check_return_einval(pcm);
 
     return 0;
 }
@@ -360,82 +322,43 @@ int aos_pcm_drain(aos_pcm_t *pcm)
 {
     //FIXME
     aos_check_return_einval(pcm);
+    int ret = -1;
 
-    pcm->state = AOS_PCM_STATE_DRAINING;
-    if (pcm->state == AOS_PCM_STATE_DRAINING && pcm->hw_params != NULL && pcm->stream == AOS_PCM_STREAM_PLAYBACK) {
-        if (pcm->ops->hw_get_remain_size) {
-            int size;
-
-            while(1) {
-                size = pcm->ops->hw_get_remain_size(pcm);
-
-                if (size) {
-                    int lli_size;
-                    aos_pcm_hw_params_t *params = pcm->hw_params;
-                    lli_size = (params->rate / 1000) * (params->sample_bits / 8) * params->channels;
-                    aos_msleep((size / lli_size) + 1);
-                } else {
-                    break;
-                }
-            }
-        } else {
-            unsigned int actl_flags;
-            
-            aos_event_get(&pcm->evt, PCM_EVT_XRUN, AOS_EVENT_OR_CLEAR, &actl_flags, AOS_WAIT_FOREVER);
-        }
+    PCM_LOCK(pcm);
+    if(pcm->ops->flush) {
+        ret = pcm->ops->flush(pcm);
     }
+    PCM_UNLOCK(pcm);
 
-    return 0;
+    return ret;
 }
 
 int aos_pcm_pause(aos_pcm_t *pcm, int enable)
 {
     aos_check_return_einval(pcm);
+    int ret = -1;
 
     PCM_LOCK(pcm);
-    pcm->ops->pause(pcm, enable);
+    if(pcm->ops->pause) {
+        ret = pcm->ops->pause(pcm, enable);
+    }
     PCM_UNLOCK(pcm);
 
-    return 0;
+    return ret;
 }
 
 int aos_pcm_wait(aos_pcm_t *pcm, int timeout)
 {
     aos_check_return_einval(pcm);
-    unsigned int actl_flags = 0;
-    //int i = 0;
+    int ret = -1;
+    
+    PCM_LOCK(pcm);
+    if(pcm->ops->wait) {
+        ret = pcm->ops->wait(pcm, timeout);
+    }
+    PCM_UNLOCK(pcm);
 
-    do {
-        PCM_LOCK(pcm);
-
-        int ret = 0;
-        if (pcm->ops->hw_get_remain_size) {
-            ret = pcm->ops->hw_get_remain_size(pcm);
-
-            if (ret >= (hw_params(pcm)->period_bytes) ) {
-                PCM_UNLOCK(pcm);
-                //aos_event_set(&pcm->evt, 0, AOS_EVENT_AND);
-                return 0;
-            }
-        }
-
-        //if (i > 0) {
-        //    LOGW(TAG, "pcm wait(%d) size(%d)<%d,wait again\r\n", i, ret, hw_params(pcm)->period_bytes);
-        //}
-        //i++;
-
-        aos_event_get(&pcm->evt, PCM_EVT_READ | PCM_EVT_XRUN, AOS_EVENT_OR_CLEAR, &actl_flags, timeout);
-
-        PCM_UNLOCK(pcm);
-
-        if (actl_flags & PCM_EVT_XRUN) {
-            LOGW(TAG,"pcm read PCM_EVT_XRUN\r\n");
-            //aos_event_set(&pcm->evt, 0, AOS_EVENT_AND);
-            return -EPIPE;
-        }
-    } while(1);
-
-    return 0;
+    return ret;
 }
 
 aos_pcm_sframes_t aos_pcm_bytes_to_frames(aos_pcm_t *pcm, ssize_t bytes)
@@ -461,6 +384,7 @@ void aos_pcm_set_ops(aos_pcm_t *pcm, int direction, struct aos_pcm_ops *ops)
 
 int aos_pcm_recover(aos_pcm_t *pcm, int err, int silent)
 {
+    aos_check_return_einval(pcm);
     if (err == (-EPIPE)) {
         if (pcm->stream == AOS_PCM_STREAM_CAPTURE) {
             if (silent) {
@@ -472,11 +396,8 @@ int aos_pcm_recover(aos_pcm_t *pcm, int err, int silent)
             }
         }
         PCM_LOCK(pcm);
-        aos_dev_t *dev = (aos_dev_t *)(((int)(pcm)) + sizeof(aos_pcm_t) - sizeof(aos_pcm_dev_t));
-
-        device_close(dev);
-        aos_event_set(&pcm->evt, 0, AOS_EVENT_AND);
-        device_open(pcm->pcm_name);
+        pcm->ops->close(pcm);
+        pcm->ops->open(pcm);
         pcm->ops->hw_params_set(pcm, pcm->hw_params);
         PCM_UNLOCK(pcm);
 
