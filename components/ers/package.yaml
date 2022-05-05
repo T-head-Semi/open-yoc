@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: ers                                           # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.3                                     # <必选项> 组件版本号
+version: v7.4.6                                     # <必选项> 组件版本号
 description: 基于at命令服务的一种远程服务           # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
@@ -16,8 +16,6 @@ license: Apache license v2.0                        # <可选项> 源代码的�
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
-depends:
-  - aos: v7.4.3
 
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
@@ -43,6 +41,7 @@ build_config:
     - at
     - at/at_ble
     - at/at_mesh
+    - at/at_connectivity
 
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
@@ -55,6 +54,7 @@ source_file:
   - "at/at_lib.c"
   - at/at_ble/*.c   ?<CONFIG_BT>
   - at/at_mesh/*.c   ?<CONFIG_BT_MESH>
+  - at/at_connectivity/*.c  ?<CONFIG_CONNECTIVITY>
 
   # - 'at/at_alicoap_cloud_cmd.c'
   # - 'at/at_alimqtt_cloud_cmd.c'

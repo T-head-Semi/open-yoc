@@ -26,6 +26,9 @@ typedef struct _mesh_model {
 
 mesh_model g_mesh_model;
 
+struct model_cb *model_callback_list = NULL;
+static struct k_mutex callback_mutx;
+
 
 typedef struct {
     u8_t tid;
@@ -177,19 +180,16 @@ E_MESH_ERROR_TYPE mesh_check_tid(u16_t src_addr, u8_t tid)
 }
 
 
-void model_message_process(uint8_t event, void *p_arg)
-{
-    switch (event) {
-        default:
-            break;
-    }
 
-    return;
-}
 
 
 void model_event(mesh_model_event_en event, void *p_arg)
 {
+    struct model_cb* cb =  NULL;
+
+    for(cb = model_callback_list; cb ; cb = cb->_next) {
+       cb->event_cb(event,p_arg);
+	}
 
     if (g_mesh_model.user_model_event_cb) {
         g_mesh_model.user_model_event_cb(event, p_arg);
@@ -218,7 +218,9 @@ static int mesh_model_set_user_data(const struct bt_mesh_comp *comp, S_ELEM_STAT
                 comp->elem[ele_num].models[model_num].id != BT_MESH_MODEL_ID_CFG_CLI && \
                 comp->elem[ele_num].models[model_num].id != BT_MESH_MODEL_ID_HEALTH_SRV && \
                 comp->elem[ele_num].models[model_num].id != BT_MESH_MODEL_ID_HEALTH_CLI) {
-                comp->elem[ele_num].models[model_num].user_data = &state[ele_num];
+                if(!comp->elem[ele_num].models[model_num].user_data) {
+                     comp->elem[ele_num].models[model_num].user_data = &state[ele_num];
+				}
             }
         }
     }
@@ -254,15 +256,28 @@ int ble_mesh_model_init(const struct bt_mesh_comp *comp)
     memset(g_mesh_model.element_states, 0, sizeof(S_ELEM_STATE) * comp->elem_count);
 
     ret = mesh_model_set_user_data(comp, g_mesh_model.element_states);
-
     if (ret) {
         return -1;
     }
+
+	k_mutex_init(&callback_mutx);
 
     g_mesh_model.mesh_comp = comp;
     g_mesh_model.init_flag = 1;
 
     return 0;
+}
+
+S_ELEM_STATE * ble_mesh_get_elem_state_data(uint8_t elem_id)
+{
+    if(!g_mesh_model.init_flag) {
+		return NULL;
+	}
+	if(elem_id >= g_mesh_model.mesh_comp->elem_count) {
+        LOGE(TAG, "valid elem id");
+		return NULL;
+	}
+	return &g_mesh_model.element_states[elem_id];
 }
 
 
@@ -280,6 +295,64 @@ int ble_mesh_model_set_cb(model_event_cb event_cb)
     g_mesh_model.user_model_event_cb = event_cb;
     return 0;
 }
+
+
+void ble_mesh_model_cb_register(struct model_cb *cb)
+{
+    if (!g_mesh_model.init_flag || !cb) {
+		LOGE(TAG,"Mesh model not init or cb is null");
+        return;
+    }
+    k_mutex_lock(&callback_mutx, K_FOREVER);
+    if(model_callback_list) {
+        if(model_callback_list == cb) {
+			k_mutex_unlock(&callback_mutx);
+            return;
+        }
+        for(struct model_cb *temp = model_callback_list; temp->_next != NULL; temp = temp->_next) {
+            if(temp->_next == cb) {
+				k_mutex_unlock(&callback_mutx);
+                return;
+            }
+        }
+    }
+    cb->_next = model_callback_list;
+    model_callback_list = cb;
+	k_mutex_unlock(&callback_mutx);
+}
+
+
+
+void  ble_mesh_model_cb_unregister(struct model_cb *cb)
+{
+    if (!g_mesh_model.init_flag || !cb) {
+		LOGE(TAG,"Mesh model not init or cb is null");
+        return;
+    }
+
+    struct model_cb *temp = model_callback_list;
+
+    if(!model_callback_list) {
+        return;
+    }
+
+	k_mutex_lock(&callback_mutx, K_FOREVER);
+    if(cb == model_callback_list) {
+        model_callback_list = cb->_next;
+		k_mutex_unlock(&callback_mutx);
+        return;
+    }
+
+    for(; temp->_next != NULL; temp = temp->_next) {
+        if(temp->_next == cb) {
+            temp->_next = cb->_next;
+            cb->_next = NULL;
+        }
+    }
+	k_mutex_unlock(&callback_mutx);
+
+}
+
 
 struct bt_mesh_model *ble_mesh_model_find(uint16_t elem_idx, uint16_t mod_idx, uint16_t CID)
 {

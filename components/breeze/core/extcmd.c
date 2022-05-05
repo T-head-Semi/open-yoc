@@ -28,12 +28,6 @@
 #define UTF8_MAX_SSID                           32
 #define UTF8_MAX_PASSWORD                       64
 
-char bz_device_secret_str[] = BZ_DEVICE_SECRET_STR;
-char bz_product_secret_str[] = BZ_PRODUCT_SECRET_STR;
-char bz_product_key_str[] = BZ_PRODUCT_KEY_STR;  
-char bz_device_name_str[] = BZ_DEVICE_NAME_STR;     
-char bz_client_id_str[] = BZ_CLIENTID_STR;                                                        
-
 enum {
     BLE_AWSS_CTYPE_SSID             = 0x01,
     BLE_AWSS_CTYPE_PASSWORD         = 0x02,
@@ -71,13 +65,12 @@ extern core_t g_core;
 extern auth_t g_auth;
 #endif
 
-extern ret_code_t auth_get_device_secret(uint8_t *p_secret, int *p_length);
-
 extcmd_t g_extcmd;
 breeze_apinfo_t comboinfo;
 static uint8_t g_auth_kv_val[16 + 32 + 2] = {0};
 static int g_auth_kv_val_len = 0;
 static uint8_t g_auth_need_set = 0;
+const static char m_sdk_version[] = ":" BZ_VERSION;
 
 static ret_code_t ext_cmd01_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
 static ret_code_t ext_cmd02_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
@@ -87,15 +80,6 @@ static ret_code_t ext_cmd05_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t 
 
 #if BZ_ENABLE_COMBO_NET
 static ret_code_t ext_cmd06_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
-#endif
-
-#ifdef CONFIG_AIS_SECURE_ADV
-static ret_code_t ext_cmd07_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
-#endif
-
-#ifdef CONFIG_SEC_PER_PK_TO_DN
-static ret_code_t ext_cmd09_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
-static ret_code_t ext_cmd0A_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
 #endif
 
 static ret_code_t ext_cmd0B_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen);
@@ -110,13 +94,6 @@ static const ext_tlv_type_handler_t
     { 0x05, ext_cmd05_rsp},
 #if BZ_ENABLE_COMBO_NET
     { 0x06, ext_cmd06_rsp},
-#endif
-#ifdef CONFIG_AIS_SECURE_ADV
-    { 0x07, ext_cmd07_rsp},
-#endif
-#ifdef CONFIG_SEC_PER_PK_TO_DN
-    { 0x09, ext_cmd09_rsp},
-    { 0x0A, ext_cmd0A_rsp},
 #endif
     { 0x0B, ext_cmd0B_rsp},
     { 0x0C, ext_cmd0C_rsp},
@@ -195,39 +172,39 @@ static ret_code_t ext_cmd04_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t 
 
 static void network_signature_calculate(uint8_t *p_buff)
 {
-    uint8_t str_id[8];
-    //uint8_t random_str[32];
+    uint8_t str_id[8], n;
+    uint8_t random_str[32];
     SHA256_CTX context;
     uint8_t cli_id[4];
 
     SET_U32_BE(cli_id, g_extcmd.model_id);
     hex2string(cli_id, sizeof(cli_id), str_id);
-    sha256_init(&context);
+    bz_sha256_init(&context);
 
-    sha256_update(&context, (unsigned char *)bz_client_id_str, strlen(bz_client_id_str));
+    sha256_update(&context, BZ_CLIENTID_STR, strlen(BZ_CLIENTID_STR));
     sha256_update(&context, str_id, sizeof(str_id));
     BREEZE_VERBOSE("%.*s", sizeof(str_id), str_id);
 
-    sha256_update(&context, (unsigned char *)bz_device_name_str, strlen(bz_device_name_str)); /* "deviceName" */
+    sha256_update(&context, BZ_DEVICE_NAME_STR, strlen(BZ_DEVICE_NAME_STR)); /* "deviceName" */
     sha256_update(&context, g_extcmd.p_device_name, g_extcmd.device_name_len);
     BREEZE_VERBOSE("%.*s", g_extcmd.device_name_len, g_extcmd.p_device_name);
 
 #if BZ_ENABLE_AUTH
-    if(g_auth.dyn_update_device_secret == true || g_auth.device_secret_len == BZ_DEV_DEVICE_SECRET_LEN){
-        sha256_update(&context, (unsigned char *)bz_device_secret_str, strlen(bz_device_secret_str)); /* "deviceSecret" */
-        sha256_update(&context, g_auth.device_secret, g_auth.device_secret_len);
-        BREEZE_VERBOSE("%.*s", g_auth.device_secret_len, g_auth.device_secret);
+    if(g_core.device_secret_len == IOTB_DEVICE_SECRET_LEN){
+        sha256_update(&context, BZ_DEVICE_SECRET_STR, strlen(BZ_DEVICE_SECRET_STR)); /* "deviceSecret" */
+        sha256_update(&context, g_core.device_secret, g_core.device_secret_len);
+        BREEZE_VERBOSE("%.*s", g_core.device_secret_len, g_core.device_secret);
     } else{
-        sha256_update(&context, (unsigned char *)bz_product_secret_str, strlen(bz_product_secret_str)); /* "productSecret" */
+        sha256_update(&context, BZ_PRODUCT_SECRET_STR, strlen(BZ_PRODUCT_SECRET_STR)); /* "productSecret" */
         sha256_update(&context, g_core.product_secret, g_core.product_secret_len);
         BREEZE_VERBOSE("%.*s", g_core.product_secret_len, g_core.product_secret);
     }
 #else
-    sha256_update(&context, (unsigned char *)bz_device_secret_str, strlen(bz_device_secret_str)); /* "deviceSecret" */
+    sha256_update(&context, BZ_DEVICE_SECRET_STR, strlen(BZ_DEVICE_SECRET_STR)); /* "deviceSecret" */
     sha256_update(&context, g_extcmd.p_device_secret, g_extcmd.device_secret_len);
 #endif
 
-    sha256_update(&context, (unsigned char *)bz_product_key_str, strlen(bz_product_key_str)); /* "productKey" */
+    sha256_update(&context, BZ_PRODUCT_KEY_STR, strlen(BZ_PRODUCT_KEY_STR)); /* "productKey" */
     sha256_update(&context, g_extcmd.p_product_key, g_extcmd.product_key_len);
     BREEZE_VERBOSE("%.*s", g_extcmd.product_key_len, g_extcmd.p_product_key);
 
@@ -300,7 +277,7 @@ static ret_code_t ext_cmd06_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t 
                 break;
             case BLE_AWSS_CTYPE_APPTOKEN: /*16 bytes hex */
                 if ((tlvlen > MAX_TOKEN_PARAM_LEN)||
-                    (~ready_flag & BSSID_READY)) {
+                    (!ready_flag & BSSID_READY)) {
                     err_code = BZ_EINVALIDTLV;
                     goto end;
                 }
@@ -364,142 +341,10 @@ end:
     *p_blen = sizeof(rsp);
 
     if (ready_flag & BASIC_READY) {
-        core_event_notify(BZ_EVENT_APINFO, (uint8_t *)&comboinfo, sizeof(comboinfo));
+        core_event_notify(BZ_EVENT_APINFO, &comboinfo, sizeof(comboinfo));
     }
 
     return err_code;
-}
-#endif
-
-#ifdef CONFIG_AIS_SECURE_ADV
-static ret_code_t ext_cmd07_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen)
-{
-    ret_code_t err_code = BZ_SUCCESS;
-    uint8_t ret_code = 1, i = 0;
-    uint32_t seq = 0;
-
-    if (dlen != sizeof(seq)) {
-        BREEZE_ERR("Error: invalid sequence data size");
-        err_code = BZ_EDATASIZE;
-        goto end;
-    }
-
-    if (*p_blen < 1) {
-        BREEZE_ERR("Error: invalid sequence rsp buffer size");
-        err_code = BZ_ENOMEM;
-        goto end;
-    }
-
-    BREEZE_DEBUG("The sequence bytes from cloud: %02x %02x %02x %02x", p_data[0],
-           p_data[1], p_data[2], p_data[3]);
-
-    while (i < sizeof(seq)) {
-        seq |= p_data[i] << (i << 3);
-        i++;
-    }
-
-    BREEZE_DEBUG("The sequence hex to be saved is %08x", seq);
-    set_adv_sequence(seq);
-
-end:
-    if (err_code != BZ_SUCCESS) {
-        ret_code = 0; /* set failure code */
-    }
-
-    /* rsp */
-    p_buff[0] = ret_code;
-    *p_blen   = 1;
-
-    return err_code;
-}
-#endif
-
-#ifdef CONFIG_SEC_PER_PK_TO_DN
-bool ext_get_device_secret()
-{
-    char tmp_secret[BZ_DEV_DEVICE_SECRET_LEN];
-    int len = BZ_DEV_DEVICE_SECRET_LEN;
-    if(auth_get_device_secret(&tmp_secret, &len) == 0){
-        if(g_auth.device_secret_len == 0){
-            g_auth.device_secret_len = len;
-            memcpy(g_auth.device_secret, tmp_secret, len);
-        } else if(len == BZ_DEV_DEVICE_SECRET_LEN && memcmp(tmp_secret, g_auth.device_secret, len) != 0){
-            memcpy(g_auth.device_secret, tmp_secret, len);
-            g_auth.dyn_update_device_secret = true;
-        }
-        return true;
-    } else{
-        return false;
-    }
-}
-
-bool ext_set_device_secret(const uint8_t* p_ds, uint8_t ds_len)
-{
-    return (os_kv_set(BZ_DEVICE_SECRET_STR, p_ds, ds_len, 1) == 0)? true: false;
-}
-
-bool ext_del_device_secret(void)
-{
-    return (os_kv_del(BZ_DEVICE_SECRET_STR) == 0)? true: false;
-}
-
-static ret_code_t ext_cmd09_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen)
-{
-    ret_code_t err_code = BZ_SUCCESS;
-    if (dlen > 0 ) {
-        BREEZE_ERR("Err:invalid product security update param");
-        err_code = BZ_EDATASIZE;
-        goto end;
-    }
-
-    if (*p_blen < 1) {
-        BREEZE_ERR("Err:invalid product security update rsp buffer size");
-        err_code = BZ_ENOMEM;
-        goto end;
-    }
-
-    if(ext_get_device_secret() == false){
-        p_buff[0] = 0x01;
-    } else{
-        p_buff[0] = 0x00;
-    }
-    memcpy(p_buff+1, g_extcmd.p_device_name, g_extcmd.device_name_len);
-    *p_blen = g_extcmd.device_name_len + 1;
-    err_code = BZ_SUCCESS;
-
-end:
-    return err_code;
-}
-
-static ret_code_t ext_cmd0A_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t *p_data, uint8_t dlen)
-{
-    ret_code_t err_code = BZ_SUCCESS;
-    if (*p_blen < 1) {
-        BREEZE_ERR("Err:invalid DS update rsp buffer size");
-        err_code = BZ_ENOMEM;
-        goto end;
-    }
-
-    if(dlen != BZ_DEV_DEVICE_SECRET_LEN){
-        BREEZE_ERR("Err:invalid DS update len");
-        err_code = BZ_ENOMEM;
-        goto end;
-    }
-
-    if(ext_get_device_secret() == true){
-        p_buff[0] = 0x01;
-    } else if(ext_set_device_secret(p_data, dlen) == true){
-        auth_secret_update_post_process(p_data, dlen);
-        p_buff[0] = 0x00;
-    } else{
-        p_buff[0] = 0x02;
-    }
-
-    *p_blen = 1;
-
-end:
-    return err_code;
-
 }
 #endif
 
@@ -714,7 +559,7 @@ static ret_code_t ext_cmd0C_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t 
                 hex_byte_dump_verbose(access_random, access_random_len, 24);
                 break;
             case BZ_AUTH_SIGN_AUTH_SIGN:
-                if (tlvlen < 1 || tlvlen > 32) {
+                if (tlvlen < 1 || tlvlen > 20) {
                     err_code = BZ_EINVALIDTLV;
                     goto end;
                 }
@@ -752,7 +597,7 @@ static ret_code_t ext_cmd0C_rsp(uint8_t *p_buff, uint8_t *p_blen, const uint8_t 
                             (char *)sign_out, 
                             (const char *)access_token, (int)access_token_len);
         BREEZE_VERBOSE("sign_out:");
-        hex_byte_dump_verbose((uint8_t *)sign_out, sizeof(sign_out), 24);
+        hex_byte_dump_verbose(sign_out, sizeof(sign_out), 24);
         if (memcmp(sign_out, auth_sign, auth_sign_len) == 0) {
             BREEZE_DEBUG("AC auth ok");
             if (access_key[access_key_len - 1] == '0') {
@@ -787,13 +632,12 @@ end:
 
 static void get_os_info(void)
 {
-    uint8_t suffix_len = 0;
-#ifdef BUILD_AOS
-    const static char m_sdk_version[] = ":" BZ_VERSION;
-    const char *aostype = "AOS";
-    char t_os_info[20] = { 0 };
     uint8_t chip_code[4] = { 0 };
-    uint8_t chip_id_str[8] = { 0 }; 
+    uint8_t chip_id_str[8] = { 0 };
+    const char *aostype = "AOS";
+    uint8_t suffix_len = 0;
+    char t_os_info[20] = { 0 };
+#ifdef BUILD_AOS
     strcpy(t_os_info, aos_version_get());
     char *m_os_type = strtok(t_os_info, "-");
     if (strcmp(aostype, m_os_type) == 0) {

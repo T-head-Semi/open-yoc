@@ -47,10 +47,10 @@ void iotx_conn_info_release(void)
     memset(&iotx_conn_info, 0, sizeof(iotx_conn_info));
 }
 
-iotx_conn_info_pt iotx_conn_info_reload(void)
+iotx_conn_info_pt iotx_conn_info_reload(void (*cb)(void *), void* client)
 {
     iotx_conn_info_release();
-    if (iotx_guider_authenticate(&iotx_conn_info) < 0) {
+    if (iotx_guider_authenticate(&iotx_conn_info, cb, client) < 0  || iotx_conn_info.init == 0) {
         return NULL;
     }
     return &iotx_conn_info;

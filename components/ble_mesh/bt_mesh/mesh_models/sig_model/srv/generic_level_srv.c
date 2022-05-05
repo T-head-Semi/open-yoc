@@ -32,7 +32,7 @@ static void _generic_level_prepear_buf(struct bt_mesh_model *model, struct net_b
     net_buf_simple_add_le16(msg, elem->state.level[T_CUR]);
 
     if (elem->state.level[T_TAR] != elem->state.level[T_CUR]) {
-        remain_byte = get_remain_byte(&elem->state ,is_ack);
+        remain_byte = get_remain_byte(&elem->state,is_ack);
         net_buf_simple_add_le16(msg, elem->state.level[T_TAR]);
         net_buf_simple_add_u8(msg, remain_byte);
     }
@@ -53,7 +53,7 @@ static void _generic_level_status(struct bt_mesh_model *model, struct bt_mesh_ms
     LOGD(TAG, "Success!!!");
 }
 
-static u8_t _generic_level_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static u8_t _generic_level_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     s16_t level = 0;
     u8_t tid = 0;
@@ -84,8 +84,8 @@ static u8_t _generic_level_analyze(struct bt_mesh_model *model, u16_t src_addr, 
         return MESH_SET_TRANSTION_ERROR;
     }
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -110,7 +110,7 @@ static u8_t _generic_level_analyze(struct bt_mesh_model *model, u16_t src_addr, 
     }
 
     LOGD(TAG, "level(0x%04x) trans(0x%02x) delay(0x%02x)",
-           elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
+         elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
     LOGD(TAG, "start(%d) end(%d)", (u32_t)elem->state.trans_start_time, (u32_t)elem->state.trans_end_time);
 
     //model_event(GEN_EVT_SDK_ANALYZE_MSG, (void *)elem);
@@ -122,8 +122,9 @@ static u8_t _generic_level_analyze(struct bt_mesh_model *model, u16_t src_addr, 
         }
     } else {
         elem->state.level[T_CUR] = elem->state.level[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = buf;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LEVEL_SET, (void *)&message);
@@ -151,7 +152,7 @@ static int _generic_level_prepare_publication(struct bt_mesh_model *model)
     return 0;
 }
 
-int ble_mesh_generic_level_publication(struct bt_mesh_model *model)
+int ble_mesh_generic_level_publication(struct bt_mesh_model *model,int16_t level)
 {
     struct net_buf_simple *msg;
     int16_t ret;
@@ -161,6 +162,9 @@ int ble_mesh_generic_level_publication(struct bt_mesh_model *model)
     }
 
     msg = model->pub->msg;
+
+    S_ELEM_STATE *elem = model->user_data;
+    memcpy(&elem->state.level[T_CUR],&level,2);
 
     LOGD(TAG, "addr(0x%04x)", model->pub->addr);
 
@@ -181,8 +185,8 @@ int ble_mesh_generic_level_publication(struct bt_mesh_model *model)
 }
 
 static void _generic_level_get(struct bt_mesh_model *model,
-                           struct bt_mesh_msg_ctx *ctx,
-                           struct net_buf_simple *buf)
+                               struct bt_mesh_msg_ctx *ctx,
+                               struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
 
@@ -190,10 +194,10 @@ static void _generic_level_get(struct bt_mesh_model *model,
 }
 
 static void _generic_level_set(struct bt_mesh_model *model,
-                           struct bt_mesh_msg_ctx *ctx,
-                           struct net_buf_simple *buf)
+                               struct bt_mesh_msg_ctx *ctx,
+                               struct net_buf_simple *buf)
 {
-    E_MESH_ERROR_TYPE ret = _generic_level_analyze(model, ctx->addr, buf);
+    E_MESH_ERROR_TYPE ret = _generic_level_analyze(model, ctx, buf);
 
     LOGD(TAG, "ret %d", ret);
 
@@ -203,12 +207,12 @@ static void _generic_level_set(struct bt_mesh_model *model,
 }
 
 static void _generic_level_set_unack(struct bt_mesh_model *model,
-                                 struct bt_mesh_msg_ctx *ctx,
-                                 struct net_buf_simple *buf)
+                                     struct bt_mesh_msg_ctx *ctx,
+                                     struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
 
-    _generic_level_analyze(model, ctx->addr, buf);
+    _generic_level_analyze(model, ctx, buf);
 }
 
 static s32_t _format_32to16(s32_t value)
@@ -222,7 +226,7 @@ static s32_t _format_32to16(s32_t value)
     return value;
 }
 
-static u8_t _generic_delta_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static u8_t _generic_delta_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     s32_t delta = 0;
     s32_t target = 0;
@@ -255,7 +259,7 @@ static u8_t _generic_delta_analyze(struct bt_mesh_model *model, u16_t src_addr, 
         return MESH_SET_TRANSTION_ERROR;
     }
 
-    if (mesh_check_tid(src_addr, tid) == MESH_TID_REPEAT) {
+    if (mesh_check_tid(ctx->addr, tid) == MESH_TID_REPEAT) {
         //target = elem->state.trans_level + delta;
     } else {
         //elem->state.trans_level = elem->state.level[T_CUR];
@@ -273,7 +277,7 @@ static u8_t _generic_delta_analyze(struct bt_mesh_model *model, u16_t src_addr, 
     }
 
     LOGD(TAG, "delta(0x%04x)(%d) tar_level(0x%04x) trans(0x%02x) delay(0x%02x)",
-           delta, delta, elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
+         delta, delta, elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
     LOGD(TAG, "start(%d) end(%d)", (u32_t)elem->state.trans_start_time, (u32_t)elem->state.trans_end_time);
 
     if (elem->state.trans || elem->state.delay) {
@@ -284,8 +288,9 @@ static u8_t _generic_delta_analyze(struct bt_mesh_model *model, u16_t src_addr, 
         }
     } else {
         elem->state.level[T_CUR] = elem->state.level[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = buf;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LEVEL_DELTA_SET, (void *)&message);
@@ -295,10 +300,10 @@ static u8_t _generic_delta_analyze(struct bt_mesh_model *model, u16_t src_addr, 
 }
 
 static void _generic_delta_set(struct bt_mesh_model *model,
-                           struct bt_mesh_msg_ctx *ctx,
-                           struct net_buf_simple *buf)
+                               struct bt_mesh_msg_ctx *ctx,
+                               struct net_buf_simple *buf)
 {
-    E_MESH_ERROR_TYPE ret = _generic_delta_analyze(model, ctx->addr, buf);
+    E_MESH_ERROR_TYPE ret = _generic_delta_analyze(model, ctx, buf);
 
     LOGD(TAG, "ret %d", ret);
 
@@ -308,15 +313,15 @@ static void _generic_delta_set(struct bt_mesh_model *model,
 }
 
 static void _generic_delta_set_unack(struct bt_mesh_model *model,
-                                 struct bt_mesh_msg_ctx *ctx,
-                                 struct net_buf_simple *buf)
+                                     struct bt_mesh_msg_ctx *ctx,
+                                     struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
 
-    _generic_delta_analyze(model, ctx->addr, buf);
+    _generic_delta_analyze(model, ctx, buf);
 }
 
-static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     s16_t delta_move = 0;
     u8_t tid = 0;
@@ -342,8 +347,8 @@ static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, u16_t src_a
         delay = 0;
     }
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -367,7 +372,7 @@ static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, u16_t src_a
     }
 
     LOGD(TAG, "delta_move(0x%04x)(%d) tar_level(0x%04x) trans(0x%02x) delay(0x%02x)",
-           delta_move, delta_move, elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
+         delta_move, delta_move, elem->state.level[T_TAR], elem->state.trans, elem->state.delay);
     LOGD(TAG, "start(%d) end(%d)", (u32_t)elem->state.trans_start_time, (u32_t)elem->state.trans_end_time);
 
 
@@ -378,8 +383,9 @@ static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, u16_t src_a
             //model_event(GEN_EVT_SDK_TRANS_START, (void *)elem);
         }
     } else {
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = buf;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LEVEL_MOVE_SET, (void *)&message);
@@ -389,10 +395,10 @@ static u8_t _generic_level_move_analyze(struct bt_mesh_model *model, u16_t src_a
 }
 
 static void _generic_move_set(struct bt_mesh_model *model,
-                          struct bt_mesh_msg_ctx *ctx,
-                          struct net_buf_simple *buf)
+                              struct bt_mesh_msg_ctx *ctx,
+                              struct net_buf_simple *buf)
 {
-    E_MESH_ERROR_TYPE ret = _generic_level_move_analyze(model, ctx->addr, buf);
+    E_MESH_ERROR_TYPE ret = _generic_level_move_analyze(model, ctx, buf);
 
     LOGD(TAG, "ret %d", ret);
 
@@ -402,12 +408,12 @@ static void _generic_move_set(struct bt_mesh_model *model,
 }
 
 static void _generic_move_set_unack(struct bt_mesh_model *model,
-                                struct bt_mesh_msg_ctx *ctx,
-                                struct net_buf_simple *buf)
+                                    struct bt_mesh_msg_ctx *ctx,
+                                    struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
 
-    _generic_level_move_analyze(model, ctx->addr, buf);
+    _generic_level_move_analyze(model, ctx, buf);
 }
 
 const struct bt_mesh_model_op g_generic_level_op[GEN_LV_OPC_NUM] = {

@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <sys/unistd.h>
+#include <time.h>
 #include <sys/time.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -208,11 +209,8 @@ _ssize_t _write_r(struct _reent *ptr, int fd, const void *buf, size_t nbytes)
 #endif
 #endif
     } else if ((fd == STDOUT_FILENO) || (fd == STDERR_FILENO)) {
-        extern int uart_putc(int ch);
-        const char *tmp = buf;
-        for (int i = 0; i < nbytes; i++) {
-            uart_putc(tmp[i]);
-        }
+        extern int uart_write(const void *buf, size_t size);
+        uart_write(buf, nbytes);
         return nbytes;
     } else {
         return -1;
@@ -324,12 +322,12 @@ int _gettimeofday_r(struct _reent *ptr, struct timeval *tv, void *__tzp)
     return 0;
 }
 
-long timezone = 0; /* global variable */
+long timezone = 8; /* default CTS */
 
 struct tm* localtime_r(const time_t* t, struct tm* r)
 {
     time_t time_tmp;
-    time_tmp = *t + timezone;
+    time_tmp = *t + timezone * 3600;
     return gmtime_r(&time_tmp, r);
 }
 

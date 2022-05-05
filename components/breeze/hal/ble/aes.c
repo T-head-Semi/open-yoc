@@ -5,19 +5,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-extern int mbedtls_aes_crypt_cbc( mbedtls_aes_context *ctx,
-                    int mode,
-                    size_t length,
-                    unsigned char iv[16],
-                    const unsigned char *input,
-                    unsigned char *output );
-extern void mbedtls_aes_init( mbedtls_aes_context *ctx );
-extern int mbedtls_aes_setkey_enc( mbedtls_aes_context *ctx, const unsigned char *key,
-                    unsigned int keybits );
-extern int mbedtls_aes_setkey_dec( mbedtls_aes_context *ctx, const unsigned char *key,
-                    unsigned int keybits );
-extern void mbedtls_aes_free( mbedtls_aes_context *ctx );
-
 /* pkcs5 only support 8 bytes block size
  * pcks7 support 8,16 bytes block size, so in aes pkcs5 equal pkcs7 */
 /*

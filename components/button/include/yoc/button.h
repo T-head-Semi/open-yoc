@@ -78,5 +78,12 @@ int button_add_adc(int button_id, char *adc_name, int adc_channel, int vol_ref, 
  */
 int button_add_event(int evt_id, button_evt_t *buttons, int button_count, button_evt_cb_t evt_cb, void *priv);
 
+/**
+ * @brief  check if button is pressed
+ * @param  [in] button_id        : button_id
+ * @param  [in] pressed          : press flag
+ * @return 0 on success, -1 on failed
+ */
+int button_is_pressed(int button_id, bool *pressed);
 
 #endif

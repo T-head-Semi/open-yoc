@@ -264,7 +264,7 @@ static int http_on_body(http_parser *parser, const char *at, size_t length)
 
 static int http_on_message_complete(http_parser *parser)
 {
-    LOGD(TAG, "http_on_message_complete, parser=0x%x", (unsigned long)parser);
+    LOGD(TAG, "http_on_message_complete, parser=0x%lx", (unsigned long)parser);
     http_client_handle_t client = parser->data;
     client->is_chunk_complete = true;
     return 0;
@@ -870,7 +870,7 @@ int http_client_read(http_client_handle_t client, char *buffer, int len)
         } else {
             is_data_remain = client->response->data_process < client->response->content_length;
         }
-        LOGD(TAG, "is_data_remain=%d, is_chunked=%d, content_length=%d", is_data_remain, client->response->is_chunked, client->response->content_length);
+        //LOGD(TAG, "is_data_remain=%d, is_chunked=%d, content_length=%d", is_data_remain, client->response->is_chunked, client->response->content_length);
         if (!is_data_remain) {
             break;
         }
@@ -880,7 +880,7 @@ int http_client_read(http_client_handle_t client, char *buffer, int len)
         }
         errno = 0;
         rlen = transport_read(client->transport, res_buffer->data, byte_to_read, client->timeout_ms);
-        LOGD(TAG, "need_read=%d, byte_to_read=%d, rlen=%d, ridx=%d", need_read, byte_to_read, rlen, ridx);
+        //LOGD(TAG, "need_read=%d, byte_to_read=%d, rlen=%d, ridx=%d", need_read, byte_to_read, rlen, ridx);
 
         if (rlen <= 0) {
             if (errno != 0) {

@@ -8,7 +8,7 @@
 #include "vendor/vendor_model.h"
 
 
-#define VENDOR_CLI_MODEL_OPC_NUM 6
+#define VENDOR_CLI_MODEL_OPC_NUM 8
 #define MESH_MODEL_VENDOR_CLI(_user_data) BT_MESH_MODEL_VND(BT_MESH_MODEL_VND_COMPANY_ID, BT_MESH_MODEL_VND_MODEL_CLI, \
         g_vendor_cli_model_alibaba_op, &g_vendor_cli_model_alibaba_pub, _user_data)
 
@@ -19,7 +19,7 @@ extern struct bt_mesh_model_pub g_vendor_cli_model_alibaba_pub;
 extern const struct bt_mesh_model_op g_vendor_cli_model_alibaba_op[VENDOR_CLI_MODEL_OPC_NUM];
 
 int ble_mesh_vendor_cli_model_msg_send(vnd_model_msg *model_msg);
-
+int ble_mesh_vendor_cli_model_msg_send_with_ttl(vnd_model_msg *model_msg, uint8_t ttl);
 
 
 #endif //_VENDOR_MODEL_SRV_H

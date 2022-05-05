@@ -717,7 +717,7 @@ static int _lite_cjson_key_array_index(_IN_ const char *key, _IN_ int key_len,
     char *bracket_suf = NULL;
     int index = 0;
     int deep = 0;
-    char array_index_str[10] = {0};
+    char array_index_str[11] = {0};
 
     for (index = 0; index < key_len; index++) {
         switch (key[index]) {
@@ -755,6 +755,9 @@ static int _lite_cjson_key_array_index(_IN_ const char *key, _IN_ int key_len,
         *array_key_len = bracket_suf - key + 1;
 
         //Get Index
+        if(bracket_suf - bracket_pre - 1 > 10) {
+            return -1;
+        }
         memcpy(array_index_str, bracket_pre + 1, bracket_suf - bracket_pre - 1);
         *array_index = atoi(array_index_str);
         return 0;
@@ -874,7 +877,7 @@ void lite_cjson_init_hooks(lite_cjson_hooks *hooks)
         return;
     }
 
-    global_hooks.allocate = hooks->malloc_fn;
+    global_hooks.allocate = (void *)hooks->malloc_fn;
     global_hooks.deallocate = hooks->free_fn;
 }
 

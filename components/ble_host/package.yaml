@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: ble_host                                            # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.4                                    # <必选项> 组件版本号
+version: v7.4.9                                    # <必选项> 组件版本号
 description: ble_host stack                          # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
@@ -132,6 +132,7 @@ source_file:
   - bt_host/host/crypto.c
   #- bt_host/host/hci_raw.c
   - bt_host/host/conn.c
+  - bt_host/host/fsm.c ?<CONFIG_BT_HOST_OPTIMIZE>
   #- bt_host/host/keys_br.c
   - bt_host/host/hci_ecc.c
   - bt_host/host/settings.c
@@ -168,15 +169,17 @@ source_file:
   - bt_host/common/rpa.c
   - bt_shell/bt_host/bt.c ?<CONFIG_BT_SHELL>
   - bt_shell/bt_host/gatt.c ?<CONFIG_BT_SHELL>
-  - ble_profiles/bas.c
-  - ble_profiles/dis.c
-  - ble_profiles/hids.c
-  - ble_profiles/hrs.c
+  - bt_shell/bt_host/btsnoop.c ?<CONFIG_BTSOOP>
+  - ble_profiles/bas.c ?<CONFIG_BT_PRF_BAS>
+  - ble_profiles/dis.c ?<CONFIG_BT_PRF_DIS> 
+  - ble_profiles/hids.c ?<CONFIG_BT_PRF_HIDS>
+  - ble_profiles/hrs.c ?<CONFIG_BT_PRF_HRS>
   - ble_profiles/ibeacons.c
   - ble_profiles/ota_server.c
   - ble_profiles/uart_client.c
   - ble_profiles/uart_server.c
-
+  - ble_profiles/ais_client.c          ?<CONFIG_OTA_SERVER>
+  - ble_profiles/ais_server.c          ?<CONFIG_OTA_CLIENT>
 ## 第五部分：配置信息
 # def_config:                              # 组件的可配置项
 #   CONFIG_DEBUG: y
@@ -185,6 +188,7 @@ source_file:
 def_config:
     CONFIG_BT: 1
     CONFIG_BT_SMP_ALLOW_UNAUTH_OVERWRITE: 1
+    CONFIG_DATA_CB_STATIC_STACK: 1
 
 ## 第六部分：安装信息
 # install:

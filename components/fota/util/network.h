@@ -7,7 +7,11 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#ifndef __linux__
 #include <lwip/netdb.h>
+#else
+#include <netdb.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

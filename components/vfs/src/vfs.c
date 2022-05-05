@@ -266,6 +266,10 @@ int32_t vfs_open(const char *path, int32_t flags)
     vfs_file_t  *f;
     vfs_inode_t *node;
 
+    if (g_vfs_init == 0) {
+        return VFS_ERR_INVAL;
+    }
+
     if (path == NULL) {
         return VFS_ERR_INVAL;
     }
@@ -690,6 +694,91 @@ uint32_t vfs_lseek(int32_t fd, int64_t offset, int32_t whence)
     }
 
     return ret;
+}
+
+static int32_t vfs_truncate_inode(vfs_inode_t *node, vfs_file_t *f, int64_t size)
+{
+    int32_t ret = VFS_ERR_NOSYS;
+
+    if (vfs_lock(node->lock) != VFS_OK) {
+        VFS_ERROR("%s failed to lock inode %p!\n\r", __func__, node);
+        return VFS_ERR_LOCK;
+    }
+
+    if (node->status != VFS_INODE_VALID) {
+        vfs_unlock(node->lock);
+        VFS_ERROR("%s node %p is invalid now!\n\r", __func__, node);
+        return VFS_ERR_NOENT;
+    }
+
+    if (INODE_IS_FS(node)) {
+        if ((node->ops.i_fops->truncate) != NULL) {
+            ret = (node->ops.i_fops->truncate)(f, size);
+        }
+    }
+
+    if (vfs_unlock(node->lock) != VFS_OK) {
+        VFS_ERROR("%s failed to unlock inode %p!\n\r", __func__, node);
+        return VFS_ERR_LOCK;
+    }
+
+    return ret;
+}
+
+int32_t vfs_truncate(const char *path, int64_t size)
+{
+    int32_t ret = VFS_ERR_NOSYS;
+    vfs_file_t  *f;
+    vfs_inode_t *node;
+
+    //TODO: support truncate later.
+    return VFS_ERR_NOSYS;
+    if ((path == NULL) || (path[0] == '\0') || (size < 0)) {
+        return VFS_ERR_INVAL;
+    }
+
+    if (vfs_lock(g_vfs_lock_ptr) != VFS_OK) {
+        return VFS_ERR_LOCK;
+    }
+
+    node = vfs_inode_open(path);
+    if (node == NULL) {
+        vfs_unlock(g_vfs_lock_ptr);
+        return VFS_ERR_NODEV;
+    }
+
+    f = vfs_file_new(node);
+    vfs_unlock(g_vfs_lock_ptr);
+    if (f == NULL) {
+        return VFS_ERR_NOENT;
+    }
+
+    ret = vfs_truncate_inode(node, f, size);
+
+    if (vfs_lock(g_vfs_lock_ptr) != VFS_OK) {
+        return VFS_ERR_LOCK;
+    }
+
+    vfs_file_del(f);
+    vfs_unlock(g_vfs_lock_ptr);
+
+return ret;
+}
+
+int32_t vfs_ftruncate(int32_t fd, int64_t size)
+{
+    vfs_file_t  *f = NULL;
+
+    if ((fd < 0) || (size < 0)) {
+        return VFS_ERR_INVAL;
+    }
+
+    f = vfs_file_get(fd);
+    if ((f == NULL) || (f->node == NULL)) {
+        return VFS_ERR_NOENT;
+    }
+
+    return vfs_truncate_inode(f->node, f, size);
 }
 
 int32_t vfs_sync(int32_t fd)
@@ -1711,6 +1800,10 @@ int32_t vfs_access(const char *path, int32_t amode)
     vfs_file_t  *f;
     vfs_inode_t *node;
 
+    if (g_vfs_init == 0) {
+        return VFS_ERR_INVAL;
+    }
+
     if (path == NULL) {
         return VFS_ERR_INVAL;
     }
@@ -1788,7 +1881,9 @@ int vfs_chdir(const char *path)
     }
 
     memset(g_current_working_directory, 0, sizeof(g_current_working_directory));
-    strncpy(g_current_working_directory, path, strlen(path) + 1);
+    int len = strlen(path) + 1 > sizeof(g_current_working_directory) ? sizeof(g_current_working_directory) : strlen(path) + 1;
+    strncpy(g_current_working_directory, path, len);
+    g_current_working_directory[len - 1] = '\0';
 
     vfs_unlock(g_vfs_lock_ptr);
 
@@ -1801,11 +1896,11 @@ int vfs_chdir(const char *path)
 char *vfs_getcwd(char *buf, size_t size)
 {
 #if (CURRENT_WORKING_DIRECTORY_ENABLE > 0)
-    if ((buf == NULL) || (size < strlen(g_current_working_directory))) {
+    if ((buf == NULL) || (size < strlen(g_current_working_directory) + 1)) {
         return NULL;
     }
 
-    strncpy(buf, g_current_working_directory, strlen(g_current_working_directory) + 1);
+    strcpy(buf, g_current_working_directory);
 
     return buf;
 #else

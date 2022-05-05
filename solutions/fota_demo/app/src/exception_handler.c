@@ -7,13 +7,12 @@
 #include <aos/debug.h>
 #include <yoc/netmgr_service.h>
 #include <uservice/eventid.h>
-
 #include "app_main.h"
 
 #define TAG "AppExp"
 
-#define MAX_NET_RESET_ERR_TIMES     3
-#define NET_RESET_DELAY_TIME        3000
+#define MAX_NET_RESET_ERR_TIMES     100
+#define NET_RESET_DELAY_TIME        3
 
 static int net_reset_err_times =   0;
 

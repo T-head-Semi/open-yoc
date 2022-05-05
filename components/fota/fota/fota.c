@@ -3,13 +3,15 @@
  */
 
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 #include <aos/list.h>
 #include <aos/kernel.h>
 #include <aos/kv.h>
 #include <yoc/netio.h>
 #include <yoc/fota.h>
-#include <yoc/partition.h>
-#include <aos/debug.h>
+#include <ulog/ulog.h>
+#include <stdio.h>
 
 #define TAG "fota"
 
@@ -19,7 +21,6 @@ typedef struct fota_netio_list {
 } fota_cls_node_t;
 
 static AOS_SLIST_HEAD(fota_cls_list);
-static fota_info_t fota_info;
 
 int fota_register(const fota_cls_t *cls)
 {
@@ -38,53 +39,83 @@ fota_t *fota_open(const char *fota_name, const char *dst, fota_event_cb_t event_
 {
     fota_cls_node_t *node;
     fota_t *fota = NULL;
+    fota_config_t config = { 3000, 3000, 0, 30000, 0 };
 
-    aos_assert(fota_name);
-    aos_assert(dst);
+    if (!(fota_name && dst)) {
+        LOGE(TAG, "fota open e.");
+        return NULL;
+    }
 
     slist_for_each_entry(&fota_cls_list, node, fota_cls_node_t, next) {
         if (strcmp(node->cls->name, fota_name) == 0) {
-            fota = aos_zalloc_check(sizeof(fota_t));
+            fota = aos_zalloc(sizeof(fota_t));
+            if (fota == NULL) {
+                LOGE(TAG, "malloc fota failed.");
+                return NULL;
+            }
             fota->to_path = strdup(dst);
             fota->cls = node->cls;
             fota->event_cb = event_cb;
+            memcpy(&fota->config, &config, sizeof(fota_config_t));
             if (fota->cls->init)
-                fota->cls->init();
+                fota->cls->init(&fota->info);
 
-            // LOGD(TAG, "fota: %x path:%s", fota, fota->to_path);
+            LOGD(TAG, "fota: 0x%x path:%s", fota, fota->to_path);
             break;
         }
     }
+
+    if (fota == NULL) {
+        LOGE(TAG, "fota open e. %s cls not found", fota_name);
+        return NULL;
+    }
+
     aos_sem_new(&fota->sem, 0);
-    aos_event_new(&fota->do_check_event, 0);
-    fota->auto_check_en = 1;
-    fota->timeoutms = 3000;
+    aos_sem_new(&fota->do_check_event, 0);
+    aos_sem_new(&fota->sem_download, 0);
     return fota;
 }
 
 static int fota_version_check(fota_t *fota, fota_info_t *info) {
-    if (fota->cls->version_check)
-        return fota->cls->version_check(info);
+    if (fota && fota->cls && fota->cls->version_check) {
+        int ret = fota->cls->version_check(info);
+        if (ret != 0) {
+            return -1;
+        }
+        if (fota->from_path == NULL) {
+            fota->from_path = strdup(info->fota_url);
+        } else {
+            aos_free(fota->from_path);
+            fota->from_path = strdup(info->fota_url);
+        }
+        LOGD(TAG, "get image url: %s", fota->from_path);
+        return ret;
+    }
 
     return -1;
 }
 
-static void fota_finish(fota_t *fota)
+static void fota_finish(fota_t *fota, fota_info_t *info)
 {
     if (fota->cls->finish)
-        fota->cls->finish();
+        fota->cls->finish(info);
 }
 
-static void fota_fail(fota_t *fota)
+static void fota_fail(fota_t *fota, fota_info_t *info)
 {
     if (fota->cls->fail)
-        fota->cls->fail();
+        fota->cls->fail(info);
 }
 
 static int fota_prepare(fota_t *fota)
 {
+    if (!(fota->from_path && fota->to_path)) {
+        LOGE(TAG, "fota->from_path or fota->to_path is NULL");
+        return -EINVAL;
+    }
+    LOGD(TAG, "###fota->from_path:%s, fota->to_path:%s", fota->from_path, fota->to_path);
     fota->buffer = aos_malloc(CONFIG_FOTA_BUFFER_SIZE);
-    fota->from = netio_open(fota_info.fota_url);
+    fota->from = netio_open(fota->from_path);
     fota->to = netio_open(fota->to_path);
 
     if (fota->buffer == NULL || fota->from == NULL || fota->to == NULL) {
@@ -98,8 +129,10 @@ static int fota_prepare(fota_t *fota)
         goto error;
     }
 
-    if (aos_kv_getint("fota_offset", &fota->offset) < 0) {
-        aos_kv_setint("fota_offset", 0);
+    if (aos_kv_getint(KV_FOTA_OFFSET, &fota->offset) < 0) {
+        if (aos_kv_setint(KV_FOTA_OFFSET, 0) < 0) {
+            goto error;
+        }
         fota->offset = 0;
     }
 
@@ -117,6 +150,7 @@ static int fota_prepare(fota_t *fota)
 
     fota->status = FOTA_DOWNLOAD;
     fota->total_size = fota->from->size;
+    LOGD(TAG, "fota prepare ok.");
     return 0;
 
 error:
@@ -138,19 +172,10 @@ error:
 
 static void fota_release(fota_t *fota)
 {
-    if (fota->from_path) {
-        aos_free(fota->from_path);
-        fota->from_path = NULL;
-    }
-
+    LOGD(TAG, "%s,%d", __func__, __LINE__);
     if (fota->buffer) {
         aos_free(fota->buffer);
         fota->buffer = NULL;
-    }
-
-    if (fota->private) {
-        aos_free(fota->private);
-        fota->private = NULL;
     }
 
     if (fota->from) {
@@ -167,95 +192,142 @@ static void fota_release(fota_t *fota)
 static void fota_task(void *arg)
 {
     fota_t *fota = (fota_t *)arg;
-    int retry = fota->retry_count;
-    unsigned int flag;
+    int retry = fota->config.retry_count;
 
-    // LOGD(TAG, "fota_task start: %s", fota->to_path);
+    LOGD(TAG, "fota_task start: %s", fota->to_path);
     while (!fota->quit) {
         if (fota->status == FOTA_INIT) {
-            //LOGD(TAG, "fota_task FOTA_INIT! wait");
-            aos_event_get(&fota->do_check_event, 0x01, AOS_EVENT_OR_CLEAR, &flag, AOS_WAIT_FOREVER);
+            LOGD(TAG, "fota_task FOTA_INIT! wait......");
+            aos_sem_wait(&fota->do_check_event, -1);
             if (fota->quit) {
                 break;
             }
-            if (fota->event_cb)
+            if (fota->status == FOTA_DOWNLOAD) {
+                continue;
+            }
+            retry = fota->config.retry_count;
+            if (fota->event_cb) {
+                fota->error_code = FOTA_ERROR_NULL;
                 fota->event_cb(arg, FOTA_EVENT_START);
+            }
 
-            if (fota_version_check(fota, &fota_info) == 0) {
+            if (fota_version_check(fota, &fota->info) == 0) {
                 if (fota->event_cb) {
+                    fota->error_code = FOTA_ERROR_NULL;
                     fota->event_cb(arg, FOTA_EVENT_VERSION);
                 }
-                if (fota_prepare(fota) < 0) {
-                    LOGE(TAG, "fota_prepare failed");
+                if (fota->config.auto_check_en > 0) {
+                    if (fota_prepare(fota) < 0) {
+                        LOGE(TAG, "fota_prepare failed");
+                        if (fota->event_cb) {
+                            fota->error_code = FOTA_ERROR_PREPARE;
+                            fota->event_cb(arg, FOTA_EVENT_VERSION);
+                        }
+                    }
                 }
-                continue;
             } else {
                 if (fota->event_cb) {
                     fota->error_code = FOTA_ERROR_VERSION_CHECK;
-                    fota->event_cb(arg, FOTA_EVENT_FAIL);
+                    fota->event_cb(arg, FOTA_EVENT_VERSION);
                 }
+            }
+            if (fota->config.auto_check_en > 0) {
+                if (fota->status == FOTA_DOWNLOAD) {
+                    aos_sem_signal(&fota->sem_download);
+                    continue;
+                }
+                aos_msleep(fota->config.sleep_time);
+                aos_sem_signal(&fota->do_check_event);
             }
         } else if (fota->status == FOTA_DOWNLOAD) {
-            //LOGD(TAG, "fota_task FOTA_DOWNLOAD! f:%d t:%d", fota->from->size, fota->to->offset);
-            if (fota->from->size > 0) {
-                static int fota_download_per = 101;
-                int percent =  fota->to->offset * 100 / fota->from->size;
-                if (fota_download_per != percent) {
-                    LOGD(TAG, "FOTA:%d%%", percent);
-                    fota_download_per = percent;
-                }
+            LOGD(TAG, "fota_task download! wait......");
+            aos_sem_wait(&fota->sem_download, -1);
+            if (fota->quit) {
+                break;
             }
 
-            int size = netio_read(fota->from, fota->buffer, CONFIG_FOTA_BUFFER_SIZE, fota->timeoutms);
+            int size = netio_read(fota->from, fota->buffer, CONFIG_FOTA_BUFFER_SIZE, fota->config.read_timeoutms);
+            fota->total_size = fota->from->size;
+            LOGD(TAG, "fota_task FOTA_DOWNLOAD! total:%d offset:%d", fota->from->size, fota->to->offset);
             LOGD(TAG, "##read: %d", size);
             if (size < 0) {
-                // LOGD(TAG, "read size < 0 %d", size);
+                LOGD(TAG, "read size < 0 %d", size);
                 if (size == -2) {
                     LOGW(TAG, "reconnect again");
+                    aos_sem_signal(&fota->sem_download);
                     continue;
                 }
                 if (fota->event_cb) {
                     fota->error_code = FOTA_ERROR_NET_READ;
-                    fota->event_cb(arg, FOTA_EVENT_FAIL);
+                    fota->event_cb(arg, FOTA_EVENT_PROGRESS);
                 }
                 fota->status = FOTA_ABORT;
                 LOGD(TAG, "fota abort");
                 continue;
             } else if (size == 0) {
-                // finish
-                fota->status = FOTA_FINISH;
-                if (fota->event_cb)
-                    fota->event_cb(arg, FOTA_EVENT_VERIFY);
-                int verify = fota_data_verify();
-                fota_finish(fota);
-                fota_release(fota);
-                aos_kv_del("fota_offset");
+                // download finish
+                LOGD(TAG, "read size 0.");
                 if (fota->event_cb) {
-                    if (verify != 0) {
-                        LOGE(TAG, "fota data verify failed.");
-                        fota->error_code = FOTA_ERROR_VERIFY;
-                        fota->event_cb(arg, FOTA_EVENT_FAIL);
-                    } else {
+                    fota->error_code = FOTA_ERROR_NULL;
+                    fota->event_cb(arg, FOTA_EVENT_VERIFY);
+                }
+                int verify = fota_data_verify();
+                fota_finish(fota, &fota->info);
+                fota_release(fota);
+                aos_kv_del(KV_FOTA_OFFSET);
+                if (verify != 0) {
+                    LOGE(TAG, "fota data verify failed.");
+                    fota->error_code = FOTA_ERROR_VERIFY;
+                    if (fota->event_cb)
+                        fota->event_cb(arg, FOTA_EVENT_PROGRESS);
+                    // goto init status
+                    fota->status = FOTA_INIT;
+                    if (fota->config.auto_check_en > 0) {
+                        aos_msleep(fota->config.sleep_time);
+                        aos_sem_signal(&fota->do_check_event);
+                    }
+                } else {
+                    LOGD(TAG, "fota data verify ok.");
+#ifdef CONFIG_DL_FINISH_FLAG_POWSAVE
+                    aos_kv_setint(KV_FOTA_FINISH, 1);
+#endif
+                    fota->status = FOTA_FINISH;
+                    fota->error_code = FOTA_ERROR_NULL;
+                    if (fota->event_cb)
                         fota->event_cb(arg, FOTA_EVENT_FINISH);
+                    if (fota->config.auto_check_en > 0) {
+                        fota_restart(fota, 0);
                     }
                 }
-                fota->status = FOTA_INIT;
                 continue;
             }
-
-            size = netio_write(fota->to, fota->buffer, size, -1);
-            // LOGI(TAG, "write: %d", size);
+#ifdef CONFIG_DL_FINISH_FLAG_POWSAVE
+            if (fota->offset == 0) {
+                LOGD(TAG, "set fota_finish to 0");
+                if (aos_kv_setint(KV_FOTA_FINISH, 0) < 0) {
+                    goto write_err;
+                }
+            }
+#endif
+            size = netio_write(fota->to, fota->buffer, size, fota->config.write_timeoutms);
+            LOGI(TAG, "write size: %d", size);
             if (size > 0) {
+                if (aos_kv_setint(KV_FOTA_OFFSET, fota->offset + size) < 0) {
+                    goto write_err;
+                }
                 fota->offset += size;
-                aos_kv_setint("fota_offset", fota->offset);
                 if (fota->event_cb) {
+                    fota->error_code = FOTA_ERROR_NULL;
                     fota->event_cb(arg, FOTA_EVENT_PROGRESS);
                 }
+                aos_sem_signal(&fota->sem_download);
             } else {
+write_err:
                 // flash write error
+                LOGE(TAG, "flash write size error.");
                 if (fota->event_cb) {
                     fota->error_code = FOTA_ERROR_WRITE;
-                    fota->event_cb(arg, FOTA_EVENT_FAIL);
+                    fota->event_cb(arg, FOTA_EVENT_PROGRESS);
                 }
                 fota->status = FOTA_ABORT;
             }
@@ -265,67 +337,74 @@ static void fota_task(void *arg)
                 LOGW(TAG, "fota retry: %d!", retry);
                 retry--;
                 fota->status = FOTA_DOWNLOAD;
-                aos_msleep(fota->sleep_time);
+                aos_msleep(fota->config.sleep_time);
+                aos_sem_signal(&fota->sem_download);
             } else {
-                retry = fota->retry_count;
-                fota->status = FOTA_INIT;
-                fota_fail(fota);
+                retry = fota->config.retry_count;
+                fota_fail(fota, &fota->info);
                 fota_release(fota);
+                fota->status = FOTA_INIT;
+                if (fota->config.auto_check_en > 0) {
+                    aos_msleep(fota->config.sleep_time);
+                    aos_sem_signal(&fota->do_check_event);
+                }
             }
         } else {
-            // do not excute
-            LOGE(TAG, "fota status:%d", fota->status);
-            aos_msleep(fota->sleep_time);
+            // finish state will come here.
+            LOGD(TAG, "##fota status:%d", fota->status);
+            aos_msleep(fota->config.sleep_time);
         }
     }
 
     LOGD(TAG, "force quit need release source");
     fota->status = 0; // need reset for next restart
     fota_release(fota);
-    aos_sem_signal(&fota->sem);
 
-    if (fota->event_cb)
+    if (fota->event_cb) {
+        fota->error_code = FOTA_ERROR_NULL;
         fota->event_cb(arg, FOTA_EVENT_QUIT);
-}
-
-static void fota_check_task(void *arg)
-{
-    fota_t *fota = (fota_t *)arg;
-    while(!fota->quit) {
-        if (fota->status == FOTA_INIT && fota->auto_check_en) {
-            LOGD(TAG, "fota check signal......");
-            aos_event_set(&fota->do_check_event, 0x01, AOS_EVENT_OR);
-        }
-        aos_msleep(fota->sleep_time);
     }
-    aos_task_exit(0);
+
+    /* will free fota */
+    aos_sem_signal(&fota->sem);
 }
 
 void fota_do_check(fota_t *fota)
 {
-    aos_assert(fota);
-
     LOGD(TAG, "fota do check signal........");
-    if (fota->status == FOTA_INIT)
-        aos_event_set(&fota->do_check_event, 0x01, AOS_EVENT_OR);
+    if (fota && (fota->status == FOTA_INIT || fota->status == FOTA_FINISH)) {
+        fota->status = FOTA_INIT;
+        aos_sem_signal(&fota->do_check_event);
+    }
 }
 
 int fota_start(fota_t *fota)
 {
-    aos_task_t task;
-
-    aos_assert(fota);
+    if (fota == NULL) {
+        return -EINVAL;
+    }
 
     if (fota->status == 0) {
         fota->status = FOTA_INIT;
         fota->quit = 0;
-        if (aos_task_new_ext(&task, "fota-check", fota_check_task, fota, 1024, AOS_DEFAULT_APP_PRI + 13) != 0) {
-            return -1;
+#ifdef CONFIG_DL_FINISH_FLAG_POWSAVE
+        int isfinish;
+        if (aos_kv_getint(KV_FOTA_FINISH, &isfinish) < 0) {
+            isfinish = 0;
         }
-        if (aos_task_new_ext(&fota->task, "fota", fota_task, fota, CONFIG_FOTA_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI + 13) != 0) {
+        if (isfinish > 0) {
+            LOGD(TAG, "come to fota finish state.");
+            fota->status = FOTA_FINISH;
+        }
+#endif
+        if (aos_task_new_ext(&fota->task, "fota", fota_task, fota, CONFIG_FOTA_TASK_STACK_SIZE, 45) != 0) {
             fota->quit = 1;
             fota->status = 0;
+            LOGE(TAG, "fota task create failed.");
             return -1;
+        }
+        if (fota->config.auto_check_en > 0) {
+            fota_do_check(fota);
         }
     }
 
@@ -334,28 +413,36 @@ int fota_start(fota_t *fota)
 
 int fota_stop(fota_t *fota)
 {
-    aos_assert(fota);
+    if (fota == NULL) {
+        return -EINVAL;
+    }
+    LOGD(TAG, "%s,%d", __func__, __LINE__);
 
     fota->quit = 1;
-    aos_event_set(&fota->do_check_event, 0x01, AOS_EVENT_OR);
+    aos_sem_signal(&fota->do_check_event);
+    aos_sem_signal(&fota->sem_download);
 
     return 0;
 }
 
 int fota_close(fota_t *fota)
 {
-    aos_assert(fota);
+    if (fota == NULL) {
+        return -EINVAL;
+    }
+    LOGD(TAG, "%s,%d", __func__, __LINE__);
 
     fota->quit = 1;
-    aos_event_set(&fota->do_check_event, 0x01, AOS_EVENT_OR);
+    aos_sem_signal(&fota->do_check_event);
+    aos_sem_signal(&fota->sem_download);
     aos_sem_wait(&fota->sem, -1);
     aos_sem_free(&fota->sem);
-    aos_event_free(&fota->do_check_event);
+    aos_sem_free(&fota->do_check_event);
+    aos_sem_free(&fota->sem_download);
 
     if (fota->from_path) aos_free(fota->from_path);
     if (fota->to_path) aos_free(fota->to_path);
     if (fota->buffer) aos_free(fota->buffer);
-    if (fota->private) aos_free(fota->private);
     if (fota->from) netio_close(fota->from);
     if (fota->to) netio_close(fota->to);
 
@@ -364,68 +451,121 @@ int fota_close(fota_t *fota)
     return 0;
 }
 
+int fota_download(fota_t *fota)
+{
+    if (fota == NULL) {
+        LOGE(TAG, "fota param null.");
+        return -EINVAL;
+    }
+    LOGD(TAG, "fota download, status:%d", fota->status);
+    if (fota->status == FOTA_ABORT || fota->status == FOTA_INIT || fota->status == FOTA_FINISH) {
+        if (fota->status == FOTA_INIT || fota->status == FOTA_FINISH) {
+            if (fota_prepare(fota)) {
+                LOGE(TAG, "fota_prepare failed");
+                if (fota->event_cb) {
+                    fota->error_code = FOTA_ERROR_PREPARE;
+                    fota->event_cb(fota, FOTA_EVENT_VERSION);
+                }
+                return -1;
+            }
+            aos_sem_signal(&fota->do_check_event);
+        } else {
+            fota->status = FOTA_DOWNLOAD;
+        }
+        LOGD(TAG, "signal download.");
+        aos_sem_signal(&fota->sem_download);
+        return 0;
+    }
+    LOGW(TAG, "the status is not allow to download.");
+    return -1;
+}
+
+static void timer_thread(void *timer, void *args)
+{
+    fota_t *fota = (fota_t *)args;
+    LOGD(TAG, "timer_thread, fota:0x%x", fota);
+    if (fota) {
+        LOGD(TAG, "report restart event.");
+        if (fota->event_cb) {
+            fota->error_code = FOTA_ERROR_NULL;
+            fota->event_cb(fota, FOTA_EVENT_RESTART);
+        }
+        aos_timer_stop(&fota->restart_timer);
+        aos_timer_free(&fota->restart_timer);
+        LOGD(TAG, "stop and delete timer ok.");
+        return;
+    }
+    LOGE(TAG, "timer task params error.");
+}
+
+int fota_restart(fota_t *fota, int delay_ms)
+{
+    if (fota == NULL) {
+        LOGE(TAG, "fota param null.");
+        return -EINVAL;
+    }
+    LOGD(TAG, "%s,%d, delay_ms:%d", __func__, __LINE__, delay_ms);
+    if (fota->status != FOTA_FINISH) {
+        LOGE(TAG, "fota status is not FOTA_FINISH, cant restart to upgrade.");
+        return -1;
+    }
+    if (fota->cls && fota->cls->restart) {
+        if (delay_ms > 0) {
+            int ret = aos_timer_new_ext(&fota->restart_timer, timer_thread, fota, delay_ms, 0, 1);
+            if (ret < 0) {
+                LOGE(TAG, "timer_create error [%d]!\n", errno);
+                return -1;
+            }
+            LOGD(TAG, "set timer ok.");
+            return 0;
+        }
+#ifdef CONFIG_DL_FINISH_FLAG_POWSAVE
+        if (aos_kv_setint(KV_FOTA_FINISH, 0) < 0) {
+            LOGE(TAG, "set finish 0 error.");
+            return -1;
+        }
+#endif
+        fota->cls->restart();
+    }
+    return 0;
+}
+
 void fota_config(fota_t *fota, fota_config_t *config)
 {
-    aos_assert(fota);
-    aos_assert(config);
+    if (!(fota && config)) {
+        LOGE(TAG, "fota or config param null.");
+        return;
+    }
+    memcpy(&fota->config, config, sizeof(fota_config_t));
+}
 
-    fota->auto_check_en = config->auto_check_en;
-    fota->retry_count   = config->retry_count;
-    fota->timeoutms     = config->timeoutms;
-    fota->sleep_time    = config->sleep_time;
+fota_config_t *fota_get_config(fota_t *fota)
+{
+    if (fota == NULL) {
+        LOGE(TAG, "fota param null.");
+        return NULL;
+    }
+    return &fota->config;
 }
 
 void fota_set_auto_check(fota_t *fota, int enable)
 {
-    aos_assert(fota);
-
-    fota->auto_check_en = enable;
+    if (fota)
+        fota->config.auto_check_en = enable;
 }
 
 int fota_get_auto_check(fota_t *fota)
 {
-    aos_assert(fota);
-
-    return fota->auto_check_en;
+    if (fota)
+        return fota->config.auto_check_en;
+    return 0;
 }
 
 fota_status_e fota_get_status(fota_t *fota)
 {
-    aos_assert(fota);
-
+    if (fota == NULL) {
+        LOGE(TAG, "fota param null.");
+        return 0;
+    }
     return fota->status;
 }
-
-// demo
-#if 0
-static int fota_event_cb(void *arg, fota_event_e event)
-{
-    fota_t *fota = (fota_t *)arg;
-    switch (event) {
-        case FOTA_EVENT_START:
-            LOGD(TAG, "FOTA START :%x", fota->status);
-            break;
-        case FOTA_EVENT_VERSION:
-            LOGD(TAG, "FOTA VERSION CHECK OK :%x", fota->status);
-            break;
-        case FOTA_EVENT_PROGRESS:
-            LOGD(TAG, "FOTA PROGRESS :%x, %d, %d", fota->status, fota->offset, fota->total_size);
-            break;
-        case FOTA_EVENT_FAIL:
-            LOGD(TAG, "FOTA FAIL :%x, %d", fota->status, fota->error_code);
-            break;
-        case FOTA_EVENT_VERIFY:
-            LOGD(TAG, "FOTA VERIFY :%x", fota->status);
-            break;
-        case FOTA_EVENT_FINISH:
-            LOGD(TAG, "FOTA FINISH :%x", fota->status);
-            break;
-        case FOTA_EVENT_QUIT:
-            LOGD(TAG, "FOTA QUIT :%x", fota->status);
-            break;
-        default:
-            break;
-    }
-    return 0;
-}
-#endif

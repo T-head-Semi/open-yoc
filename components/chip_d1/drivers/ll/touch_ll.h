@@ -9,7 +9,7 @@
 typedef struct {
     uint16_t slave_addr;
     uint16_t iic_port;
-    hal_sem_t isr_sem;
+    hal_sem_t hal_isr_sem;
 } touch_config_t;
 
 typedef struct touch_cls touch_cls_t;

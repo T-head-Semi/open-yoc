@@ -7,8 +7,15 @@
  */
 
 #define TRANS_SEQ_AUTH_NVAL            0xffffffffffffffff
-
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+#ifndef CONFIG_BT_MESH_TX_SDU_MAX
+#define BT_MESH_TX_SDU_MAX             (209) //222 for complete AUX
+#else
+#define BT_MESH_TX_SDU_MAX             (CONFIG_BT_MESH_TX_SDU_MAX)
+#endif
+#else
 #define BT_MESH_TX_SDU_MAX             (CONFIG_BT_MESH_TX_SEG_MAX * 16)
+#endif
 
 #define TRANS_CTL_OP_MASK              ((u8_t)BIT_MASK(7))
 #define TRANS_CTL_OP(data)             ((data)[0] & TRANS_CTL_OP_MASK)
@@ -32,6 +39,17 @@
 #define TRANS_CTL_OP_CTRL_RELAY_OPEN   0x32
 #endif
 /*[Genie end] add by wenbing.cwb at 2021-01-21*/
+/*[Genie begin] add by wenbing.cwb at 2021-05-11*/
+#ifdef CONFIG_GENIE_RHYTHM
+#define TRANS_CTL_OP_RHYTHM_DATA       0x40
+#define TRANS_CTL_OP_RHYTHM_CMD        0x41
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-05-11*/
+/*[Genie begin] add by wenbing.cwb at 2021-08-17*/
+#ifdef CONFIG_BT_MESH_NPS_OPT
+#define TRANS_CTL_OP_NPS_CONFIG        0x50
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-08-17*/
 
 struct bt_mesh_ctl_friend_poll {
 	u8_t  fsn;
@@ -93,6 +111,11 @@ int bt_mesh_ctl_send(struct bt_mesh_net_tx *tx, u8_t ctl_op, void *data,
 		     size_t data_len, u64_t *seq_auth,
 		     const struct bt_mesh_send_cb *cb, void *cb_data);
 
+int bt_mesh_ctl_send_ext(u8_t ctl_op, u16_t dst_addr, u8_t ttl, void *data, size_t data_len,
+                         const struct bt_mesh_send_cb *cb, void *cb_data);
+
+int bt_mesh_get_tx_seg_size(uint8_t net_if, uint16_t size);
+
 int bt_mesh_trans_send(struct bt_mesh_net_tx *tx, struct net_buf_simple *msg,
 		       const struct bt_mesh_send_cb *cb, void *cb_data);
 
@@ -105,3 +128,6 @@ void bt_mesh_rpl_clear(void);
 void bt_mesh_rpl_clear_all(void);
 
 void bt_mesh_rpl_clear_node(uint16_t unicast_addr,uint8_t elem_num);
+
+int bt_mesh_get_tx_seg_size(uint8_t net_if, uint16_t size);
+

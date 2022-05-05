@@ -1,8 +1,8 @@
 
 ## 第一部分： 基础信息
-name: sdk_app_d1                                  # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.5.0                                    # <必选项> 组件版本号
-description: the components for d1                  # <必选项> 建议至少20字以上
+name: sdk_app_d1                                    # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
+version: v7.5.1                                     # <必选项> 组件版本号
+description: the demos for d1                       # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
 ## 第二部分：依赖信息
@@ -12,12 +12,19 @@ type: common                                        # <必选项> 组件类型�
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
 depends:
-  - d1_helloworld: v7.5.0
-  - d1_hellojs: v7.5.0
-  - d1_dbus_demo: v7.5.0
-  - d1_xplayer_demo: v7.5.0
-  - d1_haasui_demo: v7.5.0
-  - d1_mit_algo_demo: v7.5.0
-  - d1_wifi_demo: v7.5.0
-  - d1_http_demo: v7.5.0
-  - d1_haasui_boot_demo: v7.5.0
+  - helloworld: v7.5.1
+  - wifi_demo: v7.5.1
+  - httpclient_demo: v7.5.1
+  - kv_demo: v7.5.1
+  - cli_demo: v7.5.1
+  - xplayer_demo: v7.5.1
+  - haasui_ued_demo: v7.5.1
+  - haasui_falcon_demo: v7.5.1
+  - hellojs: v7.5.1
+  - lcd_demo: v7.5.1
+  - led_demo: v7.5.1
+  - fota_demo: v7.5.1
+  - d1_button_demo: v7.5.1
+  - smart_speaker_v2: v1.0.0
+  - blemesh_gateway: v1.2.0
+ 

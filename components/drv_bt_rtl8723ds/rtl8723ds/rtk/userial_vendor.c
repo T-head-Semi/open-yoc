@@ -27,6 +27,7 @@
 #define LOG_TAG "bt_userial_vendor"
 // #include "bt_trace.h"
 #include <aos/debug.h>
+#include <ulog/ulog.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -35,7 +36,15 @@
 #include <termios.h>
 #endif
 
+#ifndef CONFIG_DRV_BT_AOS_HAL
+#define CONFIG_DRV_BT_AOS_HAL 1
+#endif
+#if CONFIG_DRV_BT_AOS_HAL
+#include "aos/hal/uart.h"
+#else
 #include <devices/uart.h>
+#endif
+
 
 static char *TAG = "vendor";
 
@@ -52,27 +61,18 @@ static char *TAG = "vendor";
 **  Local type definitions
 ******************************************************************************/
 
-/* vendor serial control block */
+#if CONFIG_DRV_BT_AOS_HAL
+static uart_dev_t s_uart_handle;
+static void *g_uart_event_cb = NULL;
+#else
 typedef struct {
     aos_dev_t* uart_dev;
     uart_config_t config;
     //struct termios termios;     /* serial terminal of BT port */
     //char port_name[VND_PORT_NAME_MAXLEN];
 } vnd_userial_cb_t;
-
-/******************************************************************************
-**  Static variables
-******************************************************************************/
-
 static vnd_userial_cb_t vnd_userial;
-
-
-// static void uart_event(aos_dev_t *dev, int event_id, void *priv)
-// {
-//     if (event_id == USART_EVENT_READ || event_id == USART_OVERFLOW) {
-//         hci_hal_h5_task_post(100);
-//     }
-// }
+#endif
 
 /*****************************************************************************
 **   Helper Functions
@@ -182,6 +182,18 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg, void *uart_event)
         return -1;
     }
 
+#if CONFIG_DRV_BT_AOS_HAL
+    if (p_cfg->fmt & USERIAL_PARITY_NONE) {
+        parity = NO_PARITY;
+    } else if (p_cfg->fmt & USERIAL_PARITY_EVEN) {
+        parity = EVEN_PARITY;
+    } else if (p_cfg->fmt & USERIAL_PARITY_ODD) {
+        parity = ODD_PARITY;
+    } else {
+        LOGE(TAG, "userial vendor open: unsupported parity bit mode");
+        return -1;
+    }
+#else
     if (p_cfg->fmt & USERIAL_PARITY_NONE) {
         parity = PARITY_NONE;
     } else if (p_cfg->fmt & USERIAL_PARITY_EVEN) {
@@ -192,6 +204,7 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg, void *uart_event)
         LOGE(TAG, "userial vendor open: unsupported parity bit mode");
         return -1;
     }
+#endif
 
     if (p_cfg->fmt & USERIAL_STOPBITS_1) {
         stop_bits = STOP_BITS_1;
@@ -208,6 +221,24 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg, void *uart_event)
         fc = FLOW_CONTROL_CTS_RTS;
     }
 
+#if CONFIG_DRV_BT_AOS_HAL
+    s_uart_handle.port                = p_cfg->uart_id;
+    s_uart_handle.config.baud_rate    = 115200;
+    s_uart_handle.config.mode         = MODE_TX_RX;
+    s_uart_handle.config.flow_control = fc;
+    s_uart_handle.config.stop_bits    = stop_bits;
+    s_uart_handle.config.parity       = parity;
+    s_uart_handle.config.data_width   = data_bits;
+
+    int rc = hal_uart_init(&s_uart_handle);
+
+    if (rc < 0) {
+        return -1;
+    }
+
+    hal_uart_recv_cb_reg(&s_uart_handle, uart_event);
+    g_uart_event_cb = uart_event;
+#else
     vnd_userial.uart_dev = uart_open_id("uart", p_cfg->uart_id);
 
     if (vnd_userial.uart_dev == NULL) {
@@ -223,7 +254,7 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg, void *uart_event)
     uart_config(vnd_userial.uart_dev, &vnd_userial.config);
 
     uart_set_event(vnd_userial.uart_dev, uart_event, NULL);
-
+#endif
     return 0;
 }
 
@@ -238,11 +269,14 @@ int userial_vendor_open(tUSERIAL_CFG *p_cfg, void *uart_event)
 *******************************************************************************/
 void userial_vendor_close(void)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    hal_uart_finalize(&s_uart_handle);
+#else
     aos_check_param(vnd_userial.uart_dev);
 
     uart_close(vnd_userial.uart_dev);
     vnd_userial.uart_dev = NULL;
-
+#endif
 }
 
 /*******************************************************************************
@@ -256,6 +290,18 @@ void userial_vendor_close(void)
 *******************************************************************************/
 void userial_vendor_set_baud(uint8_t userial_baud)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    hal_uart_finalize(&s_uart_handle);
+
+    uint32_t tcio_baud;
+
+    userial_to_tcio_baud(userial_baud, &tcio_baud);
+
+    s_uart_handle.config.baud_rate    = tcio_baud;
+
+    hal_uart_init(&s_uart_handle);
+    hal_uart_recv_cb_reg(&s_uart_handle, g_uart_event_cb);
+#else
     aos_check_param(vnd_userial.uart_dev);
     uint32_t tcio_baud;
 
@@ -264,15 +310,25 @@ void userial_vendor_set_baud(uint8_t userial_baud)
     vnd_userial.config.baud_rate = tcio_baud;
     uart_config(vnd_userial.uart_dev, &vnd_userial.config);
     uart_set_buffer_size(vnd_userial.uart_dev, 10240);
+#endif
 }
 
 
 void userial_vendor_set_parity(uint8_t mode)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    hal_uart_finalize(&s_uart_handle);
+
+    s_uart_handle.config.parity    = mode;
+
+    hal_uart_init(&s_uart_handle);
+    hal_uart_recv_cb_reg(&s_uart_handle, g_uart_event_cb);
+#else
     aos_check_param(vnd_userial.uart_dev);
     vnd_userial.config.parity = mode;
     uart_config(vnd_userial.uart_dev, &vnd_userial.config);
     uart_set_buffer_size(vnd_userial.uart_dev, 10240);
+#endif
 }
 /*******************************************************************************
 **
@@ -300,6 +356,17 @@ int userial_set_port(char *p_conf_name, char *p_conf_value, int param)
 *******************************************************************************/
 void userial_vendor_set_hw_fctrl(uint8_t hw_fctrl)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    if (hw_fctrl) {
+        s_uart_handle.config.flow_control = FLOW_CONTROL_CTS_RTS;
+    } else {
+        s_uart_handle.config.flow_control = FLOW_CONTROL_DISABLED;
+    }
+    hal_uart_finalize(&s_uart_handle);
+
+    hal_uart_init(&s_uart_handle);
+    hal_uart_recv_cb_reg(&s_uart_handle, g_uart_event_cb);
+#else
     aos_check_param(vnd_userial.uart_dev);
 
     if (hw_fctrl) {
@@ -307,14 +374,28 @@ void userial_vendor_set_hw_fctrl(uint8_t hw_fctrl)
     } else {
         vnd_userial.config.flow_control = FLOW_CONTROL_DISABLED;
     }
+    uart_config(vnd_userial.uart_dev, &vnd_userial.config);
+#endif
 }
 
 int userial_vendor_send_data(uint8_t *data, uint32_t len)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    return hal_uart_send_poll(&s_uart_handle, data, len);
+#else
     return uart_send(vnd_userial.uart_dev, data, len);
+#endif
 }
 
 int userial_vendor_recv_data(uint8_t *data, uint32_t len, uint32_t timeout)
 {
+#if CONFIG_DRV_BT_AOS_HAL
+    unsigned int recv_size = 0;
+
+    hal_uart_recv_II(&s_uart_handle, data, len, &recv_size, timeout);
+
+    return recv_size;
+#else
     return uart_recv(vnd_userial.uart_dev, data, len, timeout);
+#endif
 }

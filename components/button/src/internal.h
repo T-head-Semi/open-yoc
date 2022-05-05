@@ -7,9 +7,8 @@
 
 #include <aos/aos.h>
 #include <aos/list.h>
-#ifdef CONFIG_CSI_V2
-#include <drv/gpio_pin.h>
-#endif
+#include <aos/hal/gpio.h>
+
 
 #define ADC_NAME_MAX (10)
 typedef struct button_ops {
@@ -22,11 +21,7 @@ typedef struct button_ops {
 
 typedef struct gpio_button_param {
     int                 pin_id;
-#ifdef CONFIG_CSI_V2
-    csi_gpio_pin_t      pin_hdl;
-#else
-    gpio_pin_handle_t   pin_hdl;
-#endif
+    gpio_dev_t         *pin_hdl;
     button_gpio_level_t active_level;
 } gpio_button_param_t;
 

@@ -317,14 +317,12 @@ DLL_HAL_API uint32_t HAL_Random(_IN_ uint32_t region);
 /**
  * @brief Writes formatted data to stream.
  *
- * @param [in] fmt: @n String that contains the text to be written, it can optionally contain embedded format specifiers
-     that specifies how subsequent arguments are converted for output.
  * @param [in] ...: @n the variable argument list, for formatted and inserted in the resulting string replacing their respective specifiers.
  * @return None.
  * @see None.
  * @note None.
  */
-DLL_HAL_API void HAL_Printf(_IN_ const char *fmt, ...);
+#define HAL_Printf(...) ulog(LOG_DEBUG, NULL, ULOG_TAG, __VA_ARGS__)
 
 /**
  * @brief Writes formatted data to string.

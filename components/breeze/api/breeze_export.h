@@ -305,14 +305,13 @@ void breeze_restart_advertising();
 /**
  * @brief Start BLE advertisement. This API will start the adv.
  *
- * @param[in] sub_type @n device advertising type.
- * @param[in] sec_type @n security type, per-product or per-device.
+ * @param[in] awss_flag @n if combo, awss need or not.
  * @param[in] bind_state @n device bind state.
  * @return result 0-success, <0-fail.
  * @see None.
  * @note User can call this API if he/she wants to start the adv
  */
-int breeze_start_advertising(uint8_t sub_type, uint8_t sec_type, uint8_t bind_state);
+int breeze_start_advertising(uint8_t bind_state, uint8_t awss_flag);
 
 /**
  * @brief Stop BLE advertisement. This API will stop the adv.
@@ -350,7 +349,6 @@ int breeze_clear_bind_info(void);
  * @see None.
  */
 void breeze_disconnect_ble(void);
-
 
 #if defined(__cplusplus) /* If this is a C++ compiler, use C linkage */
 }

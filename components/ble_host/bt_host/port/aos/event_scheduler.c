@@ -12,7 +12,7 @@ extern void process_events(struct k_poll_event *ev, int count);
 extern int bt_conn_prepare_events(struct k_poll_event events[]);
 void scheduler_loop(struct k_poll_event *events)
 {
-#ifndef CONFIG_BT_WORK_INDEPENDENCE
+#if !(defined(CONFIG_BT_WORK_INDEPENDENCE) && CONFIG_BT_WORK_INDEPENDENCE)
     struct k_work *work;
     uint32_t now;
 #endif
@@ -22,7 +22,7 @@ void scheduler_loop(struct k_poll_event *events)
     while (1) {
         ev_count = 0;
         delayed_ms = K_FOREVER;
-#ifndef CONFIG_BT_WORK_INDEPENDENCE
+#if !(defined(CONFIG_BT_WORK_INDEPENDENCE) && CONFIG_BT_WORK_INDEPENDENCE)
         if (k_queue_is_empty(&g_work_queue.queue) == 0) {
             work = k_queue_first_entry(&g_work_queue.queue);
             now = k_uptime_get_32();
@@ -38,15 +38,20 @@ void scheduler_loop(struct k_poll_event *events)
         }
 #endif
         events[0].state = K_POLL_STATE_NOT_READY;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+        events[1].state = K_POLL_STATE_NOT_READY;
+        ev_count = 2;
+#else
         ev_count = 1;
-
+#endif
         if (IS_ENABLED(CONFIG_BT_CONN)) {
             ev_count += bt_conn_prepare_events(&events[ev_count]);
         }
 
         k_poll(events, ev_count, delayed_ms);
+
         process_events(events, ev_count);
-#ifndef CONFIG_BT_WORK_INDEPENDENCE
+#if !(defined(CONFIG_BT_WORK_INDEPENDENCE) && CONFIG_BT_WORK_INDEPENDENCE)
         if (k_queue_is_empty(&g_work_queue.queue) == 0) {
             work = k_queue_first_entry(&g_work_queue.queue);
             now = k_uptime_get_32();
@@ -59,5 +64,6 @@ void scheduler_loop(struct k_poll_event *events)
             }
         }
 #endif
+        k_yield();
     }
 }

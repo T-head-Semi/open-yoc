@@ -19,7 +19,7 @@
   * @file    wifi_conf.h
   * @author
   * @version
-  * @brief   This file provides user interface for Wi-Fi station and AP mode configuration 
+  * @brief   This file provides user interface for Wi-Fi station and AP mode configuration
   *             base on the functionalities provided by Realtek Wi-Fi driver.
   ******************************************************************************
   */
@@ -124,6 +124,10 @@ typedef struct {
 	int buf_len;
 } scan_buf_arg;
 
+typedef struct{
+	char ssid[32];
+	int ssidlength;
+} scan_ssid;
 /******************************************************
  *                    Structures
  ******************************************************/
@@ -985,6 +989,14 @@ int wifi_set_channel_plan(uint8_t channel_plan);
  */
 int wifi_get_channel_plan(uint8_t *channel_plan);
 
+int aw_wifi_get_security_by_scan_ssid(const char *ssid,int ssid_len,int scan_buflen);
+
+int aw_wifi_scan_networks_with_multissid(char *scan_resulst,int *scan_results_len,
+		int scan_buflen,scan_ssid* Ssid,int num_ssid);
+
+int wifi_scan_networks_with_multissid(int (results_handler)(char*buf, int buflen, char *ssid, void *user_data), 
+	OUT void* user_data, IN int scan_buflen, IN scan_ssid* Ssid ,IN int num_ssid);
+
 #ifdef CONFIG_AP_MODE
 /**
  * @brief  Enable packets forwarding in ap mode
@@ -1043,6 +1055,7 @@ typedef struct {
 	unsigned char *pattern;
 } wowlan_pattern_param_t;
 
+int wifi_wowlan_unicast_wake_ctrl(unsigned char enable);
 int wifi_wowlan_ctrl(int enable);
 int wifi_wowlan_set_pattern(wowlan_pattern_t pattern);
 #endif

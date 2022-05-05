@@ -18,6 +18,10 @@ static unsigned int g_coap_running = 0;
 #endif
 static CoAPContext *g_context = NULL;
 
+#ifndef COAPSERVER_STACK_SIZE
+#define COAPSERVER_STACK_SIZE 4096
+#endif
+
 static unsigned int CoAPServerToken_get(unsigned char *p_encoded_data)
 {
     static unsigned int value = COAP_INIT_TOKEN;
@@ -40,7 +44,7 @@ static int CoAPServerPath_2_option(char *uri, CoAPMessage *message)
         return COAP_ERROR_INVALID_PARAM;
     }
     if (COAP_MSG_MAX_PATH_LEN <= strlen(uri)) {
-        COAP_ERR("The uri length is too loog,len = %d", (int)strlen(uri));
+        COAP_ERR("The uri length is too long,len = %d", (int)strlen(uri));
         return COAP_ERROR_INVALID_LENGTH;
     }
 
@@ -108,6 +112,7 @@ void *coap_init_mutex = NULL;
 
 CoAPContext *CoAPServer_init()
 {
+    int ret = 0;
     CoAPInitParam param = {0};
 #ifdef COAP_SERV_MULTITHREAD
     int stack_used;
@@ -169,9 +174,22 @@ CoAPContext *CoAPServer_init()
 #ifdef COAP_SERV_MULTITHREAD
         g_coap_running = 1;
         hal_os_thread_param_t task_parms = {0};
-        task_parms.stack_size = 4608;
+        task_parms.stack_size = COAPSERVER_STACK_SIZE;
         task_parms.name = "CoAPServer_yield";
-        HAL_ThreadCreate(&g_coap_thread, CoAPServer_yield, (void *)g_context, &task_parms, &stack_used);
+        ret = HAL_ThreadCreate(&g_coap_thread, CoAPServer_yield, (void *)g_context, &task_parms, &stack_used);
+        if (0 != ret) {
+            HAL_SemaphoreDestroy(g_semphore);
+            HAL_MutexDestroy(coap_yield_mutex);
+            CoAPContext_free(g_context);
+            g_semphore = NULL;
+            coap_yield_mutex = NULL;
+            g_context = NULL;
+
+            COAP_ERR("CoAPServer_yield thread create failed");
+
+            HAL_MutexUnlock(coap_init_mutex);
+            return NULL;
+        }
 #endif
     } else {
         COAP_INFO("The CoAP Server already init");
@@ -253,7 +271,8 @@ int CoAPServerMultiCast_send(CoAPContext *context, NetworkAddr *remote, const ch
     tokenlen = CoAPServerToken_get(token);
     CoAPMessageToken_set(&message, token, tokenlen);
     CoAPMessageHandler_set(&message, callback);
-    CoAPMessageKeep_Set(&message, 1);
+    if(strcmp(uri, "/dev/core/service/dev/tick_notify") != 0)
+        CoAPMessageKeep_Set(&message, 1);
 
     CoAPServerPath_2_option((char *)uri, &message);
     CoAPUintOption_add(&message, COAP_OPTION_CONTENT_FORMAT, COAP_CT_APP_JSON);

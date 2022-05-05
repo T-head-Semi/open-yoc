@@ -1,8 +1,11 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
+#include <errno.h>
+#include <stdio.h>
 #include <yoc/fota.h>
 #include <yoc/netio.h>
+#include <aos/kernel.h>
 #include <aos/kv.h>
 #include <aos/version.h>
 #include <ulog/ulog.h>
@@ -13,6 +16,32 @@
 #define TO_URL      "flash://misc"
 
 #define TAG "fotacop"
+
+static void cop_res_release(fota_info_t *info)
+{
+    if (info) {
+        if (info->fota_url) {
+            aos_free(info->fota_url);
+            info->fota_url = NULL;
+        }
+        if (info->local_changelog) {
+            aos_free(info->local_changelog);
+            info->local_changelog = NULL;
+        }
+        if (info->changelog) {
+            aos_free(info->changelog);
+            info->changelog = NULL;
+        }
+        if (info->cur_version) {
+            aos_free(info->cur_version);
+            info->cur_version = NULL;
+        }
+        if (info->new_version) {
+            aos_free(info->new_version);
+            info->new_version = NULL;
+        }
+    }
+}
 
 #if CONFIG_FOTA_USE_HTTPC == 1
 #include <http_client.h>
@@ -182,8 +211,11 @@ static int cop_version_check(fota_info_t *info) {
         goto out;
     }
 #if 1
+    char * dev_id = aos_get_device_id();
+    char * pro_model = (char *)aos_get_product_model();
+    char * app_ver = aos_get_app_version();
     snprintf(payload, 156, "{\"cid\":\"%s\",\"model\":\"%s\",\"version\":\"%s\"}",
-             aos_get_device_id(), aos_get_product_model(), aos_get_app_version());
+             dev_id ? dev_id : "null", pro_model ? pro_model : "null", app_ver ? app_ver : "null");
 #else
     //snprintf(payload, 100, "{\"cid\":\"%s\",\"model\":\"%s\",\"version\":\"%s\"}",
     //         "00A2C6FB32241D9423F5AF00", "hlb_test", "1.0.0-20181125.1321-R-hlb_tes");
@@ -483,6 +515,14 @@ static int cop_version_check(fota_info_t *info) {
         aos_free(info->fota_url);
         info->fota_url = NULL;
     }
+    if (info->changelog) {
+        aos_free(info->changelog);
+        info->changelog = NULL;
+    }
+    if (info->new_version) {
+        aos_free(info->new_version);
+        info->new_version = NULL;
+    }
     info->fota_url = strdup(http->url);
     LOGD(TAG, "get url: %s", info->fota_url);
     http_deinit(http);
@@ -490,12 +530,25 @@ static int cop_version_check(fota_info_t *info) {
 }
 #endif /* CONFIG_FOTA_USE_HTTPC */
 
+static int finish(fota_info_t *info)
+{
+    cop_res_release(info);
+    return 0;
+}
+
+static int fail(fota_info_t *info)
+{
+    cop_res_release(info);
+    return 0;
+}
+
 const fota_cls_t fota_cop_cls = {
     "cop",
     NULL,
     cop_version_check,
-    NULL,
-    NULL,
+    finish,
+    fail,
+    NULL
 };
 
 int fota_register_cop(void)

@@ -1,0 +1,12 @@
+{
+    "COM": "COM25",
+    "baudrate": "1500000",
+    "baudrate_adb": "1500000",
+    "log": "True",
+    "input_imgwriter": "True",
+    "imgwriter_path": "cct_bin/pangu/imgwriter-image.bin",
+    "imgwriter_mnt_path": "cct_bin/pangu/imgwriter-mntb.bin",
+    "log_path": "saved_log.txt",
+    "uart_record_buffer": 8192,
+    "reboot_cmd" : "reboot"
+}

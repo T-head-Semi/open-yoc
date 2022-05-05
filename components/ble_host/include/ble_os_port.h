@@ -16,8 +16,7 @@
                                "." _STRINGIFY(b)           \
                                "." _STRINGIFY(c))))
 
-//#define __in_section(a, b, c) ___in_section(a, b, c)
-#define __in_section(a, b, c)
+#define __in_section(a, b, c) ___in_section(a, b, c)
 
 #define __in_section_unique(seg) ___in_section(seg, _FILE_PATH_HASH, \
             __COUNTER__)
@@ -28,8 +27,31 @@
 #define ARG_UNUSED(x) (void)(x)
 #endif
 
+#define _DO_CONCAT(x, y) x ## y
+#define _CONCAT(x, y) _DO_CONCAT(x, y)
+
+/*
+ * Itterator for structure instances gathered by Z_STRUCT_SECTION_ITERABLE().
+ * The linker must provide a _<struct_type>_list_start symbol and a
+ * _<struct_type>_list_end symbol to mark the start and the end of the
+ * list of struct objects to iterate over.
+ */
+#define Z_STRUCT_SECTION_FOREACH(struct_type, iterator) \
+	extern struct struct_type _CONCAT(_##struct_type, _list_start)[]; \
+	extern struct struct_type _CONCAT(_##struct_type, _list_end)[]; \
+	for (struct struct_type *iterator = \
+			_CONCAT(_##struct_type, _list_start); \
+	     ({ __ASSERT(iterator <= _CONCAT(_##struct_type, _list_end), \
+			 "unexpected list end location"); \
+		iterator < _CONCAT(_##struct_type, _list_end); }); \
+	     iterator++)
+
 #ifndef __packed
 #define __packed              __attribute__((__packed__))
+#endif
+
+#ifndef __used
+#define __used               __attribute__((used))
 #endif
 
 #ifndef __printf_like
@@ -87,7 +109,6 @@
     
     struct k_poll_event {
         sys_dnode_t     _node;
-        struct _poller *poller;
         uint32_t           tag : 8;
     uint32_t           type :
         _POLL_NUM_TYPES;
@@ -168,7 +189,7 @@ enum k_poll_modes {
         return NULL;
     }
     
-#define k_oops()    while(1)
+#define k_oops()
     
     void *k_current_get(void);
     uint32_t k_get_tick(void);
@@ -243,7 +264,9 @@ enum k_poll_modes {
      * @return Timeout delay value.
      */
 #define K_HOURS(h)     K_MINUTES((h) * 60)
-    
+
+#define K_THREAD_DEFAULT_APP_PRI AOS_DEFAULT_APP_PRI
+
 #define popcount(x) __builtin_popcount(x)
     
 extern int ffs32_lsb(uint32_t i);
@@ -278,6 +301,7 @@ typedef ksem_t       _sem_t;
 typedef ktask_t      _task_t;
 typedef cpu_stack_t  _stack_element_t;
 typedef kmutex_t     _mutex_t;
+typedef ktimer_t     _timer_t;
 
 /* Log define*/
 enum {
@@ -306,7 +330,10 @@ enum {
 #endif
 
 struct k_queue {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
     _sem_t sem;
+#endif
     sys_slist_t queue_list;
     sys_dlist_t poll_events;
 };
@@ -449,6 +476,16 @@ struct k_mutex {
 };
 
 typedef void (*k_timer_handler_t)(void *timer, void *args);
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#include <work.h>
+typedef struct k_timer {
+    struct k_delayed_work          timer;
+    k_timer_handler_t handler;
+    void             *args;
+    uint32_t          timeout;
+    uint32_t          start_ms;
+} k_timer_t;
+#else
 typedef struct k_timer {
     ktimer_t          timer;
     k_timer_handler_t handler;
@@ -456,6 +493,7 @@ typedef struct k_timer {
     uint32_t          timeout;
     uint32_t          start_ms;
 } k_timer_t;
+#endif
 
 /**
  * @brief Initialize a timer.
@@ -510,7 +548,28 @@ uint32_t k_uptime_get_32(void);
  *
  * @return N/A
  */
+
 bool k_timer_is_started(k_timer_t *timer);
+
+/**
+ * @brief disbale kernel sched
+ *
+ * @param N/A
+ *
+ * @return N/A
+ */
+
+void k_sched_disable();
+
+/**
+ * @brief enbale kernel sched
+ *
+ * @param N/A
+ *
+ * @return N/A
+ */
+
+void k_sched_enable();
 
 void k_sleep(int32_t duration);
 

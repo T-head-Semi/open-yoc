@@ -25,6 +25,11 @@
 #define BT_DBG_ENABLED 0
 #include "common/log.h"
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#include <../bt_host/host/fsm.h>
+#include <host/hci_core.h>
+#endif
+
 #include "host/hci_core.h"
 #include "hci_api.h"
 
@@ -34,6 +39,143 @@
 
 static struct tc_hmac_prng_struct prng;
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+
+static u8_t reseed[32] = {0};
+static int hci_cmd_le_reseed_random(u8_t random_len, u8_t first);
+static int prng_reseed(struct tc_hmac_prng_struct *h);
+
+static int hci_cmd_le_random_reseed_cb(u16_t opcode, u8_t status, struct net_buf *rsp, void *args)
+{
+    struct bt_hci_rp_le_rand *rp;
+
+    uint32_t random_len = (uint32_t)args;
+
+    if (status)
+    {
+        reseed[31] = reseed[31] & (~(uint8_t)0x01);
+        return status;
+    }
+
+	rp = (void *)rsp->data;
+
+    if (random_len > 0)
+    {
+        memcpy(&reseed[sizeof(reseed) - random_len], rp->rand, 8);
+        random_len = random_len - 8;
+    }
+
+    if (random_len > 0)
+    {
+        hci_cmd_le_reseed_random(random_len, 0);
+    }
+    else if (random_len == 0)
+    {
+        BT_DBG("prng reseed %s", bt_hex(reseed, sizeof(reseed)));
+        reseed[31] = reseed[31] & (~(uint8_t)0x01);
+        prng_reseed(&prng);
+    }
+
+    net_buf_unref(rsp);
+
+    return 0;
+}
+
+static int hci_cmd_le_random_init_cb(u16_t opcode, u8_t status, struct net_buf *rsp, void *args)
+{
+    struct bt_hci_rp_le_rand *rp;
+    int ret;
+
+	rp = (void *)rsp->data;
+
+    ret = tc_hmac_prng_init(&prng, rp->rand, 8);
+
+    net_buf_unref(rsp);
+
+    if (ret == TC_CRYPTO_FAIL) {
+        BT_ERR("Failed to initialize PRNG");
+        return -EIO;
+    }
+
+    return hci_cmd_le_reseed_random(sizeof(reseed), 1);
+}
+
+static int hci_cmd_le_reseed_random(u8_t random_len, u8_t first)
+{
+    /* reseed is pending */
+    if ((reseed[31] & 0x01) != 0 && first)
+    {
+        return 0;
+    }
+
+    bt_hci_cmd_cb_t cb = {
+        .func = hci_cmd_le_random_reseed_cb,
+    };
+
+    cb.args_int = random_len;
+    reseed[31] = reseed[31] | 0x01;
+    return bt_hci_cmd_send_cb(BT_HCI_OP_LE_RAND, NULL, &cb);
+}
+
+static int prng_reseed(struct tc_hmac_prng_struct *h)
+{
+    s64_t extra;
+    int ret;
+
+    extra = k_uptime_get();
+
+    ret = tc_hmac_prng_reseed(h, reseed, sizeof(reseed), (u8_t *)&extra,
+                              sizeof(extra));
+
+    if (ret == TC_CRYPTO_FAIL) {
+        BT_ERR("Failed to re-seed PRNG");
+        return -EIO;
+    }
+
+    return 0;
+}
+
+__BT_CRYPTO_WEAK__ int prng_init(void)
+{
+    bt_hci_cmd_cb_t cb = {
+        .func = hci_cmd_le_random_init_cb,
+    };
+
+    cb.args_int = 8;
+
+    return bt_hci_cmd_send_cb(BT_HCI_OP_LE_RAND, NULL, &cb);
+}
+
+__BT_CRYPTO_WEAK__ int bt_crypto_rand(void *buf, size_t len)
+{
+    int ret;
+
+    if (prng.countdown < 0xFF)
+    {
+        hci_cmd_le_reseed_random(sizeof(reseed), 1);
+    }
+
+    ret = tc_hmac_prng_generate(buf, len, &prng);
+
+    if (ret == TC_HMAC_PRNG_RESEED_REQ) {
+        ret = prng_reseed(&prng);
+
+        if (ret) {
+            return ret;
+        }
+
+        ret = tc_hmac_prng_generate(buf, len, &prng);
+    }
+
+    if (ret == TC_CRYPTO_SUCCESS) {
+        return 0;
+    }
+
+    return -EIO;
+}
+
+#else
+
 static int prng_reseed(struct tc_hmac_prng_struct *h)
 {
     u8_t seed[32];
@@ -41,7 +183,7 @@ static int prng_reseed(struct tc_hmac_prng_struct *h)
     int ret, i;
 
 	for (i = 0; i < (sizeof(seed) / 8); i++) {
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 		struct bt_hci_rp_le_rand *rp;
 		struct net_buf *rsp;
 
@@ -77,7 +219,7 @@ __BT_CRYPTO_WEAK__ int prng_init(void)
     u8_t rand[8];
     int ret;
 
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 	struct bt_hci_rp_le_rand *rp;
 	struct net_buf *rsp;
 
@@ -124,6 +266,12 @@ __BT_CRYPTO_WEAK__ int bt_crypto_rand(void *buf, size_t len)
     }
 
     return -EIO;
+}
+#endif
+
+__BT_CRYPTO_WEAK__ int bt_crypto_rand_init()
+{
+    return prng_init();
 }
 
 __BT_CRYPTO_WEAK__ int bt_crypto_encrypt_le(const u8_t key[16], const u8_t plaintext[16],

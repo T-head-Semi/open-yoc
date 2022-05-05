@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: smart_audio                                 # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.3                                   # <必选项> 组件版本号
+version: v7.5.1                                   # <必选项> 组件版本号
 description: 提供了对播放器播放状态逻辑的控制       # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common
 
@@ -16,10 +16,6 @@ license: Apache license v2.0                        # <可选项> 源代码的�
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
-depends:
-  - aos: v7.4.3
-  - kv: v7.4.3
-  - av: v7.4.3
 
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
@@ -42,17 +38,25 @@ depends:
 build_config:
   include:
     - include
+    - include/bt
 
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
 source_file:
   - "src/smart_audio.c"
+  - "src/aud_ctrl_case/bt_hfp.c"
+  - "src/aud_ctrl_case/bt_a2dp.c"
+  - "src/aud_ctrl_case/online_music.c"
+  - "src/aud_ctrl_case/local_play.c"
 
 ## 第五部分：配置信息
 # def_config:                              # 组件的可配置项
 #   CONFIG_DEBUG: y
 #   CONFIG_PARAM_NOT_CHECK: y
 #   CONFIG_CLI: y
+def_config:
+    CONFIG_SMART_AUDIO_NO_BT: 0
+    CONFIG_SMART_AUDIO_STACK_SIZE: 1024
 
 ## 第六部分：安装信息
 # install:

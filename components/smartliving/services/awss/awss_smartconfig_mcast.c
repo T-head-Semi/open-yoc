@@ -309,7 +309,7 @@ int awss_ieee80211_mcast_smartconfig_process(uint8_t *ieee80211, int len, int li
                 if (len < 8) {      /* IV + ICV + DATA >= 8 */
                     return ALINK_INVALID;
                 }
-                if (!(ieee80211[3] & 0x3F)) {
+                if (!(data[3] & 0x3F)) {
                     encry = ZC_ENC_TYPE_WEP;
                 } else if (data[3] & (1 << 5)) {/* Extended IV */
                     if (data[1] == ((data[0] | 0x20) & 0x7F)) { /* tkip, WEPSeed  = (TSC1 | 0x20 ) & 0x7F */

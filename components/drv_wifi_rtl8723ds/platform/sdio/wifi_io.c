@@ -16,16 +16,23 @@
  ******************************************************************************/
 
 #include <aos/aos.h>
+#ifndef CONFIG_CHIP_D1
 #include <sdmmc_host.h>
 #include <sdmmc_spec.h>
+#else
+#include "sdio.h"
+#include "sdmmc.h"
+#include "card.h"
+#include "hal_sdhost.h"
+#include "sys/sys_debug.h"
+#endif
 #include "osdep_service.h"
 #include "wifi_io.h"
-#include "soc.h"
-#include "sdio.h"
 
 #include <device_lock.h>
 
 #define DEBUG_SDIO 0
+#define CONFIG_SDC_ID 1
 
 /* test wifi driver */
 #define ADDR_MASK 0x10000
@@ -33,55 +40,89 @@
 
 #define dbg_host printf
 
+#ifndef CONFIG_CHIP_D1
 static sdio_card_t SDIO_Card;
-struct sdio_func *wifi_sdio_func = NULL;
+#else
+static struct mmc_card * SDIO_Card;
+#endif
+
+struct rtl_sdio_func *wifi_sdio_func = NULL;
 extern struct osdep_service_ops osdep_service;
 static const char* TAG = "WIFI_IO";
 
-void SDMMCHOST_Disable_Interrupt(int idx);
-void SDMMCHOST_RegisterInterrupt(sdmmchost_interrupt_t interrupt_func);
-void SDMMCHOST_Enable_Interrupt(int idx);
+
 void rtl8723ds_set_invalid();
 
-#if 0
-static void sdio_inserted_callback(bool isInserted, void *userData)
-{
-    LOGD(TAG, "SDIO Card Inserted Callback!");
-}
-
-static void sdio_removed_callback(bool isInserted, void *userData)
-{
-    LOGD(TAG, "SDIO Card Removed Callback!");
-}
-#endif
-
-typedef void(*rtl8723ds_irq_handler)(struct sdio_func *);
-static struct sdio_func *func_data;
+typedef void(*rtl8723ds_irq_handler)(struct rtl_sdio_func *);
+static void *func_data;
 static rtl8723ds_irq_handler irq_handler;
 static _mutex claim_host_mutex;
 static int sdio_thread_running = 0;
 int sdio_thread_exit = 1;
 // _sema irq_sema;
 aos_event_t  g_wifi_irq_event;
-#ifndef CONFIG_CHIP_YUNVOICE_CPU0
+#if  !defined(CONFIG_CHIP_YUNVOICE_CPU0) && !defined(CONFIG_CHIP_D1)
 static int g_idx = 0;
 #endif
 //#undef CONFIG_CHIP_YUNVOICE_CPU0
 
-
-void rtl8723ds_irq_callback(int idx, void *user_data)
+#ifdef CONFIG_CHIP_D1
+static void SDIO_PowerON(struct mmc_card *card)
 {
-#ifndef CONFIG_CHIP_YUNVOICE_CPU0
-    //printf("#");
-    g_idx = idx;
-    SDMMCHOST_Disable_Interrupt(idx);
-    aos_event_set(&g_wifi_irq_event, 1, AOS_EVENT_OR);
-    // osdep_service.rtw_up_sema_from_isr(&irq_sema);
-#endif
+    SDC_InitTypeDef sdc_param = { 0 };
 
+#ifdef CONFIG_DETECT_CARD
+    sdc_param.cd_mode = CARD_ALWAYS_PRESENT;
+#endif
+    sdc_param.debug_mask = ROM_WRN_MASK|ROM_ERR_MASK;
+#ifdef CONFIG_SDC_DMA_USED
+    sdc_param.dma_use = 1;
+#else
+    sdc_param.dma_use = 0;
+#endif
+    card->host = hal_sdc_create(CONFIG_SDC_ID, &sdc_param);
+
+    hal_sdc_init(card->host);
 }
 
+static void SDIO_PowerOFF(struct mmc_card *card)
+{
+    hal_sdc_deinit(CONFIG_SDC_ID);
+    hal_sdc_destroy(card->host);
+}
 
+static int SDIO_Initialize_Cards(struct mmc_card *card)
+{
+    int ret;
+
+    ret = mmc_rescan(card, CONFIG_SDC_ID);
+    if (ret) {
+        return ret;
+    }
+
+    return 0;
+}
+
+static int SDIO_DeInitialize_Cards(struct mmc_card *card)
+{
+    int ret;
+
+    ret = mmc_card_deinit(card);
+    if (ret) {
+        return ret;
+    }
+
+    return 0;
+}
+#endif
+
+void rtl8723ds_irq_callback(void *prim)
+{
+#ifndef CONFIG_CHIP_D1
+    SDMMCHOST_Disable_Interrupt(g_idx);
+#endif
+    aos_event_set(&g_wifi_irq_event, 1, AOS_EVENT_OR);
+}
 
 void sdio_irq_thread(void *arg)
 {
@@ -101,7 +142,11 @@ void sdio_irq_thread(void *arg)
 #else
     LOGD(TAG, "sdio_irq_thread enter IRQ routine");
 
+#ifndef CONFIG_CHIP_D1
     SDMMCHOST_RegisterInterrupt(rtl8723ds_irq_callback);
+#else
+    sdio_claim_irq(SDIO_Card->sdio_func[0], (sdio_irq_handler_t *)rtl8723ds_irq_callback);
+#endif
     while (sdio_thread_running) {
         uint32_t act_flags;
         // if (osdep_service.rtw_down_timeout_sema(&irq_sema, -1) == _SUCCESS) {
@@ -113,7 +158,9 @@ void sdio_irq_thread(void *arg)
                 if (irq_handler) {
                     irq_handler(func_data);
                 }
+#ifndef CONFIG_CHIP_D1
                 SDMMCHOST_Enable_Interrupt(g_idx);
+#endif
                 osdep_service.rtw_mutex_put(&claim_host_mutex);
                 device_mutex_unlock(RT_DEV_LOCK_WLAN);
 
@@ -148,7 +195,7 @@ void print_buf(char *buf, int len)
 /**
     Register SDIO interrupt function
 */
-int sdio_claim_irq(struct sdio_func *func, void(*handler)(struct sdio_func *))
+int __sdio_claim_irq(struct rtl_sdio_func *func, void(*handler)(struct rtl_sdio_func *))
 {
     //LOGD(TAG, "%s", __FUNCTION__);
     irq_handler = handler;
@@ -156,7 +203,7 @@ int sdio_claim_irq(struct sdio_func *func, void(*handler)(struct sdio_func *))
 
     aos_task_t task_handle;
     sdio_thread_running = 1;
-    if (0 != aos_task_new_ext(&task_handle, "sdio_irq", sdio_irq_thread, NULL, 1024 * 4, AOS_DEFAULT_APP_PRI + 4)) {
+    if (0 != aos_task_new_ext(&task_handle, "sdio_irq", sdio_irq_thread, NULL, 1024 * 6, AOS_DEFAULT_APP_PRI + 5)) {
         LOGE("SDIO", "Create sdio_irq_thread task failed.");
     }
 
@@ -166,17 +213,18 @@ int sdio_claim_irq(struct sdio_func *func, void(*handler)(struct sdio_func *))
 /**
     Release SDIO interrupt function
 */
-int sdio_release_irq(struct sdio_func *func)
+int __sdio_release_irq(struct rtl_sdio_func *func)
 {
     LOGD(TAG, "%s", __FUNCTION__);
 
+#ifdef CONFIG_CHIP_D1
+    sdio_release_irq(SDIO_Card->sdio_func[0]);
+#else
     SDMMCHOST_RegisterInterrupt(NULL);
+#endif
     irq_handler = NULL;
     sdio_thread_running = 0;
-#ifndef CONFIG_CHIP_YUNVOICE_CPU0
-    // osdep_service.rtw_up_sema_from_isr(&irq_sema);
     aos_event_set(&g_wifi_irq_event, 1, AOS_EVENT_OR);
-#endif
 
     return 0;
 }
@@ -191,26 +239,34 @@ static const sdmmchost_detect_card_t sdio_CardDetect = {
 };
 #endif
 
-int sdio_card_reset()
+int __sdio_card_reset()
 {
-    SDIO_CardReset(&SDIO_Card);
+#ifdef CONFIG_CHIP_D1
+    SDIO_PowerOFF(SDIO_Card);
+    SDIO_PowerON(SDIO_Card);
+#else
+    SDIO_CardReset(SDIO_Card);
+#endif
     return 0;
 }
 
-int sdio_bus_probe()
+int __sdio_bus_probe(int idx)
 {
-
-#ifndef SDMMC_BASE_ADDR
-#ifdef CONFIG_CSI_V2  
-#define SDMMC_BASE_ADDR DW_SDIO0_BASE
-#else
-#define SDMMC_BASE_ADDR CSKY_SDIO0_BASE
-#endif
-#endif
     LOGD(TAG, "%s", __FUNCTION__);
+#ifndef CONFIG_CHIP_D1
     memset(&SDIO_Card, 0, sizeof(SDIO_Card));
     SDIO_Card.usrParam.cd = NULL;
-    SDIO_Card.host.base  = (sdif_handle_t)SDMMC_BASE_ADDR;
+#ifdef CONFIG_CSI_V2 
+    if(idx == 0)
+        SDIO_Card.host.base  = (sdif_handle_t)DW_SDIO0_BASE;
+    else if(idx == 1)
+        SDIO_Card.host.base  = (sdif_handle_t)DW_SDIO1_BASE;
+#else
+    if(idx == 0)
+        SDIO_Card.host.base  = (sdif_handle_t)CSKY_SDIO0_BASE;
+    else if(idx == 1)
+        SDIO_Card.host.base  = (sdif_handle_t)CSKY_SDIO1_BASE;
+#endif
 
     int ret = 0;
     if (kStatus_Success != (ret= SDIO_Init(&SDIO_Card))) {
@@ -222,43 +278,64 @@ int sdio_bus_probe()
         aos_msleep(100); /** wait card reset */
     }
 
-    // FIXME: only for FPGA
-    //set force to 1 bit
-// #ifdef CONFIG_CHIP_PANGU_CPU0
-//     if (kStatus_Success != SDIO_SetDataBusWidth(&SDIO_Card, kSDIO_DataBus1Bit)) {
-//         printf("!!!!!!!SDIO_SetDataBusWidth error\n");
-//         return kStatus_SDMMC_SetDataBusWidthFailed;
-//     }
-// #endif
-
-    //set force to 512
-    if (SDIO_SetBlockSize(&SDIO_Card, kSDIO_FunctionNum1, 512) != kStatus_Success) {
+    // set force to 512
+    if (sdio_set_block_size(SDIO_Card, FN1, 512) != 0) {
         LOGE(TAG, "SDIO_SetBlockSize 512 error");
         rtl8723ds_set_invalid();
         return  1;
     } else {
         LOGD(TAG, "SDIO_SetBlockSize 512 success");
     }
+#else
+    struct mmc_card *card;
+    SDCard_InitTypeDef card_param = { 0 };
+    card_param.type = MMC_TYPE_SDIO;
+    card_param.debug_mask = ROM_INF_MASK | ROM_WRN_MASK | ROM_ERR_MASK;
 
-    wifi_sdio_func = aos_zalloc(sizeof(struct sdio_func)); //TBD here
+    mmc_card_create(CONFIG_SDC_ID, &card_param);
+    card = mmc_card_open(CONFIG_SDC_ID);
+    SDIO_PowerON(card);
+
+    SDIO_Initialize_Cards(card);
+
+    sdio_enable_func(card, FN1);
+
+    aos_msleep(1);
+    mmc_card_close(CONFIG_SDC_ID);
+
+    SDIO_Card = card;
+
+    sdio_set_block_size(card, FN1, 512);
+#endif
+
+    wifi_sdio_func = aos_zalloc(sizeof(struct rtl_sdio_func)); //TBD here
     wifi_sdio_func->num = 1;
     aos_event_new(&g_wifi_irq_event, 0);
     // osdep_service.rtw_init_sema(&irq_sema, 0);
     osdep_service.rtw_mutex_init(&claim_host_mutex);
 
-    //extern int rtw_fake_driver_probe(struct sdio_func *func);
-    //rtw_fake_driver_probe(wifi_sdio_func);
-
     return 0;
 }
 
 
-int sdio_bus_remove()
+int __sdio_bus_remove()
 {
     LOGD(TAG, "%s", __FUNCTION__);
     aos_free(wifi_sdio_func);
 
+#ifdef CONFIG_CHIP_D1
+    if (!SDIO_Card)
+        return -1;
+    sdio_disable_func(SDIO_Card, FN1);
+
+    SDIO_DeInitialize_Cards(SDIO_Card);
+
+    SDIO_PowerOFF(SDIO_Card);
+
+    mmc_card_delete(CONFIG_SDC_ID);
+#else
     SDIO_Deinit(&SDIO_Card);
+#endif
 
     return 0;
 }
@@ -267,7 +344,7 @@ int sdio_bus_remove()
 /**
     Get the SDIO privilege before IO
 */
-void sdio_claim_host(struct sdio_func *func)
+void __sdio_claim_host(struct rtl_sdio_func *func)
 {
     osdep_service.rtw_mutex_get(&claim_host_mutex);
     return;
@@ -276,7 +353,7 @@ void sdio_claim_host(struct sdio_func *func)
 /**
     Release the SDIO privilege after IO
 */
-void sdio_release_host(struct sdio_func *func)
+void __sdio_release_host(struct rtl_sdio_func *func)
 {
     osdep_service.rtw_mutex_put(&claim_host_mutex);
     return;
@@ -284,10 +361,11 @@ void sdio_release_host(struct sdio_func *func)
 
 
 
-static int sdio_enable_func(struct sdio_func *func)
+static int __sdio_enable_func(struct rtl_sdio_func *func)
 {
-    LOGD(TAG, "Enable SDIO Func %d", func->num);
+    LOGD(TAG, "Enable SDIO Func");
 
+#ifndef CONFIG_CHIP_D1
     if (func->num == 1) {
         SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
     } else {
@@ -295,113 +373,25 @@ static int sdio_enable_func(struct sdio_func *func)
     }
 
     SDIO_EnableIO(&SDIO_Card, func->num, 1);
-
-    return 0;
-}
-
-
-int sdio_disable_func(struct sdio_func *func)
-{
-    LOGD(TAG, "Disable SDIO Func %d", func->num);
-
-    if (func->num == 1) {
-        SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
-    } else {
-        SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum0);
-    }
-
-    SDIO_EnableIO(&SDIO_Card, func->num, 0);
-    return 0;
-}
-
-static int32_t sdio_io_rw_extended_block(struct sdio_func *func,
-        int32_t               rw,
-        uint32_t              addr,
-        int32_t               op_code,
-        uint8_t              *buf,
-        uint32_t              len)
-{
-    uint32_t flags = SDIO_EXTEND_CMD_BLOCK_MODE_MASK;
-    uint32_t block_size;
-
-    if (func->num == 1) {
-        block_size = SDIO_Card.ioFBR[0].ioBlockSize;
-//        SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
-    } else {
-        block_size = SDIO_Card.io0block_size;
-//        SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum0);
-    }
-
-    if (op_code == 1) {
-        flags |= SDIO_EXTEND_CMD_OP_CODE_MASK;
-    }
-
-    status_t ret;
-
-    if (rw == 0) {
-        ret = SDIO_IO_Read_Extended(&SDIO_Card, func->num, addr, buf, len / block_size, flags);
-#if DEBUG_SDIO
-        printf("[Bytes addr=%x len=%d][R]\n", addr, len);
-        print_buf(buf, len);
+#else
+    sdio_enable_func(SDIO_Card, 1);
 #endif
-    } else {
-
-#if DEBUG_SDIO
-        printf("[Bytes addr=%x len=%d][W]\n", addr,  len);
-        print_buf(buf, len);
-#endif
-        ret = SDIO_IO_Write_Extended(&SDIO_Card, func->num, addr, buf, len / block_size, flags);
-    }
-
-    if (ret != kStatus_Success) {
-        LOGE(TAG, "sdio_io_rw_extended_block error rw=%d,ret=%d", rw, ret);
-        return 1;
-    }
 
     return 0;
 }
 
 
-
-static int32_t sdio_io_rw_extended_byte(struct sdio_func *func,
-                                        int32_t               rw,
-                                        uint32_t              addr,
-                                        int32_t               op_code,
-                                        uint8_t              *buf,
-                                        uint32_t              len)
+int __sdio_disable_func(struct rtl_sdio_func *func)
 {
-    uint32_t flags = 0;//SDIO_EXTEND_CMD_BLOCK_MODE_MASK;
-
-    // if (func->num == 1) {
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
-    // } else {
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum0);
-    // }
-
-    if (op_code == 1) {
-        flags |= SDIO_EXTEND_CMD_OP_CODE_MASK;
-    }
-
-    status_t ret;
-
-    if (rw == 0) {
-        ret = SDIO_IO_Read_Extended(&SDIO_Card, func->num, addr, buf, len, flags);
-    } else {
-        ret = SDIO_IO_Write_Extended(&SDIO_Card, func->num, addr, buf, len, flags);
-    }
-
-    if (ret != kStatus_Success) {
-        LOGE(TAG, "sdio_io_rw_extended_byte error rw=%d,ret=%d", rw, ret);
-        return 1;
-    }
-
+    LOGD(TAG, "Disable SDIO Func ");
+    sdio_disable_func(SDIO_Card, 1);
     return 0;
 }
-
 
 //size < 512, using byte mode, others using block mode
-int sdio_memcpy_fromio(struct sdio_func *func, void *dst, unsigned int addr, int count)
+int __sdio_memcpy_fromio(struct rtl_sdio_func *func, void *dst, unsigned int addr, int count)
 {
+#ifndef CONFIG_CHIP_D1
     if (count >= 512) {
         if (count % 512 != 0)
             LOGE(TAG, "warning sdio rx need byte mode transfer %d bytes", count % 512);
@@ -409,10 +399,14 @@ int sdio_memcpy_fromio(struct sdio_func *func, void *dst, unsigned int addr, int
     } else {
         return sdio_io_rw_extended_byte(func, 0, addr, 1, dst, count);
     }
+#else
+    return sdio_memcpy_fromio(SDIO_Card, 1, dst, addr, count);
+#endif
 }
 
-int sdio_memcpy_toio(struct sdio_func *func, unsigned int addr, void *src, int count)
+int __sdio_memcpy_toio(struct rtl_sdio_func *func, unsigned int addr, void *src, int count)
 {
+#ifndef CONFIG_CHIP_D1
     int ret = 0;
 
     if (count >= 512) {
@@ -424,19 +418,16 @@ int sdio_memcpy_toio(struct sdio_func *func, unsigned int addr, void *src, int c
     }
 
     return ret;
+#else
+    return sdio_memcpy_toio(SDIO_Card, 1, addr, src, count);
+#endif
 }
 
-uint8_t g_tmp_buf[32] __attribute__ ((aligned(32)));
-u8 sdio_readb(struct sdio_func *func, unsigned int addr, int *err_ret)
+static uint8_t g_tmp_buf[64] __attribute__ ((aligned(64)));
+u8 __sdio_readb(struct rtl_sdio_func *func, unsigned int addr, int *err_ret)
 {
+#ifndef CONFIG_CHIP_D1
     status_t ret;
-
-    // if (func->num == 1) {
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
-    // } else {
-
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum0);
-    // }
 
     ret = SDIO_IO_Read_Direct(&SDIO_Card, func->num, addr, g_tmp_buf);
 
@@ -453,15 +444,19 @@ u8 sdio_readb(struct sdio_func *func, unsigned int addr, int *err_ret)
     if (err_ret) {
         *err_ret = 0;
     }
+#else
+    g_tmp_buf[0] = sdio_readb(SDIO_Card, wifi_sdio_func->num, addr, err_ret);
+#endif
 
 #if DEBUG_SDIO
     printf("[U8][R][%x=%02x]\n", addr, *(u8 *)g_tmp_buf);
 #endif
 
-    return *(u8 *)g_tmp_buf;
+
+    return g_tmp_buf[0];
 }
 
-u16 sdio_readw(struct sdio_func *func, unsigned int addr, int *err_ret)
+u16 __sdio_readw(struct rtl_sdio_func *func, unsigned int addr, int *err_ret)
 {
     int ret;
 
@@ -469,7 +464,7 @@ u16 sdio_readw(struct sdio_func *func, unsigned int addr, int *err_ret)
         *err_ret = 0;
     }
 
-    ret = sdio_memcpy_fromio(func, g_tmp_buf, addr, 2);
+    ret = __sdio_memcpy_fromio(func, g_tmp_buf, addr, 2);
 
     if (ret) {
         if (err_ret) {
@@ -486,7 +481,7 @@ u16 sdio_readw(struct sdio_func *func, unsigned int addr, int *err_ret)
 }
 
 
-u32 sdio_readl(struct sdio_func *func, unsigned int addr, int *err_ret)
+u32 __sdio_readl(struct rtl_sdio_func *func, unsigned int addr, int *err_ret)
 {
     int ret;
 
@@ -494,7 +489,7 @@ u32 sdio_readl(struct sdio_func *func, unsigned int addr, int *err_ret)
         *err_ret = 0;
     }
 
-    ret = sdio_memcpy_fromio(func, g_tmp_buf, addr, 4);
+    ret = __sdio_memcpy_fromio(func, g_tmp_buf, addr, 4);
 
     if (ret) {
         if (err_ret) {
@@ -511,20 +506,15 @@ u32 sdio_readl(struct sdio_func *func, unsigned int addr, int *err_ret)
 }
 
 
-void sdio_writeb(struct sdio_func *func, u8 b, unsigned int addr, int *err_ret)
+void __sdio_writeb(struct rtl_sdio_func *func, u8 b, unsigned int addr, int *err_ret)
 {
+#ifndef CONFIG_CHIP_D1
     uint8_t data_tmp = b;
     status_t ret;
 
 #if DEBUG_SDIO
     printf("[U8][W][%x=%02x]\n", addr, *(u8 *)g_tmp_buf);
 #endif
-
-    // if (func->num == 1) {
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum1);
-    // } else {
-    //     SDIO_SelectIO(&SDIO_Card, kSDIO_FunctionNum0);
-    // }
 
     ret = SDIO_IO_Write_Direct(&SDIO_Card, func->num, addr, &data_tmp, 0);
 
@@ -538,11 +528,17 @@ void sdio_writeb(struct sdio_func *func, u8 b, unsigned int addr, int *err_ret)
         }
 
         LOGE(TAG, "sdio_io_writeb error reg 0x%x", addr);
-        return;
     }
+#else
+    int32_t err;
+    sdio_writeb(SDIO_Card, 1, b,  addr, &err);
+    if (err_ret) {
+        *err_ret = err;
+    }
+#endif
 }
 
-void sdio_writew(struct sdio_func *func, u16 b, unsigned int addr, int *err_ret)
+void __sdio_writew(struct rtl_sdio_func *func, u16 b, unsigned int addr, int *err_ret)
 {
     int ret;
 
@@ -557,7 +553,7 @@ void sdio_writew(struct sdio_func *func, u16 b, unsigned int addr, int *err_ret)
 
     *res = b;
 
-    ret = sdio_memcpy_toio(func, addr, res, 2);
+    ret = __sdio_memcpy_toio(func, addr, res, 2);
 
     if (ret) {
         if (err_ret) {
@@ -571,7 +567,7 @@ void sdio_writew(struct sdio_func *func, u16 b, unsigned int addr, int *err_ret)
 
 }
 
-void sdio_writel(struct sdio_func *func, u32 b, unsigned addr, int *err_ret)
+void __sdio_writel(struct rtl_sdio_func *func, u32 b, unsigned addr, int *err_ret)
 {
 
     int ret;
@@ -587,7 +583,7 @@ void sdio_writel(struct sdio_func *func, u32 b, unsigned addr, int *err_ret)
 
     *res = b;
 
-    ret = sdio_memcpy_toio(func, addr, res, 4);
+    ret = __sdio_memcpy_toio(func, addr, res, 4);
 
     if (ret) {
         if (err_ret) {
@@ -602,49 +598,49 @@ void sdio_writel(struct sdio_func *func, u32 b, unsigned addr, int *err_ret)
 
 /////////////////////////////// Porting code end //////////////////////////////////
 
-int wifi_read(struct sdio_func *func, u32 addr, u32 cnt, void *pdata)
+int wifi_read(struct rtl_sdio_func *func, u32 addr, u32 cnt, void *pdata)
 {
     int err;
 
-    sdio_claim_host(func);
-    err = sdio_memcpy_fromio(func, pdata, addr, cnt);
+    __sdio_claim_host(func);
+    err = __sdio_memcpy_fromio(func, pdata, addr, cnt);
 
     if (err) {
         LOGE(TAG, "%s: FAIL(%d)! ADDR=%#x Size=%d", __func__, err, addr, cnt);
     }
 
-    sdio_release_host(func);
+    __sdio_release_host(func);
 
 
     return err;
 }
 
-int wifi_write(struct sdio_func *func, u32 addr, u32 cnt, void *pdata)
+int wifi_write(struct rtl_sdio_func *func, u32 addr, u32 cnt, void *pdata)
 {
     int err;
     u32 size;
 
-    sdio_claim_host(func);
+    __sdio_claim_host(func);
     size = cnt;
-    err = sdio_memcpy_toio(func, addr, pdata, size);
+    err = __sdio_memcpy_toio(func, addr, pdata, size);
 
     if (err) {
         LOGE(TAG, "%s: FAIL(%d)! ADDR=%#x Size=%d(%d)", __func__, err, addr, cnt, size);
     }
 
-    sdio_release_host(func);
+    __sdio_release_host(func);
 
     return err;
 }
 
-u8 wifi_readb(struct sdio_func *func, u32 addr)
+u8 wifi_readb(struct rtl_sdio_func *func, u32 addr) //52
 {
     int err;
     u8 ret = 0;
 
-    sdio_claim_host(func);
-    ret = sdio_readb(func, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    ret = __sdio_readb(func, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 
     if (err) {
         LOGE(TAG, "%s: FAIL!(%d) addr=0x%05x", __func__, err, addr);
@@ -653,14 +649,14 @@ u8 wifi_readb(struct sdio_func *func, u32 addr)
     return ret;
 }
 
-u16 wifi_readw(struct sdio_func *func, u32 addr)
+u16 wifi_readw(struct rtl_sdio_func *func, u32 addr)
 {
     int err;
     u16 v;
 
-    sdio_claim_host(func);
-    v = sdio_readw(func, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    v = __sdio_readw(func, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 
     if (err) {
         LOGE(TAG, "%s: FAIL!(%d) addr=0x%05x", __func__, err, addr);
@@ -669,77 +665,77 @@ u16 wifi_readw(struct sdio_func *func, u32 addr)
     return  v;
 }
 
-u32 wifi_readl(struct sdio_func *func, u32 addr)
+u32 wifi_readl(struct rtl_sdio_func *func, u32 addr)
 {
     int err;
     u32 v;
 
-    sdio_claim_host(func);
-    v = sdio_readl(func, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    v = __sdio_readl(func, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 
     return  v;
 }
 
-void wifi_writeb(struct sdio_func *func, u32 addr, u8 val)
+void wifi_writeb(struct rtl_sdio_func *func, u32 addr, u8 val)
 {
     int err;
-    sdio_claim_host(func);
-    sdio_writeb(func, val, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    __sdio_writeb(func, val, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 }
 
-void wifi_writew(struct sdio_func *func, u32 addr, u16 v)
+void wifi_writew(struct rtl_sdio_func *func, u32 addr, u16 v)
 {
     int err;
-    sdio_claim_host(func);
-    sdio_writew(func, v, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    __sdio_writew(func, v, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 }
 
-void wifi_writel(struct sdio_func *func, u32 addr, u32 v)
+void wifi_writel(struct rtl_sdio_func *func, u32 addr, u32 v)
 {
     int err;
 
-    sdio_claim_host(func);
-    sdio_writel(func, v, ADDR_MASK | addr, &err);
-    sdio_release_host(func);
+    __sdio_claim_host(func);
+    __sdio_writel(func, v, ADDR_MASK | addr, &err);
+    __sdio_release_host(func);
 }
 
-u8 wifi_readb_local(struct sdio_func *func, u32 addr)
+u8 wifi_readb_local(struct rtl_sdio_func *func, u32 addr)
 {
     int err;
     u8 ret = 0;
-    ret = sdio_readb(func, LOCAL_ADDR_MASK | addr, &err);
+    ret = __sdio_readb(func, LOCAL_ADDR_MASK | addr, &err);
 
     return ret;
 }
 
-void wifi_writeb_local(struct sdio_func *func, u32 addr, u8 val)
+void wifi_writeb_local(struct rtl_sdio_func *func, u32 addr, u8 val)
 {
     int err;
-    sdio_writeb(func, val, LOCAL_ADDR_MASK | addr, &err);
+    __sdio_writeb(func, val, LOCAL_ADDR_MASK | addr, &err);
 }
 
 
 SDIO_BUS_OPS rtw_sdio_bus_ops = {
-    sdio_bus_probe,
-    sdio_bus_remove,
-    sdio_enable_func,
-    sdio_disable_func,
+    __sdio_bus_probe,
+    __sdio_bus_remove,
+    __sdio_enable_func,
+    __sdio_disable_func,
     NULL,
     NULL,
-    sdio_claim_irq,
-    sdio_release_irq,
-    sdio_claim_host,
-    sdio_release_host,
-    sdio_readb,
-    sdio_readw,
-    sdio_readl,
-    sdio_writeb,
-    sdio_writew,
-    sdio_writel,
-    sdio_memcpy_fromio,
-    sdio_memcpy_toio
+    __sdio_claim_irq,
+    __sdio_release_irq,
+    __sdio_claim_host,
+    __sdio_release_host,
+    __sdio_readb,
+    __sdio_readw,
+    __sdio_readl,
+    __sdio_writeb,
+    __sdio_writew,
+    __sdio_writel,
+    __sdio_memcpy_fromio,
+    __sdio_memcpy_toio
 };
 

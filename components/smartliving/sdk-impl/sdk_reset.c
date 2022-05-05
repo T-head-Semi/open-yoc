@@ -17,6 +17,7 @@ int iotx_sdk_reset_local(void)
     netmgr_clear_ap_config();
 #endif
 
+    HAL_Kv_Del("ALCS_LG");
     ret = iotx_guider_clear_dynamic_url();
 
 #if defined(SUPPORT_TLS) && defined(BUILD_AOS)

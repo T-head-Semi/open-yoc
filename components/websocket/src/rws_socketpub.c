@@ -184,16 +184,22 @@ rws_socket rws_socket_create(void)
 
 void rws_socket_delete(rws_socket s)
 {
-    rws_socket_close(s);
     if (s->work_thread) {
         s->task_quit = 1;
         pthread_join(s->work_thread->thread, NULL);
         rws_free_clean((void**)&s->work_thread);
     }
 
+    rws_socket_close(s);
+
 #ifdef WEBSOCKET_SSL_ENABLE
-    if(s->ssl)
+    if(s->ssl) {
+        // avoid mbedtls_net_free close socket again 
+        if (s->socket == RWS_INVALID_SOCKET) {
+            s->ssl->net_ctx.fd = -1;
+        }
         rws_ssl_close(s);
+    }
 #endif /* WEBSOCKET_SSL_ENABLE */
     rws_string_delete_clean(&s->sec_ws_accept);
 

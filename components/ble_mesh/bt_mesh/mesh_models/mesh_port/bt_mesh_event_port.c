@@ -4,6 +4,11 @@
 
 #include "mesh_model/mesh_model.h"
 #include "port/mesh_event_port.h"
+#ifdef CONFIG_BT_MESH_PROVISIONER
+#include "provisioner_main.h"
+#endif
+
+#define  TAG "MESH_EVENT_PORT"
 
 void mesh_model_event_cb(mesh_model_event_e event, void *p_arg)
 {
@@ -12,256 +17,263 @@ void mesh_model_event_cb(mesh_model_event_e event, void *p_arg)
     model_message message;
 
     switch (event) {
-        case BT_MESH_MODEL_EVT_APPKEY_ADD: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_APP_KEY_ADD;
-            model_event(mesh_model_evt, p_arg);
+    case BT_MESH_MODEL_EVT_APPKEY_ADD: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_APP_KEY_ADD;
+        model_event(mesh_model_evt, p_arg);
+    }
+    break;
+
+    case BT_MESH_MODEL_EVT_COMP_DATA_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_COMP_DATA_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_COMP_DATA_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_COMP_DATA_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_BEACON_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_BEACON_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_BEACON_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_BEACON_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_TTL_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_TTL_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_TTL_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_TTL_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_FRIEND_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_FRIEND_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_FRIEND_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_FRIEND_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_PROXY_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_PROXY_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_PROXY_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_PROXY_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_RELAY_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_RELAY_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_RELAY_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_RELAY_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_NETKEY_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_NET_KEY_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_NETKEY_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_NET_KEY_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_NET_KRP_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_NET_KRP_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_NET_KRP_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_NET_KRP_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_APPKEY_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_APPKEY_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_APPKEY_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_APPKEY_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_APPKEY_BIND_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_APPKEY_BIND_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_APPKEY_BIND_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_APPKEY_BIND_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_PUB_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_PUB_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_PUB_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_PUB_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_SUB_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_SUB_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_SUB_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_SUB_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_SUB_LIST: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_SUB_LIST;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_SUB_LIST: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_SUB_LIST;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_SUB_LIST_VND: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_SUB_LIST_VND;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_SUB_LIST_VND: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_SUB_LIST_VND;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_HB_SUB_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_HEARTBEAT_SUB_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_HB_SUB_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_HEARTBEAT_SUB_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_HB_PUB_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_HEARTBEAT_PUB_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
 
-        case BT_MESH_MODEL_EVT_HB_PUB_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_HEARTBEAT_PUB_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+        model_event(mesh_model_evt, &message);
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    case BT_MESH_MODEL_EVT_NODE_RESET_STATUS: {
 
-            model_event(mesh_model_evt, &message);
+        mesh_model_evt = BT_MESH_MODEL_CFG_RST_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
+#ifdef CONFIG_BT_MESH_PROVISIONER
+		if(!bt_mesh_provisioner_get_node_info(evt_data->source_addr)) {
+           return;
+		}
+#endif
+		model_event(mesh_model_evt, &message);
         }
-        break;
-        /*[Genie begin] add by wenbing.cwb at 2021-01-21*/
-        #ifdef CONFIG_BT_MESH_CTRL_RELAY
-        case BT_MESH_MODEL_EVT_CTRL_RELAY_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_CTRL_RELAY_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
+    }
+    break;
+    
+    /*[Genie begin] add by wenbing.cwb at 2021-01-21*/
+#ifdef CONFIG_BT_MESH_CTRL_RELAY
+    case BT_MESH_MODEL_EVT_CTRL_RELAY_STATUS: {
+        mesh_model_evt = BT_MESH_MODEL_CFG_CTRL_RELAY_STATUS;
+        bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
 
-            model_event(mesh_model_evt, &message);
+        if (evt_data) {
+            message.source_addr = evt_data->source_addr;
+            message.status_data = evt_data->user_data;
         }
-        break;
-        #endif
+
+        model_event(mesh_model_evt, &message);
+    }
+    break;
+#endif
         /*[Genie end] add by wenbing.cwb at 2021-01-21*/
 
-        case BT_MESH_MODEL_EVT_NODE_RESET_STATUS: {
-            mesh_model_evt = BT_MESH_MODEL_CFG_RST_STATUS;
-            bt_mesh_model_evt_t *evt_data = (bt_mesh_model_evt_t *)p_arg;
+    case BT_MESH_MODEL_EVT_RPL_IS_FULL: {
+        //rpl is full,do something
+    }
+    break;
 
-            if (evt_data) {
-                message.source_addr = evt_data->source_addr;
-                message.status_data = evt_data->user_data;
-            }
-
-            model_event(mesh_model_evt, &message);
-        }
-        break;
-
-        case BT_MESH_MODEL_EVT_RPL_IS_FULL: {
-            //rpl is full,do something
-        }
-        break;
-
-        default:
-            return;
+    default:
+        return;
     }
 
     return;

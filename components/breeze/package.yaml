@@ -1,6 +1,6 @@
 ## 第一部分： 基础信息
 name: breeze
-version: v7.4.3
+version: v1.6.6
 description: 生活物联平台蓝牙协议框架
 type: common
 tag: 通用组件
@@ -13,9 +13,7 @@ license: Apache license v2.0
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
-depends:
-  - aos: v7.4.3
-  - smartliving: v7.4.3
+
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
 #   include:                               # <可选项> 编译时，影响编译器的-I 参数 ,全局有效
@@ -41,7 +39,7 @@ build_config:
     - include
   internal_include:
     - hal/ble/include/mbedtls
-  cflag: ""
+  cflag: '-w'
   cxxflag: ""
   asmflag: ""
   define:

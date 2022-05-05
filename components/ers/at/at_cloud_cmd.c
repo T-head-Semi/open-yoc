@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1890,4 +1890,5 @@ int32_t at_onenet_lpm_hdl()
 
     return 0;
 }
+#endif
 #endif

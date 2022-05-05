@@ -2,8 +2,7 @@
 
 from yoctools import Make
 
-# defconfig = Make(elf='yoc.elf', objcopy='generated/data/prim', objdump='yoc.asm')
-defconfig = Make(elf='yoc.elf', objcopy='generated/data/prim')
+defconfig = Make(elf='yoc.elf', objcopy='yoc.bin', objdump='yoc.asm')
 
 Export('defconfig')
 

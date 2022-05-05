@@ -84,6 +84,7 @@ typedef struct countdown_list {
     int time_left;
     int duration;
     int is_running;
+    int event_ready;
     char timeStamp[20];
     int action;
 } countdown_list_t;
@@ -102,6 +103,7 @@ typedef struct local_timer {
     int is_valid;
     int timezone_offset;
     int repeat;
+    int event_ready[DAYS_OF_WEEK];
 } local_timer_t;
 #endif
 
@@ -114,7 +116,7 @@ typedef struct period_timer {
     int offset_end[DAYS_OF_WEEK];
     char end[8];
     int timezoneOffset;
-    int repeat;
+    uint8_t repeat;
     char repeat_raw[16];
     int enable;
     int run_time;

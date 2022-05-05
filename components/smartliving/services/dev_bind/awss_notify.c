@@ -206,7 +206,7 @@ int awss_notify_dev_info(int type, int count)
             break;
         }
         if (method == NULL || topic == NULL) {
-            awss_err("parametes invalid");
+            awss_err("params invalid");
             break;
         }
 

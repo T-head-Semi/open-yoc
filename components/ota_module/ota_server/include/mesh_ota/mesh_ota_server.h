@@ -1,0 +1,53 @@
+#ifndef _MESH_OTA_SERVER_H
+#define _MESH_OTA_SERVER_H
+#include "ota_server.h"
+
+
+#define VERSION_GET_RETRY_TIMEOUT (300) //ms
+#define VERSION_GET_MAX_RETRY_NUM (10)
+
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_TIMEOUT
+#define CONFIG_MESH_OTA_GET_VERSION_TIMEOUT (600) //ms
+#endif
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_BY_GROUP_ADDR_THREAD
+#define CONFIG_MESH_OTA_GET_VERSION_BY_GROUP_ADDR_THREAD  (5)
+#endif
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_DELAY_AFTER_DOWNLOAD
+#define CONFIG_MESH_OTA_GET_VERSION_DELAY_AFTER_DOWNLOAD (60000) //60s
+#endif
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_BY_UNICAST_ADDR_MAX_RETRY
+#define CONFIG_MESH_OTA_GET_VERSION_BY_UNICAST_ADDR_MAX_RETRY (20)
+#endif
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_BY_GROUP_ADDR_MAX_RETRY
+#define CONFIG_MESH_OTA_GET_VERSION_BY_GROUP_ADDR_MAX_RETRY (3)
+#endif
+
+#ifndef CONFIG_MESH_OTA_GET_VERSION_NO_BUFFER_RETRY_DELAY
+#define CONFIG_MESH_OTA_GET_VERSION_NO_BUFFER_RETRY_DELAY (300) //ms
+#endif
+
+
+#ifndef CONFIG_MESH_OTA_EXIT_TIMEOUT
+#define CONFIG_MESH_OTA_EXIT_TIMEOUT (180000) //ms
+#endif
+
+#ifndef CONFIG_MESH_OTA_BLOB_CLI_ELEM_ID
+#define CONFIG_MESH_OTA_BLOB_CLI_ELEM_ID (0)
+#endif
+
+#ifndef CONFIG_MESH_OTA_NODE_COMMON_SUB_ADDR
+#define CONFIG_MESH_OTA_NODE_COMMON_SUB_ADDR CONFIG_MESH_AUTOCONFIG_DST_SUB_ADDR
+#endif
+
+int mesh_ota_server_init(uint16_t index, uint8_t channel, upgrade_firmware   *firmware_info);
+int mesh_ota_server_send_start();
+int mesh_ota_server_ota_stop();
+int mesh_ota_server_channel_disconnect();
+int mesh_ota_server_reset();
+
+#endif

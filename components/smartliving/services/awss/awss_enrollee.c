@@ -293,7 +293,6 @@ static int awss_enrollee_decrypt_passwd(
     ie_idx++;                                   // eating token type  
     if (ie_len <= ie_idx) {
         awss_debug("enr_hdl_regi:no region ID");
-        printf("%s, %d\r\n", __FUNCTION__, __LINE__);
         iotx_guider_set_dynamic_region(IOTX_CLOUD_REGION_INVALID);
         return 0;
     }

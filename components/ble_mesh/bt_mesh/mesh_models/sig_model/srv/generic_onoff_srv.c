@@ -58,7 +58,7 @@ static void _generic_onoff_status(struct bt_mesh_model *model,
     LOGD(TAG, "Success!!!");
 }
 
-static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     u8_t onoff = 0;
     u8_t tid = 0;
@@ -94,8 +94,8 @@ static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, u16
         return MESH_SET_TRANSTION_ERROR;
     }
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -111,7 +111,7 @@ static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, u16
     }
 
     LOGD(TAG, "tar_onoff(0x%02x) trans(0x%02x) delay(0x%02x)",
-           elem->state.onoff[T_TAR], elem->state.trans, elem->state.delay);
+         elem->state.onoff[T_TAR], elem->state.trans, elem->state.delay);
 
     if (elem->state.trans || elem->state.delay) {
         if (elem->state.delay) {
@@ -120,8 +120,10 @@ static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, u16
             //model_event(GEN_EVT_SDK_TRANS_START, (void *)elem);
         }
     } else {
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
+		message.dst_addr    = ctx->recv_dst;
         message.status_data = NULL;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_ONOFF_SET, &message);
@@ -129,7 +131,7 @@ static E_MESH_ERROR_TYPE _generic_onoff_analyze(struct bt_mesh_model *model, u16
         elem->state.onoff[T_CUR] = elem->state.onoff[T_TAR];
 
         if (elem->state.onoff[T_CUR] != elem->state.onoff[T_TAR]) {
-            ble_mesh_generic_onoff_publication(model);
+            ble_mesh_generic_onoff_publication(model,elem->state.onoff[T_CUR]);
         }
     }
 
@@ -155,7 +157,7 @@ static int _generic_onoff_perpare_publication(struct bt_mesh_model *model)
 }
 
 
-int  ble_mesh_generic_onoff_publication(struct bt_mesh_model *model)
+int  ble_mesh_generic_onoff_publication(struct bt_mesh_model *model, uint8_t onoff)
 {
     struct net_buf_simple *msg;
     int err;
@@ -166,7 +168,11 @@ int  ble_mesh_generic_onoff_publication(struct bt_mesh_model *model)
 
     msg = model->pub->msg;
 
+
     LOGD(TAG, "addr(0x%04x)", model->pub->addr);
+
+    S_ELEM_STATE *elem = model->user_data;
+    memcpy(&elem->state.onoff[T_CUR],&onoff,1);
 
     /*
      * If a server has a publish address, it is required to
@@ -205,7 +211,7 @@ static void _generic_onoff_set(struct bt_mesh_model *model,
                                struct bt_mesh_msg_ctx *ctx,
                                struct net_buf_simple *buf)
 {
-    E_MESH_ERROR_TYPE ret = _generic_onoff_analyze(model, ctx->addr, buf);
+    E_MESH_ERROR_TYPE ret = _generic_onoff_analyze(model, ctx, buf);
 
     LOGD(TAG, "ret %d", ret);
 
@@ -220,7 +226,7 @@ static void _generic_onoff_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    _generic_onoff_analyze(model, ctx->addr, buf);
+    _generic_onoff_analyze(model, ctx, buf);
 }
 
 const struct bt_mesh_model_op g_generic_onoff_op[] = {

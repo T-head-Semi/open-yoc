@@ -26,8 +26,8 @@ extern long long aos_now_ms(void);
  * g_vnd_msg_list was used to save the unconfirmed vendor messages
  * g_vnd_msg_timer was used to control when the vendor messages saved in g_vnd_msg_list will be resent
  * */
-sys_dlist_t g_vnd_msg_list;
-struct k_timer g_vnd_msg_timer;
+static sys_dlist_t g_vnd_msg_list;
+static struct k_timer g_vnd_msg_timer;
 
 /**
  * vendor model publish context, alloc maximum message buffer size
@@ -99,6 +99,7 @@ static s16_t _vendor_model_msg_node_free(vnd_model_msg_n *p_node)
  *
  *  @return pointer to vnd_model_msg_n for success, NULL for failure
  */
+#if 0
 static vnd_model_msg_n *_vendor_model_msg_node_generate(vnd_model_msg *p_model_msg)
 {
     vnd_model_msg_n *p_node = NULL;
@@ -117,18 +118,18 @@ static vnd_model_msg_n *_vendor_model_msg_node_generate(vnd_model_msg *p_model_m
     }
 
     memcpy(&p_node->msg, p_model_msg, sizeof(vnd_model_msg));
-    LOGD(TAG, "p_node->msg:%p, data:%p, %p", &p_node->msg, &p_node->msg.data, &p_node->msg.data + 1);
-    p_node->msg.data = (p_node->msg.data + 1);
+    //LOGD(TAG, "p_node->msg:%p, data:%p, %p", &p_node->msg, &p_node->msg.data, &p_node->msg.data + 1);
+    p_node->msg.data = (uint8_t *)&p_node->msg.data + 1;
     memcpy(p_node->msg.data, p_model_msg->data, p_model_msg->len);
-    LOGD(TAG, "p_model_msg->data:%p, %s", p_model_msg->data, bt_hex_real(p_model_msg->data, p_model_msg->len));
-    LOGD(TAG, "p_node->msg.data:%p, %s", p_node->msg.data, bt_hex_real(p_node->msg.data, p_node->msg.len));
+    //LOGD(TAG, "p_model_msg->data:%p, %s", p_model_msg->data, bt_hex_real(p_model_msg->data, p_model_msg->len));
+    //LOGD(TAG, "p_node->msg.data:%p, %s", p_node->msg.data, bt_hex_real(p_node->msg.data, p_node->msg.len));
     p_node->timeout = aos_now_ms() + VENDOR_MODEL_MSG_RETRY_PERIOD;
 
     p_node->left_retry =  p_model_msg->retry;
 
     return p_node;
 }
-
+#endif
 /** @def _vendor_model_msg_list_append
  *
  *  @brief duplicate vnd_model_msg and append it to vendor model message list to be monitored
@@ -137,6 +138,7 @@ static vnd_model_msg_n *_vendor_model_msg_node_generate(vnd_model_msg *p_model_m
  *
  *  @return 0 for success; negative for failure
  */
+#if 0
 static s16_t _vendor_model_msg_list_append(vnd_model_msg *p_model_msg)
 {
     vnd_model_msg_n *p_msg_node = NULL;
@@ -147,7 +149,7 @@ static s16_t _vendor_model_msg_list_append(vnd_model_msg *p_model_msg)
         return -2;
     }
 
-    LOGD(TAG, "append msg:%p, opid:%x, retry:%d, head:%p, node:%p", p_model_msg, p_model_msg->opid, p_model_msg->retry, &g_vnd_msg_list, &p_msg_node->node);
+    //LOGD(TAG, "append msg:%p, opid:%x, retry:%d, head:%p, node:%p", p_model_msg, p_model_msg->opid, p_model_msg->retry, &g_vnd_msg_list, &p_msg_node->node);
 
     sys_dlist_append(&g_vnd_msg_list, &p_msg_node->node);
 
@@ -158,6 +160,7 @@ static s16_t _vendor_model_msg_list_append(vnd_model_msg *p_model_msg)
 
     return 0;
 }
+#endif
 
 /** @def _vendor_model_retry_timer_cb
  *
@@ -174,8 +177,9 @@ static void _vendor_model_retry_timer_cb(void *p_timer, void *args)
     u32_t nearest = VENDOR_MODEL_MSG_RETRY_PERIOD;
     vnd_model_msg_n *p_msg_node = NULL;
     vnd_model_msg *p_msg = NULL;
+	int ret = 0;
 
-    LOGD(TAG, "g_vnd_msg_timer timeout, p_head:%p", p_head);
+    //LOGD(TAG, "g_vnd_msg_timer timeout, p_head:%p", p_head);
 
     /**
      * 1. go through p_head
@@ -184,13 +188,16 @@ static void _vendor_model_retry_timer_cb(void *p_timer, void *args)
     SYS_DLIST_FOR_EACH_NODE(p_head, p_node) {
         p_msg_node = CONTAINER_OF(p_node, vnd_model_msg_n, node);
         p_msg = &p_msg_node->msg;
-        LOGD(TAG, "msg:%p, opid:%d, left:%d", p_msg, p_msg->opid, p_msg_node->left_retry);
+        //LOGD(TAG, "msg:%p, opid:%d, left:%d", p_msg, p_msg->opid, p_msg_node->left_retry);
 
         /* Ethan: TODO - need to consider the wrap round case */
         if (p_msg_node->timeout <= aos_now_ms()) {
-            LOGD(TAG, "timeout - msg:%p, opid:%x, left:%d", p_msg, p_msg->opid, p_msg_node->left_retry);
+            //LOGD(TAG, "timeout - msg:%p, opid:%x, left:%d", p_msg, p_msg->opid, p_msg_node->left_retry);
 
-            ble_mesh_vendor_cli_model_msg_send(p_msg);
+            ret = ble_mesh_vendor_cli_model_msg_send(p_msg);
+		    if(ret) {
+				LOGW(TAG, "Vendor msg send faild %d", ret);
+			}
 
             if (--p_msg_node->left_retry <= 0) {
                 sys_dlist_remove(p_node);
@@ -209,28 +216,25 @@ static void _vendor_model_retry_timer_cb(void *p_timer, void *args)
     /* start new timer */
     if (!sys_dlist_is_empty(p_head)) {
         k_timer_start(&g_vnd_msg_timer, nearest);
-        LOGD(TAG, "restart retry timer, timeout:%d", nearest);
+        //LOGD(TAG, "restart retry timer, timeout:%d", nearest);
     } else {
         k_timer_stop(&g_vnd_msg_timer);
-        LOGD(TAG, "list empty, stop timer");
+        //LOGD(TAG, "list empty, stop timer");
     }
 
     return;
 }
 
-/**
- * Ethan: need to add lock to prevent from multiple access
- * */
-
 /** @def vendor_model_msg_send
  *
- *  @brief send the vendor model message
+ *  @brief send the vendor model message with spec ttl
  *
  *  @param pointer to the message to be sent
  *
  *  @return 0 for success; negative for failure
  */
-int ble_mesh_vendor_cli_model_msg_send(vnd_model_msg *model_msg)
+
+int ble_mesh_vendor_cli_model_msg_send_with_ttl(vnd_model_msg *model_msg, uint8_t ttl)
 {
     struct bt_mesh_model_pub *p_pub = &g_vendor_cli_model_alibaba_pub;
     struct net_buf_simple *p_msg = p_pub->msg;
@@ -247,7 +251,7 @@ int ble_mesh_vendor_cli_model_msg_send(vnd_model_msg *model_msg)
         return err;
     }
 
-    LOGD(TAG, "p_model:%p,retry:%d\n", model_msg->model, model_msg->retry);
+    ////LOGD(TAG, "p_model:%p,retry:%d\n", model_msg->model, model_msg->retry);
 
     /**
      * no need to duplicate the following messages
@@ -287,27 +291,48 @@ int ble_mesh_vendor_cli_model_msg_send(vnd_model_msg *model_msg)
 
     model_msg->retry--;
 
-    LOGD(TAG, "p_model_msg->data:%p, %d, %s", model_msg, model_msg->len, bt_hex_real(model_msg->data, model_msg->len));
+    ////LOGD(TAG, "p_model_msg->data:%p, %d, %s", model_msg, model_msg->len, bt_hex_real(model_msg->data, model_msg->len));
 
     if (resend_flag) {
-        _vendor_model_msg_list_append(model_msg);
+       // _vendor_model_msg_list_append(model_msg);
     }
 
     ctx.app_idx = model_msg->appkey_idx;
     ctx.net_idx = model_msg->netkey_idx;
     ctx.addr = model_msg->dst_addr;
-    ctx.send_ttl = bt_mesh_default_ttl_get();
+    ctx.send_ttl = ttl;
     ctx.send_rel = 0;
+	ctx.trans    = model_msg->trans;
+	ctx.net_transmit = model_msg->net_transmit;
     err = bt_mesh_model_send(model_msg->model, &ctx, p_msg, NULL, NULL);
 
     if (err) {
         LOGE(TAG, "bt_mesh_model_publish err %d\n", err);
     } else {
-        LOGD(TAG, "Success!!!");
+        ////LOGD(TAG, "Success!!!");
     }
 
     return err;
 }
+
+
+/**
+ * Ethan: need to add lock to prevent from multiple access
+ * */
+
+/** @def vendor_model_msg_send
+ *
+ *  @brief send the vendor model message with default ttl
+ *
+ *  @param pointer to the message to be sent
+ *
+ *  @return 0 for success; negative for failure
+ */
+int ble_mesh_vendor_cli_model_msg_send(vnd_model_msg *model_msg)
+{
+	return ble_mesh_vendor_cli_model_msg_send_with_ttl(model_msg,bt_mesh_default_ttl_get());
+}
+
 
 /** @def _vendor_model_analyze
  *
@@ -345,23 +370,24 @@ static s16_t _vendor_model_analyze(struct bt_mesh_model *p_model,
     }
 
     msg.len = p_buf->len;
-    LOGD(TAG, "opcode:0x%x, tid:%d, len:%d", msg.opid, msg.tid, msg.len);
+    //LOGD(TAG, "opcode:0x%x, tid:%d, len:%d", msg.opid, msg.tid, msg.len);
 
     if (msg.len) {
         msg.data = (u8_t *)p_buf->data;
         net_buf_simple_pull(p_buf, msg.len);
-        LOGD(TAG, "payload:%s", bt_hex_real(msg.data, msg.len));
+        //LOGD(TAG, "payload:%s", bt_hex_real(msg.data, msg.len));
     } else {
         msg.data = NULL;
     }
 
-    model_message vendor_msg;
-    vendor_msg.source_addr = p_ctx->addr;
-    vendor_msg.ven_data.data_len = msg.len;
-    vendor_msg.ven_data.user_data = msg.data;
-
-    model_event(BT_MESH_MODEL_VENDOR_MESSAGES, (void *)&vendor_msg);
-
+	if(msg.opid == VENDOR_OP_ATTR_TRANS_MSG) {
+	   model_message vendor_msg = {0};
+	   vendor_msg.trans =  p_ctx->trans;
+	   vendor_msg.source_addr = p_ctx->addr;
+	   vendor_msg.ven_data.data_len = msg.len;
+	   vendor_msg.ven_data.user_data = msg.data;
+	   model_event(BT_MESH_MODEL_VENDOR_MESSAGES, (void *)&vendor_msg);
+	}
 
     return 0;
 }
@@ -429,11 +455,12 @@ static void _vendor_model_autoconfig_status(struct bt_mesh_model *model,
     uint8_t *data = (uint8_t *)buf->data;
 
     if (mesh_check_tid(ctx->addr, data[0]) != MESH_SUCCESS) {
-        LOGD(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, data[0]);
+        //LOGD(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, data[0]);
         return;
     }
 
-    model_message message;
+    model_message message = {0};
+	message.trans =  ctx->trans;
     message.source_addr = ctx->addr;
     message.ven_data.data_len = buf->len;
     message.ven_data.user_data = (u8_t *)buf->data;
@@ -458,12 +485,70 @@ static void _vendor_model_transparent(struct bt_mesh_model *model,
     _vendor_model_analyze(model, ctx, buf, VENDOR_OP_ATTR_TRANS_MSG);
 }
 
+/** @def _vendor_model_status
+*
+*  @brief handle VENDOR_OP_ATTR_STATUS message
+*
+*  @param pointer to the received message (vendor model, context and the message buffer)
+*
+*  @return N/A
+*/
+static void _vendor_model_status(struct bt_mesh_model *model,
+        struct bt_mesh_msg_ctx *ctx,
+        struct net_buf_simple *buf)
+{
+    uint8_t *data = (uint8_t *)buf->data;
+
+    if (mesh_check_tid(ctx->addr, data[0]) != MESH_SUCCESS) {
+        //LOGD(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, data[0]);
+        return;
+    }
+
+    model_message message = {0};
+	message.trans =  ctx->trans;
+    message.source_addr = ctx->addr;
+	message.status_data = buf;
+    message.ven_data.data_len = buf->len - 1; //remove tid
+    message.ven_data.user_data = (u8_t *)(buf->data + 1);
+    model_event(BT_MESH_MODEL_VENDOR_MESH_STATUS, &message);
+}
+
+/** @def _vendor_model_indicate
+*
+*  @brief handle VENDOR_OP_ATTR_INDICATE message
+*
+*  @param pointer to the received message (vendor model, context and the message buffer)
+*
+*  @return N/A
+*/
+static void _vendor_model_indicate(struct bt_mesh_model *model,
+        struct bt_mesh_msg_ctx *ctx,
+        struct net_buf_simple *buf)
+{
+    uint8_t *data = (uint8_t *)buf->data;
+
+    if (mesh_check_tid(ctx->addr, data[0]) != MESH_SUCCESS) {
+        //LOGD(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, data[0]);
+        return;
+    }
+
+    model_message message = {0};
+	message.trans = ctx->trans;
+    message.source_addr = ctx->addr;
+	message.status_data = buf;
+    message.ven_data.data_len = buf->len - 1; //remove tid
+    message.ven_data.user_data = (u8_t *)(buf->data + 1);
+    model_event(BT_MESH_MODEL_VENDOR_MESH_INDICATE, &message);
+}
+
 
 const struct bt_mesh_model_op g_vendor_cli_model_alibaba_op[VENDOR_CLI_MODEL_OPC_NUM] = {
     { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_GET_STATUS, CONFIG_MESH_VENDOR_COMPANY_ID), 2, _vendor_model_get },
     { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_SET_ACK, CONFIG_MESH_VENDOR_COMPANY_ID), 2, _vendor_model_set_ack },
     { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_SET_UNACK, CONFIG_MESH_VENDOR_COMPANY_ID), 2, _vendor_model_set_unack },
     { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_TRANS_MSG, CONFIG_MESH_VENDOR_COMPANY_ID), 1, _vendor_model_transparent },
+    { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_STATUS, CONFIG_MESH_VENDOR_COMPANY_ID), 1, _vendor_model_status },
+    { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_INDICATE, CONFIG_MESH_VENDOR_COMPANY_ID), 1, _vendor_model_indicate },
     { BT_MESH_MODEL_OP_3(VENDOR_OP_ATTR_MESH_AUTOCONFIG_STATUS, CONFIG_MESH_VENDOR_COMPANY_ID), 1, _vendor_model_autoconfig_status },
     BT_MESH_MODEL_OP_END,
 };

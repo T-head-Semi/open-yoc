@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #include <stdint.h>
 #include <stdio.h>
 
@@ -105,7 +105,7 @@ void at_cmd_cip_stop(char *cmd, int type, char *data)
                 } else {
                     at_conn_t *at_conn = conn_find_by_id(cid);
                     if (at_conn->type == TYPE_TCP_SERVER) {
-                        at_disconnect(at_conn, 0);
+                        at_disconnect(at_conn, 1);
                         AT_BACK_OK();
                         return;
                     }
@@ -285,4 +285,5 @@ void at_setup_cmd_cip_sendpsm(uint8_t id, uint16_t len, uint8_t *data)
     at_socket_send(id, conn, data, len);
     return;
 }
+#endif
 #endif

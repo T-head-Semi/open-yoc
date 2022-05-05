@@ -6,32 +6,22 @@
 #include "k_api.h"
 
 #if defined (AOS_COMP_DEBUG) && AOS_COMP_DEBUG
-#include "debug/dbg.h"
+#include <debug/dbg.h>
+#include <debug/debug_infoget.h>
+#include <debug/debug_overview.h>
 #endif
 
-#if 0
-#include "cli_console.h"
-
-extern cli_console cli_uart_console;
 #define KMM_CRITICAL_ENTER(head, cpsr)                 \
     do {                                               \
-        cli_console *console = get_current_console();  \
-        if(console && console == &cli_uart_console) {  \
-            MM_CRITICAL_ENTER(head, cpsr);             \
-        }                                              \
-    } while(0);
+        MM_CRITICAL_ENTER(head, cpsr);                 \
+        g_sched_lock[cpu_cur_get()]++;                 \
+    } while(0)
 
 #define KMM_CRITICAL_EXIT(head, cpsr)                  \
     do {                                               \
-        cli_console *console = get_current_console();  \
-        if(console && console == &cli_uart_console) {  \
-            MM_CRITICAL_EXIT(head, cpsr);              \
-        }                                              \
+        g_sched_lock[cpu_cur_get()]--;                 \
+        MM_CRITICAL_EXIT(head, cpsr);                  \
     } while(0);
-
-#endif
-#define KMM_CRITICAL_ENTER(head, cpsr) MM_CRITICAL_ENTER(head, cpsr)
-#define KMM_CRITICAL_EXIT(head, cpsr)  MM_CRITICAL_EXIT(head, cpsr)
 
 typedef int (*KMM_PRINT)(const char *fmt, ...);
 
@@ -333,7 +323,7 @@ uint32_t dumpsys_mm_info_func(uint32_t mm_status)
 
     print("\r\n");
     print("------------------------------- all memory blocks --------------------------------- \r\n");
-    print("g_kmm_head = %8x\r\n", (unsigned int)g_kmm_head);
+    print("g_kmm_head = %8x\r\n", (unsigned long)g_kmm_head);
     dump_kmm_map(g_kmm_head);
 
     print("\r\n");

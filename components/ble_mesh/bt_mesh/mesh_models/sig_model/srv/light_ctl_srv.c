@@ -113,7 +113,7 @@ static void _ctl_status(struct bt_mesh_model *model,
     LOGD(TAG, "Success!!!");
 }
 
-static u8_t _ctl_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *p_buf)
+static u8_t _ctl_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *p_buf)
 {
     u16_t lightness = 0;
     u16_t temp = 0;
@@ -152,8 +152,8 @@ static u8_t _ctl_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net
 
     //3 uv
     //4 tid
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -208,8 +208,9 @@ static u8_t _ctl_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net
         elem->state.lightness[T_CUR] = lightness;
         elem->state.temp[T_CUR] = elem->state.temp[T_TAR];
         elem->state.UV[T_CUR] = elem->state.UV[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = NULL;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHT_CTL_SET, &message);
@@ -232,7 +233,7 @@ static void _ctl_set(struct bt_mesh_model *model,
                      struct bt_mesh_msg_ctx *p_ctx,
                      struct net_buf_simple *p_buf)
 {
-    E_MESH_ERROR_TYPE ret = _ctl_analyze(model, p_ctx->addr, p_buf);
+    E_MESH_ERROR_TYPE ret = _ctl_analyze(model, p_ctx, p_buf);
 
     LOGD(TAG, "ret %d", ret);
 
@@ -246,7 +247,7 @@ static void _ctl_set_unack(struct bt_mesh_model *model,
                            struct net_buf_simple *p_buf)
 {
     LOGD(TAG, "");
-    _ctl_analyze(model, p_ctx->addr, p_buf);
+    _ctl_analyze(model, p_ctx, p_buf);
 }
 
 static void _ctl_temp_range_status(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *p_ctx)
@@ -322,7 +323,7 @@ const struct bt_mesh_model_op g_ctl_srv_op[CTL_OPC_NUM] = {
 
 
 //light ctl setup server
-static E_MESH_ERROR_TYPE _ctl_default_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *p_buf)
+static E_MESH_ERROR_TYPE _ctl_default_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *p_buf)
 {
     u16_t actual = 0;
     u16_t temp = 0;
@@ -360,8 +361,9 @@ static E_MESH_ERROR_TYPE _ctl_default_analyze(struct bt_mesh_model *model, u16_t
             //model_event(GEN_EVT_SDK_TRANS_START, elem);
         }
     } else {
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHT_CTL_DEF_SET, (void *)&message);
     }
@@ -375,7 +377,7 @@ static void _ctl_default_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_ctl_default_analyze(model, p_ctx->addr, p_buf) == MESH_SUCCESS) {
+    if (_ctl_default_analyze(model, p_ctx, p_buf) == MESH_SUCCESS) {
         _ctl_defatult_status(model, p_ctx);
     }
 }
@@ -386,10 +388,10 @@ static void _ctl_default_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    _ctl_default_analyze(model, p_ctx->addr, p_buf);
+    _ctl_default_analyze(model, p_ctx, p_buf);
 }
 
-static E_MESH_ERROR_TYPE _ctl_temp_range_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *p_buf)
+static E_MESH_ERROR_TYPE _ctl_temp_range_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *p_buf)
 {
     u16_t min = 0;
     u16_t max = 0;
@@ -423,8 +425,9 @@ static E_MESH_ERROR_TYPE _ctl_temp_range_analyze(struct bt_mesh_model *model, u1
             //model_event(GEN_EVT_SDK_TRANS_START, elem);
         }
     } else {
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHT_CTL_RANGE_SET, (void *)&message);
     }
@@ -438,7 +441,7 @@ static void _ctl_temp_range_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_ctl_temp_range_analyze(model, p_ctx->addr, p_buf) == MESH_SUCCESS) {
+    if (_ctl_temp_range_analyze(model, p_ctx, p_buf) == MESH_SUCCESS) {
         _ctl_temp_range_status(model, p_ctx);
     }
 }
@@ -449,7 +452,7 @@ static void _ctl_temp_range_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    _ctl_temp_range_analyze(model, p_ctx->addr, p_buf);
+    _ctl_temp_range_analyze(model, p_ctx, p_buf);
 }
 
 const struct bt_mesh_model_op g_ctl_setup_srv_op[CTL_SETUP_OPC_NUM] = {
@@ -500,7 +503,7 @@ static void _ctl_temp_status(struct bt_mesh_model *model,
     LOGD(TAG, "Success!!!");
 }
 
-static u8_t _ctl_temp_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *p_buf)
+static u8_t _ctl_temp_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *p_buf)
 {
     u16_t temp = 0;
     u16_t uv = 0;
@@ -534,8 +537,8 @@ static u8_t _ctl_temp_analyze(struct bt_mesh_model *model, u16_t src_addr, struc
 
     tid = net_buf_simple_pull_u8(p_buf);
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -575,8 +578,9 @@ static u8_t _ctl_temp_analyze(struct bt_mesh_model *model, u16_t src_addr, struc
     } else {
         elem->state.temp[T_CUR] = elem->state.temp[T_TAR] ;
         elem->state.UV[T_CUR] = elem->state.UV[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHT_CTL_TEMP_SET, (void *)&message);
     }
@@ -692,7 +696,7 @@ static void _ctl_temp_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_ctl_temp_analyze(model, p_ctx->addr, p_buf) == MESH_SUCCESS) {
+    if (_ctl_temp_analyze(model, p_ctx, p_buf) == MESH_SUCCESS) {
 #if 0
         pub_need = _ctl_temp_action(model);
         _ctl_temp_status(model, p_ctx, 1);
@@ -713,7 +717,7 @@ static void _ctl_temp_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_ctl_temp_analyze(model, p_ctx->addr, p_buf) == MESH_SUCCESS) {
+    if (_ctl_temp_analyze(model, p_ctx, p_buf) == MESH_SUCCESS) {
 #if 0
         pub_need = _ctl_temp_action(model);
 

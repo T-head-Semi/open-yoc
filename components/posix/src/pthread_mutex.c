@@ -62,6 +62,10 @@ int pthread_mutex_lock(pthread_mutex_t *mutex)
         return EINVAL;
     }
 
+    if (mutex->mutex.hdl == NULL) {
+        mutex->flag = PTHREAD_STATIC_INIT;
+    }
+
     /* The mutex is initted by PTHREAD_MUTEX_INITIALIZER */
     if (mutex->flag == PTHREAD_STATIC_INIT) {
         ret = pthread_mutex_init(mutex, NULL);

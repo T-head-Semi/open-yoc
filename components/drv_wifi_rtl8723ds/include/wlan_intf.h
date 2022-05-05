@@ -73,6 +73,8 @@ int rtw_ps_enable(int enable);
 int rltk_wlan_is_connected_to_ap(void);
 int rtw_suspend(rtw_mode_t mode);
 int rtw_resume(rtw_mode_t mode);
+int rltk_set_a2dp_case_wifi_slot_proportion(unsigned char proportion);
+int rltk_get_a2dp_case_wifi_slot_proportion(unsigned char *proportion);
 #ifdef CONFIG_IEEE80211W
 void rltk_wlan_tx_sa_query(unsigned char key_type);
 void rltk_wlan_tx_deauth(unsigned char b_broadcast, unsigned char key_type);

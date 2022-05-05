@@ -1,0 +1,25 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+package thead.voice.proto;
+
+enum SessionCmd {
+    BEGIN = 0;
+    END   = 1;
+    TIMEOUT = 2;
+}
+
+message SessionMsg {
+  SessionCmd cmd_id   = 1;
+  int32      kws_id   = 2;
+  string     kws_word = 3;
+  int32      kws_score = 4;
+}
+
+enum RecordCmd {
+    START = 0;
+    STOP  = 1;
+}
+
+message RecordMsg {
+  RecordCmd cmd = 1;
+}

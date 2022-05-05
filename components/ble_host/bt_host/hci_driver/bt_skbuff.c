@@ -666,6 +666,22 @@ sk_buff *hci_skb_alloc_and_init(IN uint8_t PktType, IN uint8_t *Data, IN uint32_
     return skb;
 }
 
+
+sk_buff *hci_skb_alloc_and_init_with_header(IN uint8_t PktType, IN uint8_t* header,IN uint8_t header_len, IN uint8_t *Data, IN uint32_t  DataLen)
+{
+    sk_buff *skb = hci_skb_alloc(header_len + DataLen);
+    if (NULL == skb) {
+        return NULL;
+    }
+
+    uint8_t *buffer = hci_skb_put(skb,header_len + DataLen);
+    memcpy(buffer,header,header_len);
+    memcpy(buffer + header_len, Data, DataLen);
+    hci_skb_set_pkt_type(skb, PktType);
+
+    return skb;
+}
+
 void hci_skb_queue_head(IN RTB_QUEUE_HEAD *skb_head, IN RTK_BUFFER *skb)
 {
     RtbQueueHead(skb_head, skb);

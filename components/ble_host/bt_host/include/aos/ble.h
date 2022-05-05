@@ -111,6 +111,10 @@ typedef enum {
     EVENT_GAP_CONN_PARAM_UPDATE,
     EVENT_GAP_CONN_SECURITY_CHANGE,
     EVENT_GAP_ADV_TIMEOUT,
+    EVENT_GAP_ADV_START,
+    EVENT_GAP_ADV_STOP,
+    EVENT_GAP_SCAN_START,
+    EVENT_GAP_SCAN_STOP,
 
     EVENT_GATT_NOTIFY,
     EVENT_GATT_INDICATE = EVENT_GATT_NOTIFY,
@@ -153,6 +157,10 @@ typedef struct _dev_addr_t {
     uint8_t val[6];
 } dev_addr_t;
 
+typedef struct _evt_data_stack_init_t {
+    int16_t err;
+} evt_data_stack_init_t;
+
 typedef struct _evt_data_gap_conn_change_t {
     int16_t conn_handle;
     int16_t err;
@@ -178,13 +186,41 @@ typedef struct _evt_data_gap_security_change_t {
     uint8_t err;
 } evt_data_gap_security_change_t;
 
+#if defined(CONFIG_BT_EXT_ADV)
+#define ADV_DATA_MAX_SIZE (255)
+#else
+#define ADV_DATA_MAX_SIZE (31)
+#endif
 typedef struct _evt_data_gap_dev_find_t {
     dev_addr_t dev_addr;
     adv_type_en adv_type;
     uint8_t adv_len;
     int8_t rssi;
-    uint8_t adv_data[31];
+#if defined(CONFIG_BT_EXT_ADV)
+    uint8_t sid;
+	int8_t tx_power;
+	uint16_t adv_props;
+	uint16_t interval;
+	uint8_t primary_phy;
+	uint8_t secondary_phy;
+#endif
+    uint8_t adv_data[ADV_DATA_MAX_SIZE];
 } evt_data_gap_dev_find_t;
+
+typedef struct _evt_data_gap_adv_start_t {
+    int16_t err;
+} evt_data_gap_adv_start_t;
+typedef struct _evt_data_gap_adv_stop_t {
+    int16_t err;
+} evt_data_gap_adv_stop_t;
+
+typedef struct _evt_data_gap_scan_start_t {
+    int16_t err;
+} evt_data_gap_scan_start_t;
+
+typedef struct _evt_data_gap_scan_stop_t {
+    int16_t err;
+} evt_data_gap_scan_stop_t;
 
 typedef struct _evt_data_gatt_notify_t {
     int16_t conn_handle;
@@ -213,7 +249,6 @@ typedef struct _evt_data_gatt_read_cb_t {
     uint16_t len;
     const uint8_t *data;
 } evt_data_gatt_read_cb_t;
-
 
 typedef struct _evt_data_gatt_char_read_t {
     int16_t conn_handle;
@@ -425,6 +460,15 @@ typedef enum {
     ADV_CHAN_39 = 0x04,
 } adv_chan_en;
 #define ADV_DEFAULT_CHAN_MAP (ADV_CHAN_37 | ADV_CHAN_38 | ADV_CHAN_39)
+
+#if defined(CONFIG_BT_EXT_ADV)
+typedef enum {
+    ADV_PHY_1M = 0x01,
+    ADV_PHY_2M = 0x02,
+    ADV_PHY_CODED = 0x04,
+}adv_phy_en;
+#endif
+
 typedef struct _adv_param_t {
     adv_type_en type;
     ad_data_t *ad;
@@ -436,6 +480,9 @@ typedef struct _adv_param_t {
     adv_filter_policy_en filter_policy;
     adv_chan_en channel_map;
     dev_addr_t direct_peer_addr;
+#if defined(CONFIG_BT_EXT_ADV)
+    uint8_t phy_select;
+#endif
 } adv_param_t;
 
 typedef enum {
@@ -463,6 +510,17 @@ typedef enum {
     SCAN_FILTER_POLICY_ANY_ADV        = 0,  /* any adv packages  */
     SCAN_FILTER_POLICY_WHITE_LIST     = 1,  /* white list adv packages */
 } scan_filter_policy_en;
+
+#if defined(CONFIG_BT_EXT_ADV)
+typedef enum {
+    SCAN_PHY_1M = 0x01,
+    SCAN_PHY_2M = 0x02,
+    SCAN_PHY_CODED = 0x04,
+} scan_phy_en;
+
+#define BLE_DEFAULT_SCAN_SELECT (SCAN_PHY_1M | SCAN_PHY_2M)
+#endif
+
 typedef struct _scan_param_t {
     scan_type_en  type;
 
@@ -471,7 +529,13 @@ typedef struct _scan_param_t {
     uint16_t interval;
 
     uint16_t window;
+
     scan_filter_policy_en scan_filter;
+
+#if defined(CONFIG_BT_EXT_ADV)
+	uint32_t phy_select;
+#endif
+
 } scan_param_t;
 
 typedef enum {
@@ -551,6 +615,7 @@ int ble_stack_white_list_add(dev_addr_t *peer_addr);
 int ble_stack_white_list_remove(dev_addr_t *peer_addr);
 int ble_stack_white_list_size();
 int ble_stack_check_conn_params(const conn_param_t *param);
+int ble_stack_paired_dev_foreach(void (*func)(dev_addr_t *addr, void *data), void *data);
 
 
 #ifdef __cplusplus

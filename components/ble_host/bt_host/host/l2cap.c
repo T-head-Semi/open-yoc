@@ -21,6 +21,7 @@
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_L2CAP)
 #define LOG_MODULE_NAME bt_l2cap
 #include "common/log.h"
+#include <common/common.h>
 
 #include "hci_core.h"
 #include "conn_internal.h"
@@ -55,7 +56,9 @@
 #define L2CAP_DISC_TIMEOUT	K_SECONDS(2)
 #define L2CAP_RTX_TIMEOUT	K_SECONDS(2)
 
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
 static sys_slist_t le_channels;
+#endif
 
 /* Dedicated pool for disconnect buffers so they are guaranteed to be send
  * even in case of data congestion due to flooding.
@@ -107,12 +110,14 @@ static u8_t get_ident(void)
 	return ident;
 }
 
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
 void bt_l2cap_le_fixed_chan_register(struct bt_l2cap_fixed_chan *chan)
 {
 	BT_DBG("CID 0x%04x", chan->cid);
 
 	sys_slist_append(&le_channels, &chan->node);
 }
+#endif
 
 #if defined(CONFIG_BT_L2CAP_DYNAMIC_CHANNEL)
 static struct bt_l2cap_le_chan *l2cap_chan_alloc_cid(struct bt_conn *conn,
@@ -358,7 +363,6 @@ static bool l2cap_chan_add(struct bt_conn *conn, struct bt_l2cap_chan *chan,
 
 void bt_l2cap_connected(struct bt_conn *conn)
 {
-	struct bt_l2cap_fixed_chan *fchan;
 	struct bt_l2cap_chan *chan;
 
 	if (IS_ENABLED(CONFIG_BT_BREDR) &&
@@ -367,7 +371,12 @@ void bt_l2cap_connected(struct bt_conn *conn)
 		return;
 	}
 
+#if (defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
+	Z_STRUCT_SECTION_FOREACH(bt_l2cap_fixed_chan, fchan) {
+#else
+	struct bt_l2cap_fixed_chan *fchan;
 	SYS_SLIST_FOR_EACH_CONTAINER(&le_channels, fchan, node) {
+#endif
 		struct bt_l2cap_le_chan *ch;
 
 		if (fchan->accept(conn, &chan) < 0) {
@@ -1624,7 +1633,7 @@ segment:
 static void l2cap_chan_tx_resume(struct bt_l2cap_le_chan *ch)
 {
 	if (!atomic_get(&ch->tx.credits) ||
-	    (k_fifo_is_empty(&ch->tx_queue) && !ch->tx_buf)) {
+	    (!k_fifo_num_get(&ch->tx_queue) && !ch->tx_buf)) {
 		return;
 	}
 
@@ -2340,8 +2349,9 @@ BT_L2CAP_CHANNEL_DEFINE(le_fixed_chan, BT_L2CAP_CID_LE_SIG, l2cap_accept, NULL);
 void bt_l2cap_init(void)
 {
     NET_BUF_POOL_INIT(disc_pool);
-
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
 	bt_l2cap_le_fixed_chan_register(&le_fixed_chan);
+#endif
 	if (IS_ENABLED(CONFIG_BT_BREDR)) {
 		bt_l2cap_br_init();
 	}
@@ -2521,7 +2531,7 @@ int bt_l2cap_chan_send(struct bt_l2cap_chan *chan, struct net_buf *buf)
 	/* Queue if there are pending segments left from previous packet or
 	 * there are no credits available.
 	 */
-	if (ch->tx_buf || !k_fifo_is_empty(&ch->tx_queue) ||
+	if (ch->tx_buf || k_fifo_num_get(&ch->tx_queue) ||
 	    !atomic_get(&ch->tx.credits)) {
 		data_sent(buf)->len = 0;
 		net_buf_put(&ch->tx_queue, buf);

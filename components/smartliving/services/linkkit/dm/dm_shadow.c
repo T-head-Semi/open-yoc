@@ -55,6 +55,9 @@ int dm_shadow_connect(void)
     dm_shadow_ctx_t *ctx = _dm_shadow_get_ctx();
     void *handle = NULL;
 
+    if (ctx != NULL && ctx->handle != NULL)
+        return SUCCESS_RETURN;
+
     /* Init Shadow Handle */
     handle = IOT_Shadow_Construct(&g_shadow_para);
     if (handle == NULL) {

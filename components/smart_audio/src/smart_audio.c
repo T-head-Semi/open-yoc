@@ -3,39 +3,52 @@
  */
 
 #include <smart_audio.h>
-#include <avutil/misc.h>
+#include "drv_amp.h"
 #include <csi_core.h>
 
 #define TAG "smart_audio"
 
-typedef int8_t state_func_t();
-static int8_t  do_state_play();
-static int8_t  do_state_pause();
-static int8_t  do_state_zero_volume();
-static int8_t  do_state_mute();
-static int8_t  do_state_stop();
+#define SMTAUDIO_MESSAGE_NUM 5
 
-static state_func_t *const func_table[SMTAUDIO_STATE_NUM] = {
-    do_state_play, do_state_pause, do_state_zero_volume, do_state_mute, do_state_stop};
-static aui_player_config_t media_config;
+uint32_t       smtaudio_crtl_id;
+static dlist_t smtaudio_ctrl_list_head;
+static dlist_t smtaudio_delay_list_head;
+static dlist_t smtaudio_resume_list_head;
+audio_evt_t audio_event_callback;
 
 typedef struct smtaudio_type {
-    utask_t *        task_media;
-    smtaudio_state_t cur_state;
-    smtaudio_state_t last_state;
-    uint8_t          min_vol;
-    uint8_t          lpm_flag; // 0: not in lpm state, 1: in lpm state
-    media_evt_t      local_cb;
-    aos_event_t      event_media_state;
-    uint8_t          tts_resume;
-    int8_t           cur_vol;
+    smtaudio_sub_state_t cur_state;
+    smtaudio_sub_state_t last_state;
+    uint8_t              lpm_flag; // 0: not in lpm state, 1: in lpm state
+    aos_mutex_t          smtaudio_mutex;
+    aos_queue_t          smtaudio_queue;
+    uint8_t *            smtaudio_q_buffer;
+    uint8_t              resume_flag;
+    uint8_t              run_flag;
 } smtaudio_type_t;
 
-static smtaudio_type_t  smtaudio_ctx;
-static smtaudio_state_t ori_state = SMTAUDIO_STATE_STOP;
-#define EVENT_SYSTEM_FINISHED (1 << 0)
-#define EVENT_MUSIC_STOPPED   (1 << 1) /* 停止队列中等待的MUSIC */
-#define VOL_KEY               "volume"
+static smtaudio_type_t smtaudio_ctx;
+
+#define SMTAUDIO_LOCK()                                                 \
+    do {                                                                \
+        aos_mutex_lock(&smtaudio_ctx.smtaudio_mutex, AOS_WAIT_FOREVER); \
+    } while (0)
+#define SMTAUDIO_UNLOCK()                               \
+    do {                                                \
+        aos_mutex_unlock(&smtaudio_ctx.smtaudio_mutex); \
+    } while (0)
+
+static aos_mutex_t smtaudio_list_mutex;
+#define SMTAUDIO_LIST_LOCK()                                     \
+    do {                                                     \
+        if (smtaudio_list_mutex.hdl == NULL)              \
+            aos_mutex_new(&smtaudio_list_mutex);                    \
+        aos_mutex_lock(&smtaudio_list_mutex, AOS_WAIT_FOREVER);     \
+    } while (0)
+#define SMTAUDIO_LIST_UNLOCK()                                    \
+    do {                                                      \
+        aos_mutex_unlock(&smtaudio_list_mutex);                      \
+    } while (0)
 
 #define LPM_RETURN()             \
     if (smtaudio_ctx.lpm_flag) { \
@@ -46,133 +59,158 @@ static smtaudio_state_t ori_state = SMTAUDIO_STATE_STOP;
         return ret;              \
     }
 
+static void smtaudio_delay_list_insert(smtaudio_delay_list_node_t *smt_node);
+static void smtaudio_delay_list_rm(smtaudio_delay_list_node_t *smt_node);
+static void smtaudio_delay_list_clear(void);
+static void smtaudio_resume_list_insert(smtaudio_resume_list_node_t *smt_node);
+static void smtaudio_resume_list_rm(smtaudio_resume_list_node_t *smt_node);
+static void smtaudio_resume_list_clear(void);
 /***** internal APIs *****/
-static void _aui_evt_cb_(int type, aui_player_evtid_t evt_id)
+static void smtaudio_delay_list_rm(smtaudio_delay_list_node_t *smt_node)
 {
-    switch (evt_id) {
-    case AUI_PLAYER_EVENT_START:
-        break;
-    case AUI_PLAYER_EVENT_ERROR:
-    case AUI_PLAYER_EVENT_FINISH:
-        if (MEDIA_SYSTEM == type) {
-            aos_event_set(&smtaudio_ctx.event_media_state, EVENT_SYSTEM_FINISHED, AOS_EVENT_OR);
-            event_publish(EVENT_SYSTEM_FINISHED, NULL);
-        } else if (MEDIA_MUSIC == type) {
-            smtaudio_ctx.cur_state = SMTAUDIO_STATE_STOP;
+    LOGD(TAG, "delete type:%d from delay list", smt_node->id);
+    SMTAUDIO_LIST_LOCK();
+    dlist_del(&smt_node->node);
+    SMTAUDIO_LIST_UNLOCK();
+    aos_free(smt_node->url);
+    free(smt_node);
+}
+
+static void smtaudio_delay_list_clear(void)
+{
+    while (!dlist_empty(&smtaudio_delay_list_head)) {
+        smtaudio_delay_list_node_t *first_node;
+        first_node =
+            dlist_entry(smtaudio_delay_list_head.next, smtaudio_delay_list_node_t, node);
+        smtaudio_delay_list_rm(first_node);
+    }
+}
+
+/* resume/delay list插入时 清空对方 list */
+static void smtaudio_delay_list_insert(smtaudio_delay_list_node_t *smt_node)
+{
+    smtaudio_delay_list_node_t *tmp_node = NULL;
+
+    smtaudio_resume_list_clear();
+
+    dlist_for_each_entry(&smtaudio_delay_list_head, tmp_node, smtaudio_delay_list_node_t, node) {
+        if ((tmp_node->delay_reason == smt_node->delay_reason) || (tmp_node->id == smt_node->id)) {
+            smtaudio_delay_list_rm(tmp_node);
+            break;
         }
-        break;
-    default:
-        break;
     }
-
-    if (NULL != smtaudio_ctx.local_cb) {
-        smtaudio_ctx.local_cb(type, evt_id);
-    }
-}
-
-static void _smtaudio_evt_cb(uint32_t event_id, const void *param, void *context)
-{
-    switch (event_id) {
-    case EVENT_SYSTEM_FINISHED:
-        if ((AUI_PLAYER_PAUSED == aui_player_get_state(MEDIA_MUSIC)) && smtaudio_ctx.tts_resume &&
-            (SMTAUDIO_STATE_PLAYING == smtaudio_ctx.cur_state)) {
-            /* 确认当前状态是被打断且可恢复状态 */
-            aui_player_resume(MEDIA_MUSIC);
+    LOGD(TAG, "add type:%d into delay list, reason:%d", smt_node->id, smt_node->delay_reason);
+    /* sort by prio, small to big*/
+    dlist_for_each_entry(&smtaudio_delay_list_head, tmp_node, smtaudio_delay_list_node_t, node) {
+        if (tmp_node->prio > smt_node->prio) {
+            break;
         }
-        break;
-    default:;
+    }
+    SMTAUDIO_LIST_LOCK();
+    dlist_add_tail(&smt_node->node, &tmp_node->node);
+    SMTAUDIO_LIST_UNLOCK();
+}
+
+static void smtaudio_resume_list_rm(smtaudio_resume_list_node_t *smt_node)
+{
+    LOGD(TAG, "delete type:%d from resume list", smt_node->id);
+    SMTAUDIO_LIST_LOCK();
+    dlist_del(&smt_node->node);
+    SMTAUDIO_LIST_UNLOCK();
+    free(smt_node);
+}
+
+static void smtaudio_resume_list_clear(void)
+{
+    while (!dlist_empty(&smtaudio_resume_list_head)) {
+        smtaudio_resume_list_node_t *first_node;
+        first_node =
+            dlist_entry(smtaudio_resume_list_head.next, smtaudio_resume_list_node_t, node);
+        smtaudio_resume_list_rm(first_node);
     }
 }
 
-/**
- * 音量变化时调用该函数将音量更新到kv
-*/
-static int kv_set_vol(void)
+static void smtaudio_resume_list_insert(smtaudio_resume_list_node_t *smt_node)
 {
-    int vol_music = 0, vol_sys = 0, ret = 0;
+    smtaudio_resume_list_node_t *tmp_node = NULL;
 
-    vol_music = aui_player_vol_get(MEDIA_MUSIC);
-    vol_sys   = aui_player_vol_get(MEDIA_SYSTEM);
-    if (vol_music != vol_sys) {
-        /* music and system should have same volumn */
-        LOGW(TAG, "music volume(%d) is different with system volume(%d)", vol_music, vol_sys);
-    }
+    /* 清空 delay list */
+    smtaudio_delay_list_clear();
 
-    ret = aos_kv_setint(VOL_KEY, vol_music);
-    if (0 != ret) {
-        LOGE(TAG, "set kv volume failed! ret[%d]", ret);
-    }
-    return vol_music;
-}
-
-static int kv_get_vol(int type)
-{
-    int value;
-    int ret = aos_kv_getint(VOL_KEY, &value);
-    return ret == 0 ? value : 30;
-}
-
-static int media_dec_key_cb(const void *in, size_t ilen, void *out, size_t *olen)
-{
-    int rc;
-
-    CHECK_PARAM(in && ilen >= 3 && out && olen && *olen >= 16, -1);
-
-    LOGD(TAG, "mp4 major brand is %s", in);
-    char cenc_decrypt_key[33] = {0}; // "6ABED02448B8FFD2224FF54619935526"
-
-    if (aos_kv_getstring("mp4_key", cenc_decrypt_key, 33) > 0) {
-        rc = bytes_from_hex(cenc_decrypt_key, out, *olen);
-        CHECK_RET_TAG_WITH_RET(rc == 0, -1);
-        *olen = 16;
-        return 0;
-    }
-
-    LOGW(TAG, "major brand %s get key failed", in);
-    return -1;
-}
-
-static int media_init(media_evt_t media_evt_cb, uint8_t *aef_conf, size_t aef_conf_size,
-                      float speed, int resample)
-{
-    int ret = -1;
-
-    ret                   = aui_player_init(smtaudio_ctx.task_media, _aui_evt_cb_);
-    smtaudio_ctx.local_cb = media_evt_cb;
-
-    if (ret == 0) {
-        aui_player_config_init(&media_config);
-
-        media_config.web_cache_size      = 256 * 1024;
-        media_config.web_start_threshold = 30;
-        media_config.resample_rate       = resample;
-        if (aef_conf && aef_conf_size) {
-            media_config.aef_conf      = aef_conf;
-            media_config.aef_conf_size = aef_conf_size;
+    /* 同一播放源只允许 有一个case在resume list中 */
+    dlist_for_each_entry(&smtaudio_resume_list_head, tmp_node, smtaudio_resume_list_node_t, node) {
+        if (tmp_node->id == smt_node->id) {
+            smtaudio_resume_list_rm(tmp_node);
+            break;
         }
-
-        if (speed >= 0.5f && speed <= 2.0f) {
-            media_config.speed = speed;
-        } else {
-            media_config.speed = 1;
-        }
-
-        aui_player_config(&media_config);
     }
-
-    event_subscribe(EVENT_SYSTEM_FINISHED, _smtaudio_evt_cb, NULL);
-
-    return ret;
+    LOGD(TAG, "add type:%d into resume list, reason:%d", smt_node->id, smt_node->interrupt_reason);
+    /* sort by prio, small to big*/
+    dlist_for_each_entry(&smtaudio_resume_list_head, tmp_node, smtaudio_resume_list_node_t, node) {
+        if (tmp_node->prio > smt_node->prio) {
+            break;
+        }
+    }
+    SMTAUDIO_LIST_LOCK();
+    dlist_add_tail(&smt_node->node, &tmp_node->node);
+    SMTAUDIO_LIST_UNLOCK();
 }
 
-static int volume_set(int vol)
+static void smtaudio_ctrl_list_pri_insert(smtaudio_ops_node_t *smt_node)
 {
-    aui_player_vol_set(MEDIA_ALL, vol);
-    smtaudio_ctx.cur_vol = vol;
-    return kv_set_vol();
+    smtaudio_ops_node_t *tmp_node = NULL;
+
+    /* sort by prio, small to big*/
+    dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+        if (tmp_node->prio > smt_node->prio) {
+            break;
+        }
+    }
+    SMTAUDIO_LIST_LOCK();   
+    dlist_add_tail(&smt_node->node, &tmp_node->node);
+    SMTAUDIO_LIST_UNLOCK();
 }
 
-static void switch_state(smtaudio_state_t old_state, smtaudio_state_t new_state)
+static smtaudio_ops_node_t *get_smtaudio_ctrl_ops_by_id(int id)
+{
+    smtaudio_ops_node_t *tmp_node = NULL;
+
+    dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+        if (tmp_node->id == id) {
+            return tmp_node;
+        }
+    }
+    return NULL;
+}
+
+static smtaudio_ops_node_t *find_first_playing_audio(void)
+{
+    smtaudio_ops_node_t *tmp_node = NULL;
+
+    dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+        if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+            return tmp_node;
+        }
+    }
+    return NULL;
+}
+
+smtaudio_ops_node_t *get_default_audio_ops(void)
+{
+    return get_smtaudio_ctrl_ops_by_id(DEFAULT_PLAY_TYPE);
+}
+
+/* 判断当前 是否允许 播放 resume/delay list 中的 音源 */
+static int smtaudio_resume_state(int reason, int type)
+{
+    if (reason == SMTAUDIO_LOCAL_PLAY) {
+        return smtaudio_ctx.resume_flag;
+    } else {
+        return 1;
+    }
+}
+
+static void switch_state(smtaudio_sub_state_t old_state, smtaudio_sub_state_t new_state)
 {
     if (old_state == new_state) {
         /* don't need to change state */
@@ -180,374 +218,599 @@ static void switch_state(smtaudio_state_t old_state, smtaudio_state_t new_state)
     }
 
     LOGD(TAG, "old state[%d] --> new state[%d]", old_state, new_state);
-
     smtaudio_ctx.last_state = old_state;
     smtaudio_ctx.cur_state  = new_state;
-    func_table[smtaudio_ctx.cur_state]();
 }
 
-static int8_t do_state_play()
+static void smtaudio_change_state(smtaudio_state_t new_state, smtaudio_player_type_t type)
 {
-    if (AUI_PLAYER_PLAYING != aui_player_get_state(MEDIA_SYSTEM)) {
-        /* 如果系统声音正在播放，系统声音播放结束后会恢复音乐 */
-        aui_player_resume(MEDIA_MUSIC);
+    smtaudio_ops_node_t *tmp_node = NULL;
+    smtaudio_ops_node_t *smtaudio_node = NULL;
+    smtaudio_ops_node_t *first_playing_audio_ops = NULL;
+    smtaudio_sub_state_t new_sub_state;
+
+    LOGD(TAG, "Enter %s: current state:%d type:%d new_state:%d", __FUNCTION__,
+         smtaudio_ctx.cur_state, type, new_state);
+    new_sub_state = type * 3 + new_state;
+
+    if (smtaudio_ctx.cur_state == new_sub_state)
+        return;
+    smtaudio_node = get_smtaudio_ctrl_ops_by_id(type);
+    if (smtaudio_node) {
+        if (new_state == SMTAUDIO_STATE_PLAYING) {
+            if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+                smtaudio_node->pause();
+                return;
+            }
+
+            dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+                if ((tmp_node->status == SMTAUDIO_STATE_PLAYING) && (tmp_node->id != type)) {
+                    first_playing_audio_ops = tmp_node;
+                    break;
+                }
+            }
+
+            if (first_playing_audio_ops) {
+                LOGD(TAG, "first playig audio type:%d", first_playing_audio_ops->id);
+                if (first_playing_audio_ops->prio < smtaudio_node->prio) {
+                    smtaudio_node->pause();
+                    smtaudio_delay_list_node_t *node =
+                        (smtaudio_delay_list_node_t *)malloc(sizeof(smtaudio_delay_list_node_t));
+                    node->id           = smtaudio_node->id;
+                    node->prio         = smtaudio_node->prio;
+                    node->seek_time    = 0;
+                    node->url          = NULL;
+                    node->delay_reason = first_playing_audio_ops->id;
+                    node->valid = 1;
+                    smtaudio_delay_list_insert(node);
+                    return;
+                } else if (first_playing_audio_ops->prio > smtaudio_node->prio) {
+                    first_playing_audio_ops->pause();
+                    smtaudio_resume_list_node_t *node =
+                        (smtaudio_resume_list_node_t *)malloc(sizeof(smtaudio_resume_list_node_t));
+                    node->id               = first_playing_audio_ops->id;
+                    node->prio             = first_playing_audio_ops->prio;
+                    node->interrupt_reason = type;
+                    node->valid = 1;
+                    smtaudio_resume_list_insert(node);
+                } else {
+                    //同一优先级打断 不resume
+                    first_playing_audio_ops->pause();
+                }
+            }
+            switch_state(smtaudio_ctx.cur_state, new_sub_state);
+        } else {
+            /* 播放源切换后, pause stop 无效*/
+            if (smtaudio_get_play_type() == type) {
+                switch_state(smtaudio_ctx.cur_state, new_sub_state);
+            }
+        }
     }
-    return 0;
 }
 
-static int8_t do_state_pause()
+/* 所有播放源产生事件(start、pause、stop)时, 需要调用的回调函数 */
+static void smtaudio_event_callback(int type, smtaudio_player_evtid_t evt_id)
 {
-    aui_player_state_t play_state;
-    play_state = aui_player_get_state(MEDIA_MUSIC);
-    if (AUI_PLAYER_PLAYING == play_state) {
-        aui_player_pause(MEDIA_MUSIC);
+    int            ret;
+    audio_result_t result;
+
+    result.type   = type;
+    result.evt_id = evt_id;
+
+    if(audio_event_callback) {
+        audio_event_callback(type, evt_id);
     }
 
-    return 0;
-}
-
-static int8_t do_state_zero_volume()
-{
-    /* check current volume, which should be zero */
-    int vol = aui_player_vol_get(MEDIA_MUSIC);
-    if (vol != 0) {
-        LOGE(TAG, "current volume[%d] is not zero!", vol);
-        return -1;
+    ret = aos_queue_send(&smtaudio_ctx.smtaudio_queue, &result, sizeof(audio_result_t));
+    if (ret < 0) {
+        LOGE(TAG, "queue send failed");
     }
-    aui_player_state_t play_state;
-    play_state = aui_player_get_state(MEDIA_MUSIC);
-    if (AUI_PLAYER_PLAYING == play_state) {
-        aui_player_pause(MEDIA_MUSIC);
+}
+
+static void smtaudio_event_task(void *arg)
+{
+    size_t         len;
+    audio_result_t       audio_result;
+    smtaudio_ops_node_t *smtaudio_node;
+    smtaudio_resume_list_node_t *first_resume_node;
+    smtaudio_delay_list_node_t *first_delay_node;
+
+    while (smtaudio_ctx.run_flag) {
+        aos_queue_recv(&smtaudio_ctx.smtaudio_queue, AOS_WAIT_FOREVER, &audio_result, &len);
+        LOGD(TAG, "smtaudio_event_callback type:%d evt_id:%d\n", audio_result.type,
+             audio_result.evt_id);
+        smtaudio_node = get_smtaudio_ctrl_ops_by_id(audio_result.type);
+        switch (audio_result.evt_id) {
+        case SMTAUDIO_PLAYER_EVENT_START:
+        case SMTAUDIO_PLAYER_EVENT_RESUME:
+            smtaudio_node->status = SMTAUDIO_STATE_PLAYING;
+            smtaudio_change_state(SMTAUDIO_STATE_PLAYING, audio_result.type);
+            break;
+        case SMTAUDIO_PLAYER_EVENT_ERROR:
+        case SMTAUDIO_PLAYER_EVENT_STOP:
+            smtaudio_node->status = SMTAUDIO_STATE_STOP;
+            smtaudio_change_state(SMTAUDIO_STATE_STOP, audio_result.type);
+            break;
+        case SMTAUDIO_PLAYER_EVENT_PAUSE:
+            smtaudio_node->status = SMTAUDIO_STATE_PAUSE;
+            smtaudio_change_state(SMTAUDIO_STATE_PAUSE, audio_result.type);
+            break;
+        default:
+            break;
+        }
+        if ((audio_result.evt_id == SMTAUDIO_PLAYER_EVENT_STOP) ||
+            (audio_result.evt_id == SMTAUDIO_PLAYER_EVENT_PAUSE)) {
+            if (!dlist_empty(&smtaudio_resume_list_head)) {
+                dlist_for_each_entry(&smtaudio_resume_list_head, first_resume_node, smtaudio_resume_list_node_t, node) {
+                    if((first_resume_node->interrupt_reason == audio_result.type) && (first_resume_node->valid)) {
+                        if (smtaudio_resume_state(first_resume_node->interrupt_reason,
+                                                  audio_result.type)) {
+                            smtaudio_node = get_smtaudio_ctrl_ops_by_id(first_resume_node->id);
+                            if (smtaudio_node) {
+                                LOGD(TAG, "resume type:%d from resume list", smtaudio_node->id);
+                                smtaudio_node->resume();
+                            }
+                            smtaudio_resume_list_rm(first_resume_node);
+                            break;
+                        } else {
+                            LOGD(TAG, "not in play state");
+                        }
+                    }
+                }
+            } else if (!dlist_empty(&smtaudio_delay_list_head)) {
+                dlist_for_each_entry(&smtaudio_delay_list_head, first_delay_node, smtaudio_delay_list_node_t, node) {
+                    if ((first_delay_node->delay_reason == audio_result.type) && (first_delay_node->valid)){
+                        if (smtaudio_resume_state(first_delay_node->delay_reason, audio_result.type)) {
+                            smtaudio_node = get_smtaudio_ctrl_ops_by_id(first_delay_node->id);
+                            if (smtaudio_node) {
+                                LOGD(TAG, "start type:%d from delay list", smtaudio_node->id);
+                                smtaudio_node->start(first_delay_node->url, first_delay_node->seek_time, 0);
+                            }
+                            smtaudio_delay_list_rm(first_delay_node);
+                            break;
+                        } else {
+                            LOGD(TAG, "not in play state");
+                        }
+                    }
+                }
+            }
+        }
     }
-
-    return 0;
+    aos_task_exit(0);
 }
 
-static int8_t do_state_mute()
-{
-    int ret = 0;
-    ret     = aui_player_pause(MEDIA_MUSIC);
-    ret     = aui_player_stop(MEDIA_SYSTEM);
 
-    return ret;
-}
-
-static int8_t do_state_stop()
-{
-    /* do nothing */
-    return 0;
-}
 
 /****************************************/
 /*          external APIs               */
 /****************************************/
-/**
- * 从kv中读取初始化播放器音量
-*/
-int8_t smtaudio_init(size_t stack_size, media_evt_t media_evt_cb, uint8_t min_vol,
-                     uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample)
+int8_t smtaudio_init(audio_evt_t audio_evt_cb)
 {
     LOGD(TAG, "Enter %s", __FUNCTION__);
-    int ret = 0;
-    int vol;
-
-    if (NULL != smtaudio_ctx.task_media) {
-        LOGW(TAG, "media task is already inited!");
-        return 0;
-    }
+    aos_task_t smt_task_hdl;
 
     memset(&smtaudio_ctx, 0, sizeof(smtaudio_type_t));
-    smtaudio_ctx.task_media =
-        utask_new("task_media", stack_size, QUEUE_MSG_COUNT, AOS_DEFAULT_APP_PRI);
-    if (NULL == smtaudio_ctx.task_media) {
-        LOGE(TAG, "media task created failed!");
+    aos_mutex_new(&smtaudio_ctx.smtaudio_mutex);
+    smtaudio_ctx.smtaudio_q_buffer = (uint8_t *)malloc(sizeof(audio_result_t) * SMTAUDIO_MESSAGE_NUM);
+    if (smtaudio_ctx.smtaudio_q_buffer == NULL) {
+        LOGE(TAG, "smtaudio_ctx.smtaudio_q_buffer malloc fail");
         return -EINVAL;
     }
-    media_init(media_evt_cb, aef_conf, aef_conf_size, speed, resample);
-    aos_event_new(&smtaudio_ctx.event_media_state, 0);
+    aos_queue_new(&smtaudio_ctx.smtaudio_queue, smtaudio_ctx.smtaudio_q_buffer,
+                  SMTAUDIO_MESSAGE_NUM * sizeof(audio_result_t), sizeof(audio_result_t));
 
-    aui_player_key_config(media_dec_key_cb);
+    SMTAUDIO_LOCK();
+    smtaudio_ctx.cur_state = smtaudio_ctx.last_state = SMTAUDIO_SUBSTATE_LOCAL_STOP;
+    smtaudio_ctx.run_flag                            = 1;
+    aos_task_new_ext(&smt_task_hdl, "smtaudio_event_task", smtaudio_event_task, NULL, CONFIG_SMART_AUDIO_STACK_SIZE,
+                     AOS_DEFAULT_APP_PRI);
+    SMTAUDIO_LIST_LOCK();
+    dlist_init(&smtaudio_ctrl_list_head);
+    dlist_init(&smtaudio_delay_list_head);
+    dlist_init(&smtaudio_resume_list_head);
+    if(audio_evt_cb) {
+        audio_event_callback = audio_evt_cb;
+    }
+    SMTAUDIO_LIST_UNLOCK();
 
-    vol = kv_get_vol(MEDIA_ALL);
-    smtaudio_vol_set(vol);
-
-    smtaudio_ctx.min_vol = (min_vol <= 0) ? 20 : min_vol;
-    aui_player_set_minvol(MEDIA_ALL, 0);
-
-    smtaudio_ctx.cur_state = smtaudio_ctx.last_state = SMTAUDIO_STATE_STOP;
-
-    return ret;
-}
-
-int8_t smtaudio_get_config(aui_player_config_t *config)
-{
-    aos_check_return_einval(config);
-
-    *config = media_config;
+    SMTAUDIO_UNLOCK();         
     return 0;
 }
 
-int8_t smtaudio_set_config(aui_player_config_t *config)
+int8_t smtaudio_deinit(void)
 {
-    aos_check_return_einval(config);
+    SMTAUDIO_LOCK();
+    int8_t ret = 0;
 
-    int ret = aui_player_config(config);
-    if (ret == 0) {
-        media_config = *config;
-    }
-
-    return ret == 0 ? 0 : -1;
+    smtaudio_ctx.run_flag = 0;
+    free(smtaudio_ctx.smtaudio_q_buffer);
+    aos_queue_free(&smtaudio_ctx.smtaudio_queue);
+    aos_mutex_free(&smtaudio_ctx.smtaudio_mutex);
+    memset(&smtaudio_ctx, 0, sizeof(smtaudio_type_t));
+    SMTAUDIO_UNLOCK();
+    return ret;
 }
 
 int8_t smtaudio_vol_up(int16_t vol)
 {
-    int cur_vol = 0;
-    int ret     = 0;
+    smtaudio_ops_node_t *node_adjust_ops;
+    smtaudio_resume_list_node_t *node_adjust;
 
-    cur_vol = aui_player_vol_get(MEDIA_MUSIC);
-    ret     = smtaudio_vol_set(cur_vol + vol);
-    return ret;
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return 0;
+    }
+    SMTAUDIO_LOCK();
+    node_adjust_ops = find_first_playing_audio();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_up(vol);
+        SMTAUDIO_UNLOCK();
+        return 0;
+    }
+    //判断resume list是否存在播放对象
+    if(!dlist_empty(&smtaudio_resume_list_head)) {
+        node_adjust = dlist_entry(smtaudio_resume_list_head.next, smtaudio_resume_list_node_t, node);
+        if((node_adjust->interrupt_reason != INTERRUPT_REASON_BY_USER) && (node_adjust->valid == 1)){
+            node_adjust_ops = get_smtaudio_ctrl_ops_by_id(node_adjust->id);
+            node_adjust_ops->vol_up(vol);
+            LOGD(TAG, "smart audio adjust volume from resume list. type:%d", node_adjust->id);
+            SMTAUDIO_UNLOCK();
+            return 0;
+        }
+    }
+    /*如果没有 audio 播放 则调整 默认音量*/
+    node_adjust_ops = get_default_audio_ops();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_up(vol);
+    }
+    SMTAUDIO_UNLOCK();
+    return 0;
 }
 
 int8_t smtaudio_vol_down(int16_t vol)
 {
-    int cur_vol = 0;
-    int ret     = 0;
+    smtaudio_ops_node_t *node_adjust_ops;
+    smtaudio_resume_list_node_t *node_adjust;
 
-    cur_vol = aui_player_vol_get(MEDIA_MUSIC);
-    ret     = smtaudio_vol_set(cur_vol - vol);
-    return ret;
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return 0;
+    }
+    SMTAUDIO_LOCK();
+    node_adjust_ops = find_first_playing_audio();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_down(vol);
+        SMTAUDIO_UNLOCK();
+        return 0;
+    }
+    //判断resume list是否存在播放对象
+    if(!dlist_empty(&smtaudio_resume_list_head)) {
+        node_adjust = dlist_entry(smtaudio_resume_list_head.next, smtaudio_resume_list_node_t, node);
+         if((node_adjust->interrupt_reason != INTERRUPT_REASON_BY_USER) && (node_adjust->valid == 1)){
+            node_adjust_ops = get_smtaudio_ctrl_ops_by_id(node_adjust->id);
+            node_adjust_ops->vol_down(vol);
+            LOGD(TAG, "smart audio adjust volume from resume list. type:%d", node_adjust->id);
+            SMTAUDIO_UNLOCK();
+            return 0;
+        }
+    }
+    /*如果没有 audio 播放 则调整 默认音量*/
+    node_adjust_ops = get_default_audio_ops();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_down(vol);
+    }
+    SMTAUDIO_UNLOCK();
+    return 0;
 }
 
 int8_t smtaudio_vol_set(int16_t set_vol)
 {
-    LPM_RETURN_RET(-1);
-    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int ret = 0;
-    int vol;
-    switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_PAUSE:
-    case SMTAUDIO_STATE_STOP:
-        vol = volume_set(set_vol);
-        if (0 == vol) {
-            /*
-            * 考虑如下状态切换：
-            * PLAYING-(音量设为0)->ZERO_VOLUME-(按下禁麦键)->MUTE-(再次按下禁麦键)->ZERO_VOLUME-(增加音量)->PLAYING
-            * PAUSE-(音量设为0)->ZERO_VOLUME-(按下禁麦键)->MUTE-(再次按下禁麦键)->ZERO_VOLUME-(增加音量)->PAUSE
-            * STOP-(音量设为0)->ZERO_VOLUME-(按下禁麦键)->MUTE-(再次按下禁麦键)->ZERO_VOLUME-(增加音量)->STOP
-            * 所以需要记录最原始状态
-            */
-            ori_state = smtaudio_ctx.cur_state;
-            switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_ZERO_VOLUME);
-        }
-        break;
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-        vol = volume_set(set_vol);
-        if (vol > 0) {
-            switch_state(SMTAUDIO_STATE_ZERO_VOLUME, smtaudio_ctx.last_state);
-        }
-        break;
-    case SMTAUDIO_STATE_MUTE:
-        /* do nothing */
-        break;
-    default:
-        break;
+    smtaudio_ops_node_t *node_adjust_ops;
+    smtaudio_resume_list_node_t *node_adjust;
+
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return 0;
     }
+    SMTAUDIO_LOCK();
+    node_adjust_ops = find_first_playing_audio();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_set(set_vol);
+        SMTAUDIO_UNLOCK();
+        return 0;
+    }
+    //判断resume list是否存在播放对象
+    if(!dlist_empty(&smtaudio_resume_list_head)) {
+        node_adjust = dlist_entry(smtaudio_resume_list_head.next, smtaudio_resume_list_node_t, node);
+         if((node_adjust->interrupt_reason != INTERRUPT_REASON_BY_USER) && (node_adjust->valid == 1)){
+            node_adjust_ops = get_smtaudio_ctrl_ops_by_id(node_adjust->id);
+            node_adjust_ops->vol_set(set_vol);
+            LOGD(TAG, "smart audio adjust volume from resume list. type:%d", node_adjust->id);
+            SMTAUDIO_UNLOCK();
+            return 0;
+        }
+    }
+    /*如果没有 audio 播放 则调整 默认音量*/
+    node_adjust_ops = get_default_audio_ops();
+    if (node_adjust_ops) {
+        node_adjust_ops->vol_set(set_vol);
+    }
+    SMTAUDIO_UNLOCK();
+    return 0;
+}
+
+int8_t smtaudio_vol_get(void)
+{
+    int vol = 0;
+    smtaudio_ops_node_t *audio_default_ops;
+    smtaudio_ops_node_t *first_playing_audio_ops;
+    SMTAUDIO_LOCK();
+    first_playing_audio_ops = find_first_playing_audio();
+    if (first_playing_audio_ops) {
+        vol = first_playing_audio_ops->vol_get();
+        SMTAUDIO_UNLOCK();
+        return vol;
+    }
+
+    audio_default_ops = get_default_audio_ops();
+    if (audio_default_ops) {
+        vol = audio_default_ops->vol_get();
+    }
+    SMTAUDIO_UNLOCK();
+    return vol;
+}
+
+int8_t smtaudio_start(int type, char *url, uint64_t seek_time, uint8_t resume)
+{
+    int8_t               ret = 0;
+    smtaudio_ops_node_t *smtaudio_node;
+    smtaudio_ops_node_t *first_playing_audio_ops;
+
+    LPM_RETURN_RET(-1);
+    LOGD(TAG, "Enter %s: current state:%d type:%d resume_flag:%d", __FUNCTION__, smtaudio_ctx.cur_state, type, resume);
+
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return 0;
+    }
+
+    if ((type < 0) || (type >= SMTAUDIO_PLAY_TYPE_NUM)) {
+        LOGD(TAG, "invalid play type");
+        return -1;
+    }
+
+    SMTAUDIO_LOCK();
+    smtaudio_node = get_smtaudio_ctrl_ops_by_id(type);
+    if (smtaudio_node) {
+        first_playing_audio_ops = find_first_playing_audio();
+        if (first_playing_audio_ops) {
+            if (first_playing_audio_ops->prio < smtaudio_node->prio) {
+                smtaudio_delay_list_node_t *node =
+                    (smtaudio_delay_list_node_t *)malloc(sizeof(smtaudio_delay_list_node_t));
+                node->id        = smtaudio_node->id;
+                node->prio      = smtaudio_node->prio;
+                node->seek_time = seek_time;
+                node->url       = strdup(url);
+                if (!node->url) {
+                    SMTAUDIO_UNLOCK();
+                    return 0;
+                }
+                node->delay_reason     = first_playing_audio_ops->id;
+                node->valid = 1;
+                smtaudio_delay_list_insert(node);
+                SMTAUDIO_UNLOCK();
+                return 0;
+            } else if (first_playing_audio_ops->prio > smtaudio_node->prio) {
+                first_playing_audio_ops->pause();
+                smtaudio_resume_list_node_t *node =
+                    (smtaudio_resume_list_node_t *)malloc(sizeof(smtaudio_resume_list_node_t));
+                node->id               = first_playing_audio_ops->id;
+                node->prio             = first_playing_audio_ops->prio;
+                node->interrupt_reason = type;
+                node->valid = 1;
+                smtaudio_resume_list_insert(node);
+            } else {
+                first_playing_audio_ops->pause();
+            }
+        }
+        ret = smtaudio_node->start(url, seek_time, resume);
+        smtaudio_ctx.resume_flag = resume;
+    } else {
+        LOGD(TAG, "%s ops not found", __func__);
+    }
+    SMTAUDIO_UNLOCK();
     return ret;
 }
 
 int8_t smtaudio_pause()
 {
+    smtaudio_ops_node_t *tmp_node = NULL;
+
     LPM_RETURN_RET(-1);
     LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int ret = 0;
-    switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-        switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_PAUSE);
-        break;
-    default:
-        break;
-    }
-    return ret;
-}
 
-int8_t smtaudio_mute()
-{
-    LPM_RETURN_RET(-1);
-    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int ret = 0;
-    switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-    case SMTAUDIO_STATE_PAUSE:
-    case SMTAUDIO_STATE_STOP:
-        switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_MUTE);
-        break;
-    case SMTAUDIO_STATE_MUTE:
-        if (SMTAUDIO_STATE_ZERO_VOLUME == smtaudio_ctx.last_state) {
-            /*
-             * 参考smtaudio_vol_set函数内的注释
-             * 设置ZERO_VOLUME退出后应该回到的状态
-             */
-            switch_state(ori_state, smtaudio_ctx.last_state);
-        } else {
-            switch_state(SMTAUDIO_STATE_MUTE, smtaudio_ctx.last_state);
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return 0;
+    }
+    SMTAUDIO_LOCK();
+    smtaudio_clear_ready_list();
+    dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+        if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+            tmp_node->pause();
+            smtaudio_resume_list_node_t *node =
+                        (smtaudio_resume_list_node_t *)malloc(sizeof(smtaudio_resume_list_node_t));
+            node->id               = tmp_node->id;
+            node->prio             = tmp_node->prio;
+            node->interrupt_reason = INTERRUPT_REASON_BY_USER;
+            node->valid = 1;
+            smtaudio_resume_list_insert(node);
         }
-        break;
-    default:
-        break;
     }
-    return ret;
-}
-
-int8_t smtaudio_resume()
-{
-    LPM_RETURN_RET(-1);
-    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int ret = 0;
-    switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_PAUSE:
-        switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_PLAYING);
-        break;
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-        if (AUI_PLAYER_PAUSED == aui_player_get_state(MEDIA_MUSIC)) {
-            /* 零音量退出后，应该回到播放状态 */
-            smtaudio_ctx.last_state = SMTAUDIO_STATE_PLAYING;
-        }
-        break;
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_MUTE:
-    case SMTAUDIO_STATE_STOP:
-        /* do nothing */
-        break;
-    default:
-        break;
-    }
-    return ret;
-}
-
-int8_t smtaudio_start(int type, char *url, uint64_t seek_time, uint8_t resume)
-{
-    if (NULL == url) {
-        return -1;
-    }
-    LPM_RETURN_RET(-1);
-    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int8_t       ret       = 0;
-    unsigned int flags     = 0;
-    char *       local_url = NULL;
-
-    if ((SMTAUDIO_STATE_MUTE != smtaudio_ctx.cur_state) && (MEDIA_SYSTEM == type)) {
-        smtaudio_ctx.tts_resume = resume;
-    }
-    switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-        volume_set(smtaudio_ctx.min_vol);
-        if (MEDIA_SYSTEM == type) {
-            if (SMTAUDIO_STATE_PLAYING == smtaudio_ctx.last_state) {
-                /* 应该回到MUSIC播放状态，但是需要先等SYSTEM(TTS)播放完
-                   所以现在只更新播控状态，具体恢复播放的动作，等SYSTEM结束
-                   后再恢复 */
-                smtaudio_ctx.cur_state = SMTAUDIO_STATE_PLAYING;
-            } else {
-                switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_PAUSE);
-            }
-        }
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_PAUSE:
-    case SMTAUDIO_STATE_STOP:
-        if (MEDIA_SYSTEM == type) {
-            /* 1. 首先清除等待播放的MUSIC，发送STOP EVENT */
-            aos_event_set(&smtaudio_ctx.event_media_state, EVENT_MUSIC_STOPPED, AOS_EVENT_OR);
-            /* 2. 播放SYSTEM */
-            ret = aui_player_seek_play(type, url, seek_time, resume);
-        } else {
-            if (AUI_PLAYER_PLAYING == aui_player_get_state(MEDIA_SYSTEM)) {
-                /* 1. 复制url到本地，防止url被改变 */
-                int url_len = strlen(url);
-                local_url   = aos_zalloc(url_len + 1);
-                if (NULL == local_url) {
-                    break;
-                }
-                strncpy(local_url, url, url_len);
-                local_url[url_len] = '\0';
-                /* 2. 等待下面条件之一满足：
-                    a. SYSTEM播放完成；
-                    b. 收到停止播放指令 */
-                aos_event_get(&smtaudio_ctx.event_media_state,
-                              EVENT_SYSTEM_FINISHED | EVENT_MUSIC_STOPPED, AOS_EVENT_OR_CLEAR,
-                              &flags, AOS_WAIT_FOREVER);
-                if (flags & EVENT_MUSIC_STOPPED) {
-                    LOGD(TAG, "receive stop command! stats[%d]", flags);
-                    break;
-                }
-                ret = aui_player_seek_play(type, local_url, seek_time, 0);
-                if (local_url) {
-                    aos_free(local_url);
-                    local_url = NULL;
-                }
-            } else {
-                ret = aui_player_seek_play(type, url, seek_time, 0);
-            }
-            switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_PLAYING);
-        }
-        break;
-    case SMTAUDIO_STATE_MUTE:
-        /* do nothing */
-        break;
-    default:
-        break;
-    }
-
-    /* 清除MEDIA状态 */
-    aos_event_set(&smtaudio_ctx.event_media_state, 0, AOS_EVENT_AND);
-    return ret;
+    SMTAUDIO_UNLOCK();
+    return 0;
 }
 
 int8_t smtaudio_stop(int type)
 {
+    smtaudio_ops_node_t *tmp_node = NULL;
+
     LPM_RETURN_RET(-1);
     LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
-    int ret = 0;
-    if ((MEDIA_MUSIC == type) || (MEDIA_ALL == type)) {
-        aos_event_set(&smtaudio_ctx.event_media_state, EVENT_MUSIC_STOPPED, AOS_EVENT_OR);
+    SMTAUDIO_LOCK();
+    if(SMTAUDIO_TYPE_ALL == type) {
+        dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+            if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+                tmp_node->stop();
+            }
+        }
+    } else if((type >=0) && (type <SMTAUDIO_PLAY_TYPE_NUM)) {
+        tmp_node = get_smtaudio_ctrl_ops_by_id(type);
+        if (tmp_node) {
+            if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+                tmp_node->stop();
+            }
+        }
     }
+    SMTAUDIO_UNLOCK();
+    return 0;
+}
+
+int8_t smtaudio_mute()
+{
+    smtaudio_ops_node_t *tmp_node = NULL;
+
+
+    LPM_RETURN_RET(-1);
+    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
+    SMTAUDIO_LOCK();
+    if (smtaudio_ctx.cur_state != SMTAUDIO_SUBSTATE_MUTE) {
+        amplifier_onoff(0);
+        switch_state(smtaudio_ctx.cur_state, SMTAUDIO_SUBSTATE_MUTE);
+    } else {
+        amplifier_onoff(1);
+        dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+            if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+                switch_state(SMTAUDIO_SUBSTATE_MUTE, tmp_node->id * 3 + SMTAUDIO_STATE_PLAYING);
+                SMTAUDIO_UNLOCK();
+                return 0;
+            }
+        }
+        switch_state(SMTAUDIO_SUBSTATE_MUTE, SMTAUDIO_SUBSTATE_LOCAL_STOP);
+    }
+    SMTAUDIO_UNLOCK();
+    return 0;
+}
+
+int8_t smtaudio_resume()
+{
+    int                  ret = -1;
+    smtaudio_ops_node_t *smtaudio_node;
+    smtaudio_resume_list_node_t *tmp_resume_list_node = NULL;
+
+    LPM_RETURN_RET(-1);
+    LOGD(TAG, "Enter %s: current state [%d]", __FUNCTION__, smtaudio_ctx.cur_state);
+    SMTAUDIO_LOCK();
+    dlist_for_each_entry(&smtaudio_resume_list_head, tmp_resume_list_node, smtaudio_resume_list_node_t, node) {
+        if((tmp_resume_list_node) && (tmp_resume_list_node->valid)) {
+            smtaudio_node = get_smtaudio_ctrl_ops_by_id(tmp_resume_list_node->id);
+            if ((smtaudio_node) && (smtaudio_node->status != SMTAUDIO_STATE_PLAYING)) {
+                ret = smtaudio_node->resume();
+                smtaudio_resume_list_rm(tmp_resume_list_node);
+                break;
+            }
+        }
+    }
+    SMTAUDIO_UNLOCK();
+    return ret;
+}
+
+void smtaudio_clear_ready_list(void)
+{
+    smtaudio_delay_list_clear();
+    smtaudio_resume_list_clear();
+}
+
+void smtaudio_enable_ready_list(int enable)
+{
+    smtaudio_delay_list_node_t *tmp_delay_list_node = NULL;
+    smtaudio_resume_list_node_t *tmp_resume_list_node = NULL;
+
+    dlist_for_each_entry(&smtaudio_delay_list_head, tmp_delay_list_node, smtaudio_delay_list_node_t, node) {
+        if(tmp_delay_list_node) {
+            tmp_delay_list_node->valid = enable;
+            LOGD(TAG, "set type:%d in delay list, delay reason:%d set valid:%d", tmp_delay_list_node->id, tmp_delay_list_node->delay_reason, enable);
+        }
+    }
+
+    dlist_for_each_entry(&smtaudio_resume_list_head, tmp_resume_list_node, smtaudio_resume_list_node_t, node) {
+        if(tmp_resume_list_node) {
+            tmp_resume_list_node->valid = enable;
+            LOGD(TAG, "set type:%d in resume list, interrupt reason:%d valid:%d", tmp_resume_list_node->id, tmp_resume_list_node->interrupt_reason, enable);
+        }
+    }
+}
+
+void smtaudio_check_ready_list(void)
+{
+
+    smtaudio_delay_list_node_t *tmp_delay_list_node = NULL;
+    smtaudio_resume_list_node_t *tmp_resume_list_node = NULL;
+
+    dlist_for_each_entry(&smtaudio_delay_list_head, tmp_delay_list_node, smtaudio_delay_list_node_t, node) {
+        if(tmp_delay_list_node) {
+            LOGD(TAG, "type:%d in delay list, delay reason:%d valid:%d", tmp_delay_list_node->id, tmp_delay_list_node->delay_reason, tmp_delay_list_node->valid);
+        }
+    }
+
+    dlist_for_each_entry(&smtaudio_resume_list_head, tmp_resume_list_node, smtaudio_resume_list_node_t, node) {
+        if(tmp_resume_list_node) {
+            LOGD(TAG, "type:%d in resume list, interrupt reason:%d valid:%d", tmp_resume_list_node->id, tmp_resume_list_node->interrupt_reason, tmp_resume_list_node->valid);
+        }
+    }
+}
+
+smtaudio_state_t smtaudio_get_state(void)
+{
+    smtaudio_ops_node_t *first_playing_audio_ops;
+
+    if (smtaudio_ctx.cur_state == SMTAUDIO_SUBSTATE_MUTE) {
+        return SMTAUDIO_STATE_MUTE;
+    }
+    first_playing_audio_ops = find_first_playing_audio();
+    if (first_playing_audio_ops) {
+        return SMTAUDIO_STATE_PLAYING;
+    }
+    return SMTAUDIO_STATE_STOP;
+}
+
+smtaudio_player_type_t smtaudio_get_play_type(void)
+{
+    int ret = -1;
+
     switch (smtaudio_ctx.cur_state) {
-    case SMTAUDIO_STATE_PLAYING:
-    case SMTAUDIO_STATE_PAUSE:
-    case SMTAUDIO_STATE_ZERO_VOLUME:
-        if ((MEDIA_MUSIC == type) || (MEDIA_ALL == type)) {
-            ret = aui_player_stop(MEDIA_MUSIC);
-            switch_state(smtaudio_ctx.cur_state, SMTAUDIO_STATE_STOP);
-        }
-        if ((MEDIA_SYSTEM == type) || (MEDIA_ALL == type)) {
-            ret = aui_player_stop(MEDIA_SYSTEM);
-        }
+    case SMTAUDIO_SUBSTATE_ONLINE_PLAYING:
+    case SMTAUDIO_SUBSTATE_ONLINE_PAUSE:
+        ret = SMTAUDIO_ONLINE_MUSIC;
         break;
-    case SMTAUDIO_STATE_MUTE:
-    case SMTAUDIO_STATE_STOP:
-        /* MUSIC是STOP状态，但是SYSTEM有可能正在播放，依然需要停止 */
-        if ((MEDIA_SYSTEM == type) || (MEDIA_ALL == type)) {
-            ret = aui_player_stop(MEDIA_SYSTEM);
-        }
+    case SMTAUDIO_SUBSTATE_BT_A2DP_PLAYING:
+    case SMTAUDIO_SUBSTATE_BT_A2DP_PAUSE:
+        ret = SMTAUDIO_BT_A2DP;
+        break;
+    case SMTAUDIO_SUBSTATE_BT_HFP_PLAYING:
+        ret = SMTAUDIO_BT_HFP;
+        break;
+    case SMTAUDIO_SUBSTATE_LOCAL_PLAYING:
+    case SMTAUDIO_SUBSTATE_LOCAL_PAUSE:
+        ret = SMTAUDIO_LOCAL_PLAY;
         break;
     default:
+        ret = -1;
         break;
     }
 
     return ret;
 }
 
-smtaudio_state_t smtaudio_get_state(void)
+void smtaudio_substate_get(int *cur_state, int *last_state)
 {
-    return smtaudio_ctx.cur_state;
-}
-
-int8_t smtaudio_vol_get(void)
-{
-    return smtaudio_ctx.cur_vol;
+    *cur_state  = smtaudio_ctx.cur_state;
+    *last_state = smtaudio_ctx.last_state;
 }
 
 int8_t smtaudio_lpm(uint8_t state)
@@ -563,15 +826,24 @@ int8_t smtaudio_lpm(uint8_t state)
     return 0;
 }
 
-int8_t smtaudio_deinit(void)
+int smtaudio_enter_lpm_check(void)
 {
-    int8_t ret = 0;
-    aos_event_free(&smtaudio_ctx.event_media_state);
-    if (NULL != smtaudio_ctx.task_media) {
-        utask_destroy(smtaudio_ctx.task_media);
-        smtaudio_ctx.task_media = NULL;
+    smtaudio_ops_node_t *tmp_node = NULL;
+    dlist_for_each_entry(&smtaudio_ctrl_list_head, tmp_node, smtaudio_ops_node_t, node) {
+        if (tmp_node->status == SMTAUDIO_STATE_PLAYING) {
+            return 0;
+        }
     }
-    memset(&smtaudio_ctx, 0, sizeof(smtaudio_type_t));
+    return 1;
+}
 
-    return ret;
+uint32_t smtaudio_ops_register(smtaudio_ops_node_t *ops)
+{
+    aos_assert(ops);
+
+    smtaudio_crtl_id |= (1 << ops->id);
+    smtaudio_ctrl_list_pri_insert(ops);
+    ops->callback = smtaudio_event_callback;
+
+    return smtaudio_crtl_id;
 }

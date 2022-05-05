@@ -193,6 +193,11 @@ struct bt_mesh_provisioner {
 	 * temporary provisioner no need to initialize it.
 	 */
 	u16_t prov_start_address;
+		/*
+	 * ending unicast address going to assigned, for
+	 * temporary provisioner no need to initialize it.
+	 */
+	u16_t prov_end_address;
 
 	/* Attention timer contained in Provisioning Invite */
 	u8_t  prov_attention;
@@ -401,7 +406,7 @@ int bt_mesh_prov_disable(bt_mesh_prov_bearer_t bearers);
  */
 int bt_mesh_init(const struct bt_mesh_prov *prov,
 				 const struct bt_mesh_comp *comp,
-				 const struct bt_mesh_provisioner *provisioner);
+				 struct bt_mesh_provisioner *provisioner);
 
 /** @brief Reset the state of the local Mesh node.
  *
@@ -435,6 +440,28 @@ int bt_mesh_suspend(bool force);
  *  @return 0 on success, or (negative) error code on failure.
  */
 int bt_mesh_resume(void);
+
+/** @brief Suspend the Mesh network temporarily for lpm case.
+ *
+ *  This API can be used for power saving purposes, but the user should be
+ *  aware that leaving the local node suspended for a long period of time
+ *  may cause it to become permanently disconnected from the Mesh network.
+ *  If at all possible, the Friendship feature should be used instead, to
+ *  make the node into a Low Power Node.
+ *
+ *  @return 0 on success, or (negative) error code on failure.
+ */
+int bt_mesh_suspend_lpm(bool force);
+
+/** @brief Resume a suspended Mesh network for lpm case.
+ *
+ *  This API resumes the local node, after it has been suspended using the
+ *  bt_mesh_suspend() API.
+ *
+ *  @return 0 on success, or (negative) error code on failure.
+ */
+int bt_mesh_resume_lpm(uint8_t scan_enable);
+
 
 /** @brief Provision the local Mesh Node.
  *

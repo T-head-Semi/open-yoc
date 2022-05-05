@@ -116,6 +116,8 @@ typedef struct Client {
     void                           *lock_read_buf;                             /* lock of write */
     void                           *lock_yield;
     iotx_mqtt_event_handle_t        handle_event;                               /* event handle */
+    uint32_t                        conn_cost;                                  /* time spend in connecting */
+    uint64_t                        pre_report_timestamp;                       /* the previous report time */
 } iotx_mc_client_t, *iotx_mc_client_pt;
 
 /* Information structure of mutli-subscribe */

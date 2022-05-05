@@ -570,12 +570,79 @@ enum {
     TEST_IDX_MAX,
 };
 
-//static struct bt_gatt_ccc_cfg_t bas_ccc_cfg[2] = {};
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+GATT_SERVICE_STATIC_DEFINE(test_service,
+    [TEST_IDX_SVC] = GATT_PRIMARY_SERVICE_DEFINE(TEST_SERVICE_UUID),
 
+    [TEST_IDX_CHAR1] = GATT_CHAR_DEFINE(TEST_CHAR1_UUID, GATT_CHRC_PROP_READ),
+    [TEST_IDX_CHAR1_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR1_UUID, GATT_PERM_READ),
+
+    [TEST_IDX_CHAR2] = GATT_CHAR_DEFINE(TEST_CHAR2_UUID, GATT_CHRC_PROP_READ),
+    [TEST_IDX_CHAR2_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR2_UUID, GATT_PERM_READ | GATT_PERM_READ_AUTHEN),
+
+    [TEST_IDX_CHAR5] = GATT_CHAR_DEFINE(TEST_CHAR5_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP | GATT_CHRC_PROP_EXT_PROP | GATT_CHRC_PROP_AUTH),
+    [TEST_IDX_CHAR5_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR5_UUID, GATT_PERM_READ | GATT_PERM_WRITE),
+
+    [TEST_IDX_CHAR3] = GATT_CHAR_DEFINE(TEST_CHAR3_UUID, GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP | GATT_CHRC_PROP_EXT_PROP | GATT_CHRC_PROP_NOTIFY | GATT_CHRC_PROP_INDICATE | GATT_CHRC_PROP_AUTH),
+    [TEST_IDX_CHAR3_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR3_UUID,  GATT_PERM_READ | GATT_PERM_WRITE),
+    [TEST_IDX_CHAR3_CUD] = GATT_CHAR_CUD_DEFINE(test_svc.value3_cud,  GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_PREPARE_WRITE),
+    [TEST_IDX_CHAR3_CCC] = GATT_CHAR_CCC_DEFINE(),
+
+    [TEST_IDX_CHAR4] = GATT_CHAR_DEFINE(TEST_CHAR4_UUID, GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP | GATT_CHRC_PROP_EXT_PROP | GATT_CHRC_PROP_AUTH),
+    [TEST_IDX_CHAR4_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR4_UUID,  GATT_PERM_WRITE | GATT_PERM_PREPARE_WRITE | GATT_PERM_WRITE_AUTHEN),
+
+    [TEST_IDX_CHAR6] = GATT_CHAR_DEFINE(TEST_CHAR6_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP | GATT_CHRC_PROP_EXT_PROP),
+    [TEST_IDX_CHAR6_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR6_UUID,  GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_PREPARE_WRITE),
+
+    [TEST_IDX_CHAR7] = GATT_CHAR_DEFINE(TEST_CHAR7_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP | GATT_CHRC_PROP_EXT_PROP),
+    [TEST_IDX_CHAR7_VAL] = GATT_CHAR_VAL_DEFINE(TEST_CHAR7_UUID,  GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_PREPARE_WRITE | GATT_PERM_WRITE_AUTHEN),
+);
+
+enum {
+    TEST2_IDX_SVC,
+    TEST2_IDX_CHAR1,
+    TEST2_IDX_CHAR1_VAL,
+    TEST2_IDX_CHAR2,
+    TEST2_IDX_CHAR2_VAL,
+    TEST2_IDX_CHAR5,
+    TEST2_IDX_CHAR5_VAL,
+    TEST2_IDX_CHAR3,
+    TEST2_IDX_CHAR3_VAL,
+    TEST2_IDX_CHAR4,
+    TEST2_IDX_CHAR4_VAL,
+    TEST2_IDX_CHAR6,
+    TEST2_IDX_CHAR6_VAL,
+
+    TEST2_IDX_MAX,
+};
+#if 0
+GATT_SERVICE_STATIC_DEFINE(test2_service,
+    [TEST2_IDX_SVC] = GATT_PRIMARY_SERVICE_DEFINE(TEST2_SERVICE_UUID),
+
+    [TEST2_IDX_CHAR1] = GATT_CHAR_DEFINE(TEST2_CHAR1_UUID, GATT_CHRC_PROP_READ),
+    [TEST2_IDX_CHAR1_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR1_UUID, GATT_PERM_READ),
+
+    [TEST2_IDX_CHAR2] = GATT_CHAR_DEFINE(TEST2_CHAR2_UUID, GATT_CHRC_PROP_READ),
+    [TEST2_IDX_CHAR2_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR2_UUID, GATT_PERM_READ | GATT_PERM_READ_ENCRYPT),
+
+    [TEST2_IDX_CHAR5] = GATT_CHAR_DEFINE(TEST2_CHAR5_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP),
+    [TEST2_IDX_CHAR5_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR5_UUID, GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_PREPARE_WRITE),
+
+    [TEST2_IDX_CHAR3] = GATT_CHAR_DEFINE(TEST2_CHAR3_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP),
+    [TEST2_IDX_CHAR3_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR3_UUID, GATT_PERM_READ | GATT_PERM_WRITE),
+
+    [TEST2_IDX_CHAR4] = GATT_CHAR_DEFINE(TEST2_CHAR4_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP),
+    [TEST2_IDX_CHAR4_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR4_UUID, GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_WRITE_ENCRYPT | GATT_PERM_PREPARE_WRITE),
+
+    [TEST2_IDX_CHAR6] = GATT_CHAR_DEFINE(TEST2_CHAR6_UUID, GATT_CHRC_PROP_READ | GATT_CHRC_PROP_WRITE | GATT_CHRC_PROP_WRITE_WITHOUT_RESP),
+    [TEST2_IDX_CHAR6_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR6_UUID, GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_WRITE_ENCRYPT),
+);
+#endif
+#else
 gatt_service test_service;
+#if 0
 gatt_service test2_service;
-
-
+#endif
 static  gatt_attr_t test_attrs[] = {
     [TEST_IDX_SVC] = GATT_PRIMARY_SERVICE_DEFINE(TEST_SERVICE_UUID),
 
@@ -620,7 +687,7 @@ enum {
 
     TEST2_IDX_MAX,
 };
-
+#if 0
 static gatt_attr_t test2_attrs[] = {
     [TEST2_IDX_SVC] = GATT_PRIMARY_SERVICE_DEFINE(TEST2_SERVICE_UUID),
 
@@ -643,7 +710,10 @@ static gatt_attr_t test2_attrs[] = {
     [TEST2_IDX_CHAR6_VAL] = GATT_CHAR_VAL_DEFINE(TEST2_CHAR6_UUID, GATT_PERM_READ | GATT_PERM_WRITE | GATT_PERM_WRITE_ENCRYPT),
 
 };
+#endif
+#endif
 
+#ifdef CONFIG_BT_SHELL_TRANSPORT_TEST
 
 enum {
     TEST3_IDX_SVC,
@@ -658,6 +728,7 @@ enum {
 #define TEST3_SERVICE_UUID UUID128_DECLARE(0xF0,0x33,0x35,0xd4,0x12,0xf3,0x11,0xe9, 0xab,0x14,0xd6,0x63,0xbd,0x87,0x3d,0x93)
 #define TEST3_RX_UUID UUID128_DECLARE(0xF1,0x33,0x35,0xd4,0x12,0xf3,0x11,0xe9, 0xab,0x14,0xd6,0x63,0xbd,0x87,0x3d,0x93)
 #define TEST3_TX_UUID UUID128_DECLARE(0xF2,0x33,0x35,0xd4,0x12,0xf3,0x11,0xe9, 0xab,0x14,0xd6,0x63,0xbd,0x87,0x3d,0x93)
+
 
 static BT_STACK_NOINIT(transport_task_stack, 1024);
 
@@ -714,11 +785,14 @@ static gatt_attr_t test3_attrs1[] = {
     [TEST3_IDX_TX_CCC] = GATT_CHAR_CCC_DEFINE(),
 };
 
+#endif
+
 struct {
+    int16_t conn_handle;
     uint16_t notify_handle;
     uint8_t notify_type;
     uint8_t indicate_ongoing;
-} g_notify_data = {0};
+} g_notify_data[CONFIG_BT_MAX_CONN] = {0};
 
 static void conn_change(ble_event_en event, void *event_data)
 {
@@ -728,8 +802,7 @@ static void conn_change(ble_event_en event, void *event_data)
         test_svc.conn_handle = e->conn_handle;
     } else {
         test_svc.conn_handle = -1;
-        g_notify_data.notify_type = 0;
-        g_notify_data.indicate_ongoing = 0;
+        g_notify_data[e->conn_handle].indicate_ongoing = 0;
     }
 }
 
@@ -928,7 +1001,7 @@ static int event_gatt_indicate_confirm(ble_event_en event, void *event_data)
         printf("indicate char %d success\n", e->char_handle);
     }
 
-    g_notify_data.indicate_ongoing = 0;
+    g_notify_data[e->conn_handle].indicate_ongoing = 0;
     return 0;
 }
 
@@ -936,23 +1009,38 @@ struct k_delayed_work notify_work = {0};
 
 void notify_action(struct k_work *work)
 {
+    static uint8_t i = 0;
+    uint8_t notify = 0;
     uint8_t data[2] = {1, 2};
 
-    if (g_notify_data.notify_type == CCC_VALUE_NOTIFY) {
-        ble_stack_gatt_notificate(g_bt_conn_handle, g_notify_data.notify_handle, data, 2);
+    i++;
+    for (int j = 0; j < sizeof(data); j++)
+    {
+        data[j] = i++;
+    }
+
+    for (int i = 0; i < CONFIG_BT_MAX_CONN; i++)
+    {
+        if (g_notify_data[i].notify_type  == CCC_VALUE_NOTIFY) {
+            ble_stack_gatt_notificate(i, g_notify_data[i].notify_handle, data, 2);
+            notify = 1;
+        } else if (g_notify_data[i].notify_type  == CCC_VALUE_INDICATE) {
+            if (!g_notify_data[i].indicate_ongoing) {
+                g_notify_data[i].indicate_ongoing = 1;
+                ble_stack_gatt_indicate(i, g_notify_data[i].notify_handle, data, 2);
+                notify = 1;
+            }
+         }
+    }
+    if (notify)
+    {
         k_delayed_work_submit(&notify_work, 2000);
-    } else if (g_notify_data.notify_type == CCC_VALUE_INDICATE) {
-        if (!g_notify_data.indicate_ongoing) {
-            g_notify_data.indicate_ongoing = 1;
-            ble_stack_gatt_indicate(g_bt_conn_handle, g_notify_data.notify_handle, data, 2);
-            k_delayed_work_submit(&notify_work, 2000);
-        }
     }
 }
 
-static int event_char_ccc_change(ble_event_en event, void *event_data)
+static int event_char_ccc_write(ble_event_en event, void *event_data)
 {
-    evt_data_gatt_char_ccc_change_t *e = (evt_data_gatt_char_ccc_change_t *)event_data;
+    evt_data_gatt_char_ccc_write_t *e = (evt_data_gatt_char_ccc_write_t *)event_data;
     uint16_t handle_offset = 0;
 
     BLE_CHAR_RANGE_CHECK(test_svc.svc_handle, TEST_IDX_MAX, e->char_handle, handle_offset);
@@ -964,16 +1052,11 @@ static int event_char_ccc_change(ble_event_en event, void *event_data)
     if (handle_offset == TEST_IDX_CHAR3_CCC) {
         test_svc.ccc = e->ccc_value;
         printf("ccc handle %d change %d\n", e->char_handle, test_svc.ccc);
-        g_notify_data.notify_handle = e->char_handle - 2;
+        g_notify_data[e->conn_handle].notify_type = e->ccc_value;
+        g_notify_data[e->conn_handle].notify_handle = e->char_handle - 2;
 
-        if (test_svc.ccc == CCC_VALUE_NOTIFY) {
-            g_notify_data.notify_type = CCC_VALUE_NOTIFY;
-            k_delayed_work_submit(&notify_work, 2000);
-        } else if (test_svc.ccc == CCC_VALUE_INDICATE) {
-            g_notify_data.notify_type = CCC_VALUE_INDICATE;
-            k_delayed_work_submit(&notify_work, 2000);
-        } else {
-            g_notify_data.notify_type = 0;
+        if (e->ccc_value == CCC_VALUE_NOTIFY || e->ccc_value == CCC_VALUE_INDICATE) {
+             k_delayed_work_submit(&notify_work, 2000);
         }
     }
 
@@ -995,8 +1078,8 @@ static int test_event_callback(ble_event_en event, void *event_data)
         event_char_write(event, event_data);
         break;
 
-    case EVENT_GATT_CHAR_CCC_CHANGE:
-        event_char_ccc_change(event, event_data);
+    case EVENT_GATT_CHAR_CCC_WRITE:
+        event_char_ccc_write(event, event_data);
         break;
 
 #if defined(CONFIG_BT_GATT_CLIENT)
@@ -1039,6 +1122,7 @@ static ble_event_cb_t ble_cb1 = {
     .callback = test_event_callback,
 };
 
+#if 0
 static int event2_char_write(ble_event_en event, void *event_data)
 {
     evt_data_gatt_char_write_t *e = (evt_data_gatt_char_write_t *)event_data;
@@ -1264,6 +1348,12 @@ static int test2_event_callback(ble_event_en event, void *event_data)
     return 0;
 }
 
+static ble_event_cb_t ble_cb2 = {
+    .callback = test2_event_callback,
+};
+#endif
+
+#ifdef CONFIG_BT_SHELL_TRANSPORT_TEST
 void test3_start_adv(void)
 {
     ad_data_t ad[2] = {0};
@@ -1295,10 +1385,6 @@ void test3_start_adv(void)
         printf("adv start!\n");
     }
 }
-
-static ble_event_cb_t ble_cb2 = {
-    .callback = test2_event_callback,
-};
 
 static int data_check(uint8_t *data, uint16_t len)
 {
@@ -1513,15 +1599,19 @@ static int test3_event_callback(ble_event_en event, void *event_data)
 static ble_event_cb_t ble_cb3 = {
     .callback = test3_event_callback,
 };
+#endif
 
 int cmd_gatt_register_test_svc(int argc, char *argv[])
 {
 
-    int ret;
+    int ret = 0;
 
     if (!strcmp(argv[0], "gatt-register-service")) {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+		ret = ble_stack_gatt_service_handle(&test_service);
+#else
         ret = ble_stack_gatt_registe_service(&test_service, test_attrs, BLE_ARRAY_NUM(test_attrs));
-
+#endif
         if (ret < 0) {
             printf("Registering test services faild (%d)\n", ret);
             return ret;
@@ -1530,8 +1620,12 @@ int cmd_gatt_register_test_svc(int argc, char *argv[])
         test_svc.svc_handle = ret;
         ret = ble_stack_event_register(&ble_cb1);
     } else {
+#if 0
+#if 0
+		ret = ble_stack_gatt_service_handle(&test2_service);
+#else
         ret = ble_stack_gatt_registe_service(&test2_service, test2_attrs, BLE_ARRAY_NUM(test2_attrs));
-
+#endif
         if (ret < 0) {
             printf("Registering test services faild (%d)\n", ret);
             return ret;
@@ -1539,6 +1633,7 @@ int cmd_gatt_register_test_svc(int argc, char *argv[])
 
         test_svc.svc2_handle = ret;
         ret = ble_stack_event_register(&ble_cb2);
+#endif
     }
 
     if (ret) {
@@ -1549,7 +1644,7 @@ int cmd_gatt_register_test_svc(int argc, char *argv[])
 
     return 0;
 }
-
+#ifdef CONFIG_BT_SHELL_TRANSPORT_TEST
 uint8_t test_data[256] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
@@ -1694,7 +1789,7 @@ static void transport_task(void *arg)
                 test_data[0] = i;
                 ret = send_func(test_data, send_count);
 
-                if (ret == -ENOMEM) {
+                if (ret == -ENOMEM || ret == -ENOBUFS || ret == -EAGAIN) {
                     test3_svc.tx_retry_count++;
                     aos_msleep(1);
                     continue;
@@ -1890,7 +1985,7 @@ int cmd_gatt_transport_test(int argc, char *argv[])
 
     return 0;
 }
-
+#endif
 int cmd_gatt_unregister_test_svc(int argc, char *argv[])
 {
     printf("Unregistering test vendor services\n");

@@ -95,9 +95,6 @@ int iotx_cm_connect(int fd, uint32_t timeout)
             }
 #endif
         }
-        iotx_event_post(IOTX_CONN_CLOUD_SUC);    
-    } else {
-        iotx_event_post(IOTX_CONN_CLOUD_FAIL);
     }
 
     return ret;

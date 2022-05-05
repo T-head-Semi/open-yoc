@@ -59,7 +59,7 @@
 #define HEARTBEAT_PUB_STATE  BIT(7)
 #define HEARTBEAT_SUB_STATE  BIT(8)
 
-static const struct bt_mesh_prov        *prov;
+//static const struct bt_mesh_prov        *prov;
 static const struct bt_mesh_provisioner *provisioner;
 static const struct bt_mesh_comp        *comp;
 
@@ -101,7 +101,7 @@ static int provisioner_index_check(int node_index)
     node = &mesh_nodes[node_index];
 
     if (node->node_active != true) {
-        BT_ERR("%s: node not found", __func__);
+        //BT_ERR("%s: node not found", __func__);
         return -EINVAL;
     }
 
@@ -128,9 +128,30 @@ bool provisioner_is_node_provisioned(const u8_t *dev_addr)
     return false;
 }
 
+uint16_t provisioner_get_node_max_addr()
+{
+    int i;
+    uint16_t addr_max = 0;
+    struct bt_mesh_node_t *node = NULL;
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+        node = &mesh_nodes[i];
+
+        if (!node->node_active) {
+            continue;
+        }
+
+        if (node->unicast_addr >= addr_max) {
+            addr_max = node->unicast_addr + node->element_num - 1;
+        }
+    }
+
+    return addr_max;
+}
+
 int provisioner_node_provision(int node_index, const u8_t uuid[16], u16_t oob_info,
                                u16_t unicast_addr, u8_t element_num, u16_t net_idx,
-                               u8_t flags, u32_t iv_index, const u8_t dev_key[16], u8_t *dev_addr)
+                               u8_t flags, u32_t iv_index, const u8_t dev_key[16], u8_t *dev_addr, u8_t lpm_flag, char CID[33])
 {
     struct bt_mesh_node_t *node = NULL;
 
@@ -140,6 +161,13 @@ int provisioner_node_provision(int node_index, const u8_t uuid[16], u16_t oob_in
         BT_ERR("Provisioner mesh node queue is full");
         return -ENOMEM;
     }
+
+	for(int index = 0;index < ARRAY_SIZE(mesh_nodes); index++) {
+       if(mesh_nodes[index].node_active && mesh_nodes[index].unicast_addr == unicast_addr) {
+			BT_ERR("The same node:%04x already exist with index:%d",unicast_addr,index);
+			return -EINVAL;
+	   }
+	}
 
     if (node_index >= ARRAY_SIZE(mesh_nodes) || !uuid || !dev_key) {
         BT_ERR("Argument is invalid");
@@ -173,23 +201,25 @@ int provisioner_node_provision(int node_index, const u8_t uuid[16], u16_t oob_in
     memcpy(node->dev_key, dev_key, 16);
     memcpy(node->addr_val, dev_addr, 6);
     node->node_active  = true;
+#ifdef CONFIG_MESH_LPM
+    node->support_lpm = lpm_flag;
+#endif
+#if defined(CONFIG_MESH_OCC_AUTH) && (CONFIG_MESH_OCC_AUTH)
 
+    if (CID) {
+		memset(node->CID,0x00,sizeof(node->CID));
+	    strncpy(node->CID, CID, strlen(CID));
+    }
+
+#endif
     mesh_node_count++;
 
     return 0;
 }
 
-int provisioner_node_reset(int node_index)
+int provisioner_node_version_set(int node_index, u32_t version)
 {
     struct bt_mesh_node_t *node = NULL;
-
-    BT_DBG("%s: reset node %d", __func__, node_index);
-
-    if (!mesh_node_count) {
-        BT_ERR("%s: mesh_nodes is empty", __func__);
-        return -ENODEV;
-    }
-
     if (provisioner_index_check(node_index)) {
         BT_ERR("%s: check node_index fail", __func__);
         return -EINVAL;
@@ -197,34 +227,86 @@ int provisioner_node_reset(int node_index)
 
     node = &mesh_nodes[node_index];
 
+    if (node->version != version)
+    {
+        BT_DBG("node:%d version set %04x",node_index,version);
+        node->version = version;
+        bt_mesh_store_mesh_node(node_index);
+    }
+
+    return 0;
+}
+
+
+int provisioner_node_reset(int node_index)
+{
+    struct bt_mesh_node_t *node = NULL;
+    BT_DBG("reset node %d", node_index);
+
+    if (!mesh_node_count) {
+        BT_ERR("mesh_nodes is empty");
+        return -ENODEV;
+    }
+
+    if (provisioner_index_check(node_index)) {
+        BT_ERR("check node_index fail");
+        return -EINVAL;
+    }
+
+    node = &mesh_nodes[node_index];
+
     /* Reset corresponding rpl when reset the node */
     extern void bt_mesh_rpl_clear_node(uint16_t unicast_addr, uint8_t elem_num);
-    bt_mesh_rpl_clear_node(node->unicast_addr,node->element_num);
+    bt_mesh_rpl_clear_node(node->unicast_addr, node->element_num);
 
 #if 0
     osi_free(mesh_nodes[node_index]);
     mesh_nodes[node_index] = NULL;
 #endif
 
-    node->node_active = false;
-
-    mesh_node_count--;
+        mesh_node_count--;
 
 #ifdef CONFIG_BT_MESH_EVENT_CALLBACK
-        bt_mesh_model_evt_t evt_data;
-        evt_data.source_addr = mesh_nodes[node_index].unicast_addr;
-        mesh_model_evt_cb event_cb = bt_mesh_event_get_cb_func();
-        if (event_cb) {
-            event_cb(BT_MESH_MODEL_EVT_NODE_RESET_STATUS, &evt_data);
-        }
+	    bt_mesh_model_evt_t evt_data;
+	    evt_data.source_addr = mesh_nodes[node_index].unicast_addr;
+	    mesh_model_evt_cb event_cb = bt_mesh_event_get_cb_func();
+	    if (event_cb) {
+	        event_cb(BT_MESH_MODEL_EVT_NODE_RESET_STATUS, &evt_data);
+	    }
 #endif
 
+    provisioner_prov_reset_nodes(node->unicast_addr);
+
+    node->node_active = false;
 
     if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
         bt_mesh_clear_mesh_node(node_index);
     }
+
     return 0;
 }
+
+
+int provisioner_upper_reset_node(uint16_t unicast_addr)
+{
+    int i, err;
+    BT_DBG("%s", __func__);
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+		if(mesh_nodes[i].unicast_addr == unicast_addr && mesh_nodes[i].node_active) {
+           err = provisioner_node_reset(i);
+           if (!err || err == -ENODEV) {
+               return 0;
+           }else{
+               return err;
+		   }
+		}
+    }
+
+    return -ENODEV;
+}
+
+
 
 int provisioner_upper_reset_all_nodes(void)
 {
@@ -241,6 +323,12 @@ int provisioner_upper_reset_all_nodes(void)
     }
 
     return 0;
+}
+
+
+void provisioner_mesh_node_reset()
+{
+   memset(mesh_nodes,0x00,sizeof(mesh_nodes));
 }
 
 /** For Provisioner, we use the same data structure
@@ -629,6 +717,80 @@ int bt_mesh_provisioner_set_node_name(int node_index, const char *name)
     return 0;
 }
 
+#ifdef CONFIG_MESH_LPM
+
+int bt_mesh_provisioner_set_node_lpm_flag(u16_t unicast_addr, u8_t flag)
+{
+    int i = 0;
+
+    BT_DBG("%s", __func__);
+
+    if (!BT_MESH_ADDR_IS_UNICAST(unicast_addr)) {
+        BT_ERR("%s: not a unicast address", __func__);
+        return -1;
+    }
+
+    struct bt_mesh_node_t *node;
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+        node = &mesh_nodes[i];
+
+        if (!node->node_active) {
+            continue;
+        }
+
+        if (unicast_addr >= node->unicast_addr &&
+            unicast_addr < (node->unicast_addr + node->element_num)) {
+            if(node->support_lpm == flag) {
+                return 0;
+			} else {
+                node->support_lpm = flag;
+			    break;
+			}
+
+        }
+    }
+
+    if(i == ARRAY_SIZE(mesh_nodes)) {
+	   return -1;
+	}
+
+    if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+        node->support_lpm = flag;
+        bt_mesh_store_mesh_node(i);
+    }
+    return 0;
+}
+
+int bt_mesh_provisioner_get_node_lpm_flag(u16_t unicast_addr)
+{
+    int i;
+
+    BT_DBG("%s", __func__);
+
+    if (!BT_MESH_ADDR_IS_UNICAST(unicast_addr)) {
+        return 0;
+    }
+
+    struct bt_mesh_node_t *node;
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+        node = &mesh_nodes[i];
+
+        if (!node->node_active) {
+            continue;
+        }
+
+        if (unicast_addr >= node->unicast_addr &&
+            unicast_addr < (node->unicast_addr + node->element_num)) {
+            return node->support_lpm;
+        }
+    }
+
+    return 0;
+}
+#endif
+
 const char *bt_mesh_provisioner_get_node_name(int node_index)
 {
     BT_DBG("%s", __func__);
@@ -673,15 +835,26 @@ int bt_mesh_provisioner_get_node_index(const char *name)
     return -ENODEV;
 }
 
+int bt_mesh_provisioner_get_node_id(struct bt_mesh_node_t *node)
+{
+    return node - mesh_nodes;
+}
+
 struct bt_mesh_node_t *bt_mesh_provisioner_get_node_info_by_id(int node_index)
 {
     if (provisioner_index_check(node_index)) {
-        BT_ERR("%s: check node_index fail", __func__);
         return NULL;
     }
 
     return &mesh_nodes[node_index];
 }
+
+u16_t bt_mesh_provisioner_get_node_size()
+{
+    return ARRAY_SIZE(mesh_nodes);
+}
+
+
 
 struct bt_mesh_node_t *bt_mesh_provisioner_get_node_info(u16_t unicast_addr)
 {
@@ -710,6 +883,31 @@ struct bt_mesh_node_t *bt_mesh_provisioner_get_node_info(u16_t unicast_addr)
 
     return NULL;
 }
+
+
+
+struct bt_mesh_node_t *bt_mesh_provisioner_get_node_info_by_mac(dev_addr_t addr)
+{
+    struct bt_mesh_node_t *node = NULL;
+    int i;
+
+    BT_DBG("%s", __func__);
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+        node = &mesh_nodes[i];
+
+        if (!node->node_active) {
+            continue;
+        }
+
+        if (!memcmp(addr.val, node->addr_val, sizeof(addr.val)) && addr.type == node->addr_type) {
+            return node;
+        }
+    }
+
+    return NULL;
+}
+
 
 u32_t bt_mesh_provisioner_get_net_key_count(void)
 {
@@ -1193,7 +1391,7 @@ int bt_mesh_provisioner_local_net_key_delete(u16_t net_idx)
 
 int bt_mesh_provisioner_get_own_unicast_addr(u16_t *addr, u8_t *elem_num)
 {
-    if (!addr || !elem_num || !prov || !comp) {
+    if (!addr || !elem_num || !provisioner || !comp) {
         BT_ERR("%s: parameter is NULL", __func__);
         return -EINVAL;
     }
@@ -1382,6 +1580,27 @@ int bt_mesh_provisioner_print_local_element_info(void)
 
     BT_WARN("************************************************");
     (void)model;
+    return 0;
+}
+
+int bt_mesh_provisioner_node_foreach(void (*func)(struct bt_mesh_node_t *node, void *data), void *data)
+{
+    int i;
+    if (!func)
+    {
+        return -1;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(mesh_nodes); i++) {
+        struct bt_mesh_node_t *node = &mesh_nodes[i];
+
+        if (!node->node_active || !BT_MESH_ADDR_IS_UNICAST(node->unicast_addr)) {
+            continue;
+        }
+
+        func(node, data);
+    }
+
     return 0;
 }
 

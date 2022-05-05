@@ -45,6 +45,14 @@
 #include "vendor/vendor_model_cli.h"
 #endif
 
+#if defined(CONFIG_BT_MESH_MODEL_BLOB_CLI)
+#include "sig_model/blob_cli.h"
+#endif
+
+#if defined(CONFIG_BT_MESH_MODEL_BLOB_SRV)
+#include "sig_model/blob_srv.h"
+#endif
+
 #include "model_bind_ops.h"
 #include <api/mesh/access.h>
 
@@ -86,6 +94,13 @@ typedef struct {
     u16_t UV[TYPE_NUM];
 #endif
 
+#ifdef   CONFIG_BT_MESH_MODEL_BLOB_CLI
+    //blob_cli  blob_cli_ctx;
+#endif
+
+#ifdef   CONFIG_BT_MESH_MODEL_BLOB_SRV
+    //blob_srv blob_srv_ctx;
+#endif
     u8_t delay;         //unit:5ms
     u8_t trans;    //unit:100ms
     u32_t trans_start_time;
@@ -146,12 +161,13 @@ typedef enum {
     BT_MESH_MODEL_CFG_APPKEY_BIND_STATUS = 0x803e,
     BT_MESH_MODEL_CFG_RST_STATUS     = 0x804a,
     BT_MESH_MODEL_CFG_NET_KEY_STATUS = 0x8044,
-	/*[Genie begin] add by wenbing.cwb at 2021-01-21*/
-    #ifdef CONFIG_BT_MESH_CTRL_RELAY
+    /*[Genie begin] add by wenbing.cwb at 2021-01-21*/
+#ifdef CONFIG_BT_MESH_CTRL_RELAY
     BT_MESH_MODEL_CFG_CTRL_RELAY_STATUS = 0x8072,
-    #endif
-	/*[Genie end] add by wenbing.cwb at 2021-01-21*/
+#endif
+    /*[Genie end] add by wenbing.cwb at 2021-01-21*/
     BT_MESH_MODEL_ONOFF_SET =        0x8202,
+    BT_MESH_MODEL_ONOFF_SET_UNACK =  0x8203,
     BT_MESH_MODEL_ONOFF_STATUS =     0x8204,
     BT_MESH_MODEL_LEVEL_SET =        0x8206,
     BT_MESH_MODEL_LEVEL_MOVE_SET =   0x820B,
@@ -174,7 +190,19 @@ typedef enum {
     BT_MESH_MODEL_LIGHT_CTL_DEF_STATUS    = 0x8268,
     BT_MESH_MODEL_LIGHT_CTL_DEF_SET       = 0x8269,
     BT_MESH_MODEL_LIGHT_CTL_RANGE_SET     = 0x826b,
+    BT_MESH_MODEL_BLOB_TRANS_START         = 0x9002,
+    BT_MESH_MODEL_BLOB_TRANS_CANCEL        = 0x9003,
+    BT_MESH_MODEL_BLOB_TRANS_STATUS       = 0x9004,
+    BT_MESH_MODEL_BLOB_BLOCK_GET           = 0x9005,
+    BT_MESH_MODEL_BLOB_BLOCK_START         = 0x9006,
+    BT_MESH_MODEL_BLOB_CHUNK_DATA         = 0x9009,
+    BT_MESH_MODEL_BLOB_INFO_STATUS        = 0x900B,
+    BT_MESH_MODEL_BLOB_SET_STATUS         = 0x900E,
+    BT_MESH_MODEL_BLOB_ALL_SRV_PROCEDURE_STATUS         = 0x900F,
     BT_MESH_MODEL_VENDOR_MESSAGES          = 0xcf01a8,
+    BT_MESH_MODEL_VENDOR_MESH_STATUS       = 0xd301a8,
+    BT_MESH_MODEL_VENDOR_MESH_INDICATE     = 0xd401a8,
+    BT_MESH_MODEL_VENDOR_MESH_CONFIRM      = 0xd501a8,
     BT_MESH_MODEL_VENDOR_MESH_AUTOCONFIG   = 0xd601a8,
     BT_MESH_MODEL_VENDOR_MESH_AUTOCONFIG_GET = 0xd701a8,
     BT_MESH_MODEL_VENDOR_MESH_AUTOCONFIG_STATUS = 0xd801a8,
@@ -182,6 +210,12 @@ typedef enum {
 
 
 typedef void (*model_event_cb)(mesh_model_event_en event, void *p_arg);
+
+struct model_cb {
+    model_event_cb   event_cb;
+    struct model_cb *_next;
+};
+
 
 typedef struct {
     void *user_data;
@@ -192,6 +226,7 @@ typedef struct {
 typedef struct {
     uint16_t source_addr;
     uint16_t dst_addr;
+    uint8_t  trans;
     struct net_buf_simple *status_data;
     void *user_data;
     vendor_data ven_data;
@@ -202,6 +237,10 @@ int ble_mesh_model_init(const struct bt_mesh_comp *comp);
 const struct bt_mesh_comp *ble_mesh_model_get_comp_data();
 
 int ble_mesh_model_set_cb(model_event_cb event_cb);
+
+void ble_mesh_model_cb_register(struct model_cb *cb);
+
+void  ble_mesh_model_cb_unregister(struct model_cb *cb);
 
 struct bt_mesh_model *ble_mesh_model_find(uint16_t elem_idx, uint16_t mod_idx, uint16_t CID);
 

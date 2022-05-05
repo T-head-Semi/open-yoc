@@ -16,7 +16,7 @@
 #define K_SEM_INITIALIZER DEPRECATED_MACRO _K_SEM_INITIALIZER
 
 #define K_SEM_DEFINE(name, initial_count, count_limit)     \
-    struct k_sem name __in_section(_k_sem, static, name) = \
+    struct k_sem name __in_section(data._k_sem, static, name) = \
             _K_SEM_INITIALIZER(name, initial_count, count_limit)
 
 
@@ -52,6 +52,13 @@ typedef sys_dlist_t _wait_q_t;
 
 /*attention: this is intialied as zero,the queue variable shoule use
  * k_queue_init\k_lifo_init\k_fifo_init again*/
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#define _K_QUEUE_INITIALIZER(obj) \
+    {                             \
+       SYS_SLIST_STATIC_INIT(&obj.queue_list), \
+       SYS_DLIST_STATIC_INIT(&obj.poll_events), \
+    }
+#else
 #define _K_QUEUE_INITIALIZER(obj) \
     {                             \
         {                         \
@@ -62,7 +69,7 @@ typedef sys_dlist_t _wait_q_t;
             }                     \
         }                         \
     }
-
+#endif
 #define K_QUEUE_INITIALIZER DEPRECATED_MACRO _K_QUEUE_INITIALIZER
 
 #define Z_WORK_INITIALIZER(work_handler) \

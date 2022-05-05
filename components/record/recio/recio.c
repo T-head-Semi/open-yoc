@@ -39,7 +39,7 @@ int recio_unregister(const char *path)
     slist_for_each_entry(&recio_cls_list, node, recio_node_t, next) {
 
         if (strcmp(node->id, path) == 0) {
-            LOGD(TAG, "%s, %d", __func__, __LINE__);
+            LOGD(TAG, "%s, %s", __func__, path);
             slist_del(&node->next, &recio_cls_list);
             aos_free(node->id);
             aos_free(node);

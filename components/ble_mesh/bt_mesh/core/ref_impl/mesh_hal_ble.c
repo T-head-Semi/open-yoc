@@ -46,17 +46,17 @@ void bt_mesh_conn_cb_register(struct bt_conn_cb *cb)
     bt_conn_cb_register(&conn_callbacks);
 }
 
-struct bt_conn * bt_mesh_conn_ref(struct bt_conn * conn)
+struct bt_conn *bt_mesh_conn_ref(struct bt_conn *conn)
 {
     return bt_conn_ref((struct bt_conn *)conn);
 }
 
-void bt_mesh_conn_unref(struct bt_conn * conn)
+void bt_mesh_conn_unref(struct bt_conn *conn)
 {
     bt_conn_unref((struct bt_conn *)conn);
 }
 
-int bt_mesh_conn_disconnect(struct bt_conn * conn, uint8_t reason)
+int bt_mesh_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 {
     return bt_conn_disconnect((struct bt_conn *)conn, reason);
 }
@@ -118,34 +118,34 @@ int bt_mesh_gatt_service_unregister(struct bt_gatt_service *svc)
     return ret;
 }
 
-int bt_mesh_gatt_notify(struct bt_conn * conn, const struct bt_gatt_attr *attr,
+int bt_mesh_gatt_notify(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                         const void *data, uint16_t len)
 {
     return bt_gatt_notify((struct bt_conn *)conn, (const struct bt_gatt_attr *)attr, data, len);
 }
 
-int bt_mesh_gatt_attr_read(struct bt_conn * conn, const struct bt_gatt_attr *attr,
+int bt_mesh_gatt_attr_read(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                            void *buf, uint16_t buf_len, uint16_t offset,
                            const void *value, uint16_t value_len)
 {
     return bt_gatt_attr_read((struct bt_conn *)conn, (const struct bt_gatt_attr *)attr, buf, buf_len, offset, value, value_len);
 }
 
-uint16_t bt_mesh_gatt_get_mtu(struct bt_conn * conn)
+uint16_t bt_mesh_gatt_get_mtu(struct bt_conn *conn)
 {
     return bt_gatt_get_mtu((struct bt_conn *)conn);
 }
 
-int bt_mesh_gatt_attr_read_service(struct bt_conn * conn,
+int bt_mesh_gatt_attr_read_service(struct bt_conn *conn,
                                    const struct bt_gatt_attr *attr,
                                    void *buf, uint16_t len, uint16_t offset)
 {
     return bt_gatt_attr_read_service((struct bt_conn *)conn, (const struct bt_gatt_attr *)attr, buf, len, offset);
 }
 
-int bt_mesh_gatt_attr_read_chrc(struct bt_conn * conn,
-                               const struct bt_gatt_attr *attr, void *buf,
-                               uint16_t len, uint16_t offset)
+int bt_mesh_gatt_attr_read_chrc(struct bt_conn *conn,
+                                const struct bt_gatt_attr *attr, void *buf,
+                                uint16_t len, uint16_t offset)
 {
     return bt_gatt_attr_read_chrc((struct bt_conn *)conn, (const struct bt_gatt_attr *)attr, buf, len, offset);
 }
@@ -217,7 +217,7 @@ bool bt_prov_check_gattc_id(int id, const bt_addr_le_t *addr)
     memcpy(gattc_info[id].addr, addr->a.val, 6);
     gattc_info[id].addr_type = addr->type;
 
-	return true;
+    return true;
 }
 
 void set_my_addr(u8_t index, const u8_t *addr, u8_t type)
@@ -229,57 +229,64 @@ void set_my_addr(u8_t index, const u8_t *addr, u8_t type)
 int bt_gattc_conn_create(int id, u16_t srvc_uuid)
 {
     int err;
-	bt_addr_le_t 	peer;
-	struct bt_le_conn_param conn_param;
-	struct bt_conn *conn;
+    bt_addr_le_t    peer;
+    struct bt_le_conn_param conn_param;
+    struct bt_conn *conn;
 
-    /** Min_interval:        250ms
-     *  Max_interval:        250ms
+    /** Min_interval:        30ms
+     *  Max_interval:        50ms
      *  Slave_latency:       0x0
-     *  Supervision_timeout: 32sec
+     *  Supervision_timeout: 1sec
     */
-	conn_param.interval_min	= 0xC8;
-	conn_param.interval_max	= 0xC8;
-	conn_param.latency		= 0x00;
-	conn_param.timeout		= 0xC80;
+    conn_param.interval_min = 0x18;
+    conn_param.interval_max = 0x28;
+    conn_param.latency      = 0x00;
+    conn_param.timeout      = 0x64;
 
-	peer.type = gattc_info[id].addr_type;
+    peer.type = gattc_info[id].addr_type;
 
-	memcpy(peer.a.val, gattc_info[id].addr, 6);
+    memcpy(peer.a.val, gattc_info[id].addr, 6);
 
-	//BT_DBG("type:%u addr: %02x, %02x\r\n", peer.type, peer.a.val[0], peer.a.val[1]);
-	extern int bt_mesh_scan_disable(void);
-	err = bt_mesh_scan_disable();
-	if (err && err != -EALREADY)
-	{
-		return err;
-	}
-	//add relay to ensure the scan has been disabled
-	aos_msleep(10);
-	conn = bt_conn_create_le(&peer, &conn_param);
+    printf("Conn type:%u addr: %02x:%02x:%02x:%02x:%02x:%02x\r\n", peer.type, peer.a.val[0], peer.a.val[1],  \
+           peer.a.val[2], peer.a.val[3], peer.a.val[4], peer.a.val[5]);
+    extern int bt_mesh_scan_disable(void);
+    err = bt_mesh_scan_disable();
 
-	if (conn == NULL) {
-		return -EIO;
-	}
-    else
-    {
+    if (err && err != -EALREADY) {
+        return err;
+    }
+	extern int bt_mesh_adv_stop(void);
+	err = bt_mesh_adv_stop();
+	if (err && err != -EALREADY) {
+        return err;
+    }
+
+    //add relay to ensure the scan has been disabled
+    aos_msleep(10);
+    conn = bt_conn_create_le(&peer, &conn_param);
+
+    if (conn == NULL) {
+        extern int bt_mesh_scan_enable(void);
+        bt_mesh_scan_enable();
+        return -EIO;
+    } else {
         bt_conn_unref(conn);
     }
 
     gattc_info[id].conn = conn;
 
-	/* Increment pbg_count */
-	provisioner_pbg_count_inc();
+    /* Increment pbg_count */
+    provisioner_pbg_count_inc();
 
-	/* Service to be found after exhanging mtu size */
-	gattc_info[id].srvc_uuid = srvc_uuid;
+    /* Service to be found after exhanging mtu size */
+    gattc_info[id].srvc_uuid = srvc_uuid;
 
     gatt_conn = conn;
 
     return 0;
 }
 
-struct bt_conn * bt_mesh_get_curr_conn(void)
+struct bt_conn *bt_mesh_get_curr_conn(void)
 {
     return gatt_conn;
 }
@@ -406,8 +413,8 @@ u16_t bt_gatt_get_ccc_handle(struct bt_conn *conn)
 }
 
 static u8_t proxy_prov_notify_func(struct bt_conn *conn,
-            struct bt_gatt_subscribe_params *param,
-            const void *buf, u16_t len)
+                                   struct bt_gatt_subscribe_params *param,
+                                   const void *buf, u16_t len)
 {
     if (bt_mesh_gatt_recv) {
         bt_mesh_gatt_recv(conn, NULL, buf, len, 0, 0);
@@ -417,8 +424,8 @@ static u8_t proxy_prov_notify_func(struct bt_conn *conn,
 }
 
 static u8_t proxy_prov_discover_func(struct bt_conn *conn,
-					const struct bt_gatt_attr *attr,
-					struct bt_gatt_discover_params *params)
+                                     const struct bt_gatt_attr *attr,
+                                     struct bt_gatt_discover_params *params)
 {
     if (params->uuid == &prov_primary_uuid.uuid) {
         discov_param.uuid = &prov_character_data_in_uuid.uuid;
@@ -459,6 +466,7 @@ static u8_t proxy_prov_discover_func(struct bt_conn *conn,
         bt_gatt_set_ccc_handle(conn, attr->handle);
 
         err = bt_gatt_subscribe(conn, &subscribe_param);
+
         if (err) {
             printf("Subscribe failed (err %d)\r\n", err);
 
@@ -467,19 +475,19 @@ static u8_t proxy_prov_discover_func(struct bt_conn *conn,
 
         u16_t   open_data = 0x0001;
 
-		bt_gatt_write_without_response(conn, bt_gatt_get_ccc_handle(conn), &open_data, 2, false);
+        bt_gatt_write_without_response(conn, bt_gatt_get_ccc_handle(conn), &open_data, 2, false);
 
         if (bt_mesh_gatt_open_complete) {
             bt_mesh_gatt_open_complete(conn);
         }
-	}
+    }
 
     return 0;
 }
 
 static u8_t proxy_discover_func(struct bt_conn *conn,
-					const struct bt_gatt_attr *attr,
-					struct bt_gatt_discover_params *params)
+                                const struct bt_gatt_attr *attr,
+                                struct bt_gatt_discover_params *params)
 {
     if (params->uuid == &proxy_primary_uuid.uuid) {
         discov_param.uuid = &proxy_character_data_in_uuid.uuid;
@@ -520,6 +528,7 @@ static u8_t proxy_discover_func(struct bt_conn *conn,
         bt_gatt_set_ccc_handle(conn, attr->handle);
 
         err = bt_gatt_subscribe(conn, &subscribe_param);
+
         if (err) {
             printf("Subscribe failed (err %d)\r\n", err);
 
@@ -535,7 +544,7 @@ static u8_t proxy_discover_func(struct bt_conn *conn,
 }
 
 static void proxy_prov_get_mtu_response(struct bt_conn *conn, u8_t err,
-                                                 struct bt_gatt_exchange_params *params)
+                                        struct bt_gatt_exchange_params *params)
 {
     u16_t mtu;
     //u8_t  i;
@@ -555,9 +564,9 @@ static void proxy_prov_get_mtu_response(struct bt_conn *conn, u8_t err,
             discov_param.func = proxy_prov_discover_func;
         }
 
-		discov_param.start_handle = 0x0001;
-		discov_param.end_handle = 0xffff;
-		discov_param.type = BT_GATT_DISCOVER_PRIMARY;
+        discov_param.start_handle = 0x0001;
+        discov_param.end_handle = 0xffff;
+        discov_param.type = BT_GATT_DISCOVER_PRIMARY;
 
         bt_gatt_discover(conn, &discov_param);
     }
@@ -589,17 +598,17 @@ void bt_mesh_conn_cb_register(struct bt_mesh_conn_cb *cb)
     return;
 }
 
-struct bt_conn * bt_mesh_conn_ref(struct bt_conn * conn)
+struct bt_conn *bt_mesh_conn_ref(struct bt_conn *conn)
 {
     return conn;
 }
 
-void bt_mesh_conn_unref(struct bt_conn * conn)
+void bt_mesh_conn_unref(struct bt_conn *conn)
 {
     return;
 }
 
-int bt_mesh_conn_disconnect(struct bt_conn * conn, uint8_t reason)
+int bt_mesh_conn_disconnect(struct bt_conn *conn, uint8_t reason)
 {
     return 0;
 }
@@ -614,34 +623,34 @@ int bt_gatt_service_unregister(struct bt_gatt_service *svc)
     return 0;
 }
 
-int bt_mesh_gatt_notify(struct bt_conn * conn, const struct bt_gatt_attr *attr,
+int bt_mesh_gatt_notify(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                         const void *data, uint16_t len)
 {
     return 0;
 }
 
-int bt_mesh_gatt_attr_read(struct bt_conn * conn, const struct bt_gatt_attr *attr,
+int bt_mesh_gatt_attr_read(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                            void *buf, uint16_t buf_len, uint16_t offset,
                            const void *value, uint16_t value_len)
 {
     return 0;
 }
 
-uint16_t bt_mesh_gatt_get_mtu(struct bt_conn * conn)
+uint16_t bt_mesh_gatt_get_mtu(struct bt_conn *conn)
 {
     return 0;
 }
 
-int bt_mesh_gatt_attr_read_service(struct bt_conn * conn,
+int bt_mesh_gatt_attr_read_service(struct bt_conn *conn,
                                    const struct bt_gatt_attr *attr,
                                    void *buf, uint16_t len, uint16_t offset)
 {
     return 0;
 }
 
-int bt_mesh_gatt_attr_read_chrc(struct bt_conn * conn,
-                               const struct bt_gatt_attr *attr, void *buf,
-                               uint16_t len, uint16_t offset)
+int bt_mesh_gatt_attr_read_chrc(struct bt_conn *conn,
+                                const struct bt_gatt_attr *attr, void *buf,
+                                uint16_t len, uint16_t offset)
 {
     return 0;
 }

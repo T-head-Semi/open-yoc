@@ -25,7 +25,10 @@
 				    CONFIG_BT_MESH_IVU_DIVIDER)
 #define BT_MESH_IVU_TIMEOUT        K_HOURS(BT_MESH_IVU_HOURS)
 
-#define BT_MESH_NET_MAX_PDU_LEN    29
+#define BT_MESH_NET_MAX_PDU_LEN        29
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+#define BT_MESH_NET_MAX_EXT_PDU_LEN    365
+#endif
 
 #if defined(CONFIG_BT_MESH_RELAY_SRC_DBG)
 struct net_buf_trace_t {
@@ -296,6 +299,11 @@ enum bt_mesh_net_if {
 	BT_MESH_NET_IF_LOCAL,
 	BT_MESH_NET_IF_PROXY,
 	BT_MESH_NET_IF_PROXY_CFG,
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	BT_MESH_NET_IF_EXT_ADV_1M,
+	BT_MESH_NET_IF_EXT_ADV_2M,
+	BT_MESH_NET_IF_EXT_ADV_CODED,
+#endif
 };
 
 /* Decoding context for Network/Transport data */
@@ -307,10 +315,19 @@ struct bt_mesh_net_rx {
 	       new_key:1,      /* Data was encrypted with updated key */
 	       friend_cred:1,  /* Data was encrypted with friend cred */
 	       ctl:1,          /* Network Control */
-	       net_if:2,       /* Network interface */
 	       local_match:1,  /* Matched a local element */
 	       friend_match:1; /* Matched an LPN we're friends for */
+	u8_t   net_if;         /* Network interface */
 	s8_t   rssi;
+};
+
+enum {
+   NET_TRANS_LEGACY        = 0x00,
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+   NET_TRANS_EXT_ADV_1M    = 0x01,
+   NET_TRANS_EXT_ADV_2M    = 0x02,
+   NET_TRANS_EXT_ADV_CODED = 0x03,
+#endif
 };
 
 /* Encoding context for Network/Transport data */
@@ -367,7 +384,7 @@ int bt_mesh_net_send(struct bt_mesh_net_tx *tx, struct net_buf *buf,
 		     const struct bt_mesh_send_cb *cb, void *cb_data);
 
 int bt_mesh_net_resend(struct bt_mesh_subnet *sub, struct net_buf *buf,
-		       bool new_key, const struct bt_mesh_send_cb *cb,
+		       bool new_key, u16_t tx_dst, const struct bt_mesh_send_cb *cb,
 		       void *cb_data);
 
 int bt_mesh_net_decode(struct net_buf_simple *data, enum bt_mesh_net_if net_if,
@@ -375,6 +392,10 @@ int bt_mesh_net_decode(struct net_buf_simple *data, enum bt_mesh_net_if net_if,
 
 void bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
 		      enum bt_mesh_net_if net_if);
+
+void bt_mesh_net_recv_local(struct net_buf_simple *data, s8_t rssi,
+		      enum bt_mesh_net_if net_if_old);
+
 
 u32_t bt_mesh_next_seq(void);
 

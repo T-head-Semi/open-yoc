@@ -2,10 +2,15 @@
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
 
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "../http/http.h"
 #include <yoc/fota.h>
 #include <yoc/netio.h>
+#include <aos/kernel.h>
 #include "util/network.h"
+#include "ulog/ulog.h"
 
 #define TAG "fota"
 
@@ -30,7 +35,7 @@ static int http_read(netio_t *io, uint8_t *buffer, int length, int timeoutms)
     if (io->size > 0) {
         range_end = range_end < (io->size - 1)? range_end : (io->size - 1);
     }
-    snprintf(range, 56, "bytes=%d-%d", io->offset, range_end);
+    snprintf(range, 56, "bytes=%zu-%d", io->offset, range_end);
     http_head_sets(http, "Range", range);
     aos_free(range);
     http_head_sets(http, "Connection", "keep-alive");
@@ -80,7 +85,7 @@ static int http_open(netio_t *io, const char *path)
     if (io->size > 0) {
         range_end = range_end < (io->size - 1)? range_end : (io->size - 1);
     }
-    snprintf(range, 56, "bytes=%d-%d", io->offset, range_end);
+    snprintf(range, 56, "bytes=%zu-%d", io->offset, range_end);
     http_head_sets(http, "Range", range);
     aos_free(range);
     http_head_sets(http, "Connection", "keep-alive");

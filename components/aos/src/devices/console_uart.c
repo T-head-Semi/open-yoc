@@ -56,7 +56,7 @@ void console_deinit(void)
     return;
 }
 
-int uart_write(void *buf, size_t size)
+int uart_write(const void *buf, size_t size)
 {
     CHECK_PARAM(g_console_handle, -1);
     if (!aos_irq_context()) {

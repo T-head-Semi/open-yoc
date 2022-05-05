@@ -2,6 +2,7 @@
  * Copyright (C) 2015-2018 Alibaba Group Holding Limited
  */
 #if defined(OTA_ENABLED) && !defined(BUILD_AOS)
+#include "stdbool.h"
 #include "iotx_dm_internal.h"
 
 static dm_fota_ctx_t g_dm_fota_ctx;
@@ -60,8 +61,9 @@ static int _dm_fota_send_new_config_to_user(void *ota_handle)
     return SUCCESS_RETURN;
 }
 
-int dm_fota_perform_sync(_OU_ char *output, _IN_ int output_len)
+int dm_fota_yield(void* args)
 {
+#define OTA_DOWNLOAD_BUFFER_SIZE (128)
     int res = 0, file_download = 0;
     uint32_t file_size = 0, file_downloaded = 0;
     uint32_t percent_pre = 0, percent_now = 0;
@@ -69,10 +71,8 @@ int dm_fota_perform_sync(_OU_ char *output, _IN_ int output_len)
     dm_fota_ctx_t *ctx = _dm_fota_get_ctx();
     void *ota_handle = NULL;
     uint32_t ota_type = IOT_OTAT_NONE;
-
-    if (output == NULL || output_len <= 0) {
-        return DM_INVALID_PARAMETER;
-    }
+    int8_t output[OTA_DOWNLOAD_BUFFER_SIZE];
+    uint32_t output_len = OTA_DOWNLOAD_BUFFER_SIZE;
 
     /* Get Ota Handle */
     res = dm_ota_get_ota_handle(&ota_handle);
@@ -91,8 +91,9 @@ int dm_fota_perform_sync(_OU_ char *output, _IN_ int output_len)
 
     /* reset the size_fetched in ota_handle to be 0 */
     IOT_OTA_Ioctl(ota_handle, IOT_OTAG_RESET_FETCHED_SIZE, ota_handle, 4);
+    IOT_OTA_Ioctl(ota_handle, IOT_OTAG_FILE_SIZE, &file_size, 4);
     /* Prepare Write Data To Storage */
-    HAL_Firmware_Persistence_Start();
+    HAL_Firmware_Persistence_Start(file_size);
     while (1) {
         file_download = IOT_OTA_FetchYield(ota_handle, output, output_len, 1);
         if (file_download < 0) {
@@ -150,6 +151,21 @@ int dm_fota_perform_sync(_OU_ char *output, _IN_ int output_len)
     ctx->is_report_new_config = 0;
 
     return SUCCESS_RETURN;
+}
+
+static bool is_doing_fota = false;
+
+int dm_fota_perform_sync(_OU_ char *output, _IN_ int output_len)
+{
+    if (is_doing_fota)
+    {
+        printf("is doing fota now\r\n");
+        return 0;
+    }
+
+    is_doing_fota = true;
+
+    return aos_task_new("ota_yield", dm_fota_yield, NULL, DM_FOTA_TASK_STACK_SIZE);
 }
 
 int dm_fota_status_check(void)

@@ -52,8 +52,8 @@
 
 
 typedef struct _auto_appkey_config {
-  u8_t auto_add_appkey;
-  u16_t auto_appkey_idx;
+    u8_t auto_add_appkey;
+    u16_t auto_appkey_idx;
 } auto_appkey_config;
 
 struct bt_mesh_unprov_dev_add {
@@ -100,7 +100,14 @@ struct node_info {
     u8_t  flags;            /* Key refresh flag and iv update flag */
     u32_t iv_index;         /* IV Index */
     u32_t provisioned_time; /* provison time */
-    uint8_t  auto_add_appkey;;/*node auto add appkey flag*/
+    uint8_t  auto_add_appkey;/*node auto add appkey flag*/
+#ifdef CONFIG_MESH_LPM
+    u8_t  support_lpm;      /*if node support lpm*/
+#endif
+#if defined(CONFIG_MESH_OCC_AUTH) && (CONFIG_MESH_OCC_AUTH)
+    char CID[33];
+#endif
+    u32_t version;
 };
 
 
@@ -225,7 +232,28 @@ int provisioner_pb_gatt_recv(struct bt_conn *conn, struct net_buf_simple *buf);
  *
  * @return Zero-success, other-fail
  */
-int provisioner_prov_init(const struct bt_mesh_provisioner *provisioner_info);
+int provisioner_prov_init(struct bt_mesh_provisioner *provisioner_info);
+
+/**
+ * @brief This function is called to reset prov node
+ *        related informations.
+ *
+ * @param[in] null
+ *
+ * @return Zero-success, other-fail
+ */
+void provisioner_prov_node_reset();
+
+/**
+ * @brief This function is called to re config provisioner's param
+ *        related informations.
+ *
+ * @param[in] provisioner start addr(equal to prov_unicast_addr);provisioner end_addr;attention time
+ *
+ * @return Zero-success, other-fail
+ */
+
+int provisioner_prov_reconfig(u16_t start_addr,u16_t end_addr,u8_t prov_element_num,u8_t attention_time);
 
 /**
  * @brief This function is called to parse the received unprovisioned device
@@ -284,6 +312,8 @@ const struct bt_mesh_provisioner *provisioner_get_prov_info(void);
  */
 int provisioner_prov_reset_all_nodes(void);
 
+int provisioner_prov_reset_nodes(u16_t unicast_addr);
+
 /* The following APIs are for primary provisioner application use */
 
 /** @brief Add unprovisioned device info to unprov_dev queue
@@ -321,6 +351,13 @@ int bt_mesh_provisioner_delete_device(struct bt_mesh_device_delete *del_dev);
 
 int bt_mesh_provisioner_delete_unprov_device(struct bt_mesh_device_delete *del_dev);
 
+/** @brief remove unprov device from queue
+ *
+ *  @param[in] del_dev: Pointer to the structure containing the device information
+ *
+ *  @return Zero on success or (negative) error code otherwise.
+ */
+int provisioner_dev_remove(const bt_addr_le_t *addr, const u8_t uuid[16], int *index);
 
 /**
  * @brief This function is called to set part of the device uuid to be compared before
@@ -428,8 +465,11 @@ int provisioner_prov_restore_nodes_info(bt_addr_le_t *addr,
                                         u8_t  flags,
                                         u32_t iv_index,
                                         u8_t  dev_key[16],
-                                        u32_t provisioned_time);
-auto_appkey_config* get_node_autoconfig_info(u16_t unicast_addr);
+                                        u32_t provisioned_time,
+                                        u8_t  lpm_flag,
+                                        char  CID[33]);
+
+auto_appkey_config *get_node_autoconfig_info(u16_t unicast_addr);
 
 int bt_mesh_provisioner_local_provision();
 

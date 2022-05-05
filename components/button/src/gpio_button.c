@@ -7,12 +7,7 @@
 #include <errno.h>
 
 #include <yoc/button.h>
-#ifdef CONFIG_CSI_V2
-#include <soc.h>
-#include <drv/pin.h>
-#else
-#include <pinmux.h>
-#endif
+#include <aos/hal/gpio.h>
 
 #include "internal.h"
 
@@ -32,68 +27,48 @@ static button_t *button_gpio_find(int pin_id)
 
     return NULL;
 }
-#ifdef CONFIG_CSI_V2
-static void pin_event(csi_gpio_pin_t *pin, void *arg)
-#else
-static void pin_event(int32_t idx)
-#endif
+
+void pin_event(void *arg)
 {
     button_t *button = NULL;
-#ifdef CONFIG_CSI_V2
-    int idx = 0;
-    int ctrl_id = pin->gpio->dev.idx;
-    idx = pin->pin_idx + (ctrl_id * 32);
-#endif
-    button = button_gpio_find(idx);
+    int idx = (size_t)arg;
 
-    if (button != NULL) {
+    button = button_gpio_find(idx);
+    hal_gpio_clear_irq(b_gpio_param(button)->pin_hdl);
+
+    if (button != NULL && (b_gpio_param(button)->pin_hdl != NULL)) {
         button_irq(button);
     }
 }
 
-static int csi_irq_disable(button_t *button)
+static int gpio_irq_disable(button_t *button)
 {
-#ifdef CONFIG_CSI_V2
-    csi_gpio_pin_irq_enable(&b_gpio_param(button)->pin_hdl, false);
-#else
     if (b_gpio_param(button)->active_level == LOW_LEVEL) {
-        csi_gpio_pin_set_irq(b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE, 0);
+        hal_gpio_disable_irq(b_gpio_param(button)->pin_hdl);
     } else {
-        csi_gpio_pin_set_irq(b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_RISING_EDGE, 0);
+        hal_gpio_disable_irq(b_gpio_param(button)->pin_hdl);
     }
-#endif
+
     return 0;
 }
 
-static int csi_irq_enable(button_t *button)
+static int gpio_irq_enable(button_t *button)
 {
-#ifdef CONFIG_CSI_V2
     if (b_gpio_param(button)->active_level == LOW_LEVEL) {
-        csi_gpio_pin_irq_mode(&b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE);
+        hal_gpio_enable_irq(b_gpio_param(button)->pin_hdl, IRQ_TRIGGER_FALLING_EDGE, pin_event, (void *)(size_t)b_gpio_param(button)->pin_id);
     } else {
-        csi_gpio_pin_irq_mode(&b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_RISING_EDGE);
+        hal_gpio_enable_irq(b_gpio_param(button)->pin_hdl, IRQ_TRIGGER_RISING_EDGE, pin_event, (void *)(size_t)b_gpio_param(button)->pin_id);
     }
-    csi_gpio_pin_irq_enable(&b_gpio_param(button)->pin_hdl, true);
-#else
-    if (b_gpio_param(button)->active_level == LOW_LEVEL) {
-        csi_gpio_pin_set_irq(b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE, 1);
-    } else {
-        csi_gpio_pin_set_irq(b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_RISING_EDGE, 1);
-    }
-#endif
+
     return 0;
 }
 
-static int csi_pin_read(button_t *button)
+static int gpio_pin_read(button_t *button)
 {
-    bool val;
+    uint32_t val = 0;
     bool is_pressed = false;
-#ifdef CONFIG_CSI_V2
-    int ret = csi_gpio_pin_read(&b_gpio_param(button)->pin_hdl);
-    val = ret ? true : false;
-#else
-    csi_gpio_pin_read(b_gpio_param(button)->pin_hdl, &val);
-#endif
+
+    hal_gpio_input_get(b_gpio_param(button)->pin_hdl, &val);
 
     if (val == b_gpio_param(button)->active_level) {
         is_pressed = true;
@@ -102,59 +77,37 @@ static int csi_pin_read(button_t *button)
     return is_pressed;
 }
 
-static int csi_pin_init(button_t *button)
+static int gpio_pin_init(button_t *button)
 {
-#ifdef CONFIG_CSI_V2
-    memset(&b_gpio_param(button)->pin_hdl, 0, sizeof(b_gpio_param(button)->pin_hdl));
-    csi_pin_set_mux(b_gpio_param(button)->pin_id, PIN_FUNC_GPIO);
-    csi_gpio_pin_init(&b_gpio_param(button)->pin_hdl, b_gpio_param(button)->pin_id);
-    csi_gpio_pin_dir(&b_gpio_param(button)->pin_hdl, GPIO_DIRECTION_INPUT);
-    csi_gpio_pin_mode(&b_gpio_param(button)->pin_hdl, GPIO_MODE_PULLUP);
-    csi_gpio_pin_debounce(&b_gpio_param(button)->pin_hdl, true);
-    csi_gpio_pin_attach_callback(&b_gpio_param(button)->pin_hdl, pin_event, &b_gpio_param(button)->pin_hdl);
+    gpio_dev_t *gpio = (gpio_dev_t *)aos_malloc_check(sizeof(gpio_dev_t));
+    
+    gpio->port = b_gpio_param(button)->pin_id;
 
     if (b_gpio_param(button)->active_level == LOW_LEVEL) {
-        csi_gpio_pin_irq_mode(&b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE);
+        gpio->config = INPUT_PULL_UP;
     } else {
-        csi_gpio_pin_irq_mode(&b_gpio_param(button)->pin_hdl, GPIO_IRQ_MODE_RISING_EDGE);
+        gpio->config = INPUT_PULL_DOWN;
     }
 
-    csi_gpio_pin_irq_enable(&b_gpio_param(button)->pin_hdl, true);
-#else
-    gpio_pin_handle_t pin_hdl;
+    hal_gpio_init(gpio);
 
-    drv_pinmux_config(b_gpio_param(button)->pin_id, PIN_FUNC_GPIO);
+    b_gpio_param(button)->pin_hdl = gpio;
 
-    pin_hdl = csi_gpio_pin_initialize(b_gpio_param(button)->pin_id, pin_event);
-    // csi_gpio_pin_set_evt_priv(pin_hdl, button);
-    csi_gpio_pin_config_direction(pin_hdl, GPIO_DIRECTION_INPUT);
+    gpio_irq_enable(button);
 
-    if (b_gpio_param(button)->active_level == LOW_LEVEL) {
-        csi_gpio_pin_set_irq(pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE, 0);
-        csi_gpio_pin_set_irq(pin_hdl, GPIO_IRQ_MODE_FALLING_EDGE, 1);
-    } else {
-        csi_gpio_pin_set_irq(pin_hdl, GPIO_IRQ_MODE_RISING_EDGE, 0);
-        csi_gpio_pin_set_irq(pin_hdl, GPIO_IRQ_MODE_RISING_EDGE, 1);
-    }
-
-    b_gpio_param(button)->pin_hdl = pin_hdl;
-#endif
     return 0;
 }
 
-static int csi_pin_deinit(button_t *button)
+static int gpio_pin_deinit(button_t *button)
 {
-#ifdef CONFIG_CSI_V2
-    csi_gpio_pin_uninit(&b_gpio_param(button)->pin_hdl);
-#else
-    csi_gpio_pin_uninitialize(b_gpio_param(button)->pin_hdl);
-#endif
+    hal_gpio_finalize(b_gpio_param(button)->pin_hdl);
+
     return 0;
 }
 button_ops_t gpio_ops = {
-    .init = csi_pin_init,
-    .deinit = csi_pin_deinit,
-    .read = csi_pin_read,
-    .irq_disable = csi_irq_disable,
-    .irq_enable = csi_irq_enable,
+    .init = gpio_pin_init,
+    .deinit = gpio_pin_deinit,
+    .read = gpio_pin_read,
+    .irq_disable = gpio_irq_disable,
+    .irq_enable = gpio_irq_enable,
 };

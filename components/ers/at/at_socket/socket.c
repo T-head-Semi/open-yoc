@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -473,7 +473,7 @@ int at_disconnect_all()
     slist_t   *tmp;
 
     slist_for_each_entry_safe(&conn_lists, tmp, conn, at_conn_t, next) {
-        ret |= at_disconnect(conn, 0);
+        ret |= at_disconnect(conn, 1);
     }
 
     return ret;
@@ -491,3 +491,4 @@ int at_count_conn()
 
     return ret;
 }
+#endif

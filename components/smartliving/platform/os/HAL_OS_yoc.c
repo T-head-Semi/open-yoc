@@ -9,20 +9,28 @@
 #include <math.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <k_api.h>
+// #include <k_api.h>
 #include <aos/version.h>
 #include <aos/kernel.h>
 #include <ulog/ulog.h>
 
 #include "iot_import.h"
-//#include "iotx_hal_internal.h"
 #include <aos/kernel.h>
 #include <aos/debug.h>
 #include <aos/kv.h>
-// #include <drv_tee.h>
+#ifdef RNG1_PORT_NUM
+#include <aos/hal/rng.h>
+#endif
 
 #define TAG "OSYOC"
 
+#if !defined(CONFIG_PID_STR)
+    #define CONFIG_PID_STR "example.demo.partner-id"
+#endif
+
+#if !defined(CONFIG_MID_STR)
+    #define CONFIG_MID_STR "example.demo.module-id"
+#endif
 
 /*
  * This need to be same with app version as in uOTA module (ota_version.h)
@@ -37,7 +45,7 @@ int HAL_GetFirmwareVersion(_OU_ char *version)
 {
     memset(version, 0x0, FIRMWARE_VERSION_MAXLEN);
 
-    strcpy(version, aos_get_os_version());
+    strcpy(version, aos_get_app_version());
 
     return strlen(version);
 }
@@ -219,16 +227,16 @@ int HAL_Snprintf(char *str, const int len, const char *fmt, ...)
     return rc;
 }
 
-void HAL_Printf(const char *fmt, ...)
-{
-    va_list args;
+// void HAL_Printf(const char *fmt, ...)
+// {
+//     va_list args;
 
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
+//     va_start(args, fmt);
+//     vprintf(fmt, args);
+//     va_end(args);
 
-    fflush(stdout);
-}
+//     fflush(stdout);
+// }
 
 
 /**
@@ -250,7 +258,7 @@ int HAL_GetPartnerID(_OU_ char pid_str[PID_STRLEN_MAX])
 {
     memset(pid_str, 0x0, PID_STRLEN_MAX);
 
-    strcpy(pid_str, "example.demo.partner-id");
+    strcpy(pid_str, CONFIG_PID_STR);
 
     return strlen(pid_str);
 }
@@ -268,9 +276,9 @@ char *HAL_GetChipID(char *cid_str)
 }
 #endif
 
-int HAL_GetDeviceID(char *device_id)
+int HAL_GetDeviceID(char device_id[DEVICE_ID_MAXLEN])
 {
-    memset(device_id, 0x0, DEVICE_ID_LEN);
+    memset(device_id, 0x0, DEVICE_ID_MAXLEN);
 
     HAL_Snprintf(device_id, DEVICE_ID_LEN, "%s.%s", _product_key, _device_name);
     device_id[DEVICE_ID_LEN - 1] = '\0';
@@ -278,21 +286,21 @@ int HAL_GetDeviceID(char *device_id)
     return strlen(device_id);
 }
 
-int HAL_GetDeviceName(char device_name[DEVICE_NAME_LEN])
+int HAL_GetDeviceName(char device_name[DEVICE_NAME_MAXLEN])
 {
     int len = strlen(_device_name);
     if(len == 0) {
         len = DEVICE_NAME_LEN;
         aos_kv_get(DEVINFO_DN, _device_name, &len);
     }
-    memset(device_name, 0x0, DEVICE_NAME_LEN + 1);
+    memset(device_name, 0x0, DEVICE_NAME_MAXLEN);
 
-    strncpy(device_name, _device_name, len);
+    strncpy(device_name, _device_name, DEVICE_NAME_LEN);
 
     return strlen(device_name);
 }
 
-int HAL_GetDeviceSecret(char device_secret[DEVICE_SECRET_LEN])
+int HAL_GetDeviceSecret(char device_secret[DEVICE_SECRET_MAXLEN])
 {
     int len = strlen(_device_secret);
     if(len == 0) {
@@ -300,27 +308,27 @@ int HAL_GetDeviceSecret(char device_secret[DEVICE_SECRET_LEN])
         aos_kv_get(DEVINFO_DS, _device_secret, &len);
     }
 
-    memset(device_secret, 0x0, DEVICE_SECRET_LEN + 1);
-    strncpy(device_secret, _device_secret, len);
+    memset(device_secret, 0x0, DEVICE_SECRET_MAXLEN);
+    strncpy(device_secret, _device_secret, DEVICE_SECRET_MAXLEN);
 
     return strlen(_device_secret);
 }
 
-int HAL_GetProductKey(char product_key[PRODUCT_KEY_LEN + 1])
+int HAL_GetProductKey(char product_key[PRODUCT_KEY_MAXLEN])
 {
     int len = strlen(_product_key);
     if(len == 0) {
         len = PRODUCT_KEY_LEN;
         aos_kv_get(DEVINFO_PK, _product_key, &len);
     }
-    memset(product_key, 0x0, PRODUCT_KEY_LEN + 1);
+    memset(product_key, 0x0, PRODUCT_KEY_MAXLEN);
 
-    strncpy(product_key, _product_key, len);
+    strncpy(product_key, _product_key, PRODUCT_KEY_LEN);
 
     return strlen(_product_key);
 }
 
-int HAL_GetProductSecret(char *product_secret)
+int HAL_GetProductSecret(char product_secret[DEVICE_SECRET_LEN])
 {
     int len = strlen(_product_secret);
     if(len == 0) {
@@ -328,8 +336,8 @@ int HAL_GetProductSecret(char *product_secret)
         aos_kv_get(DEVINFO_PS, _product_secret, &len);
     }
 
-    memset(product_secret, 0x0, PRODUCT_SECRET_LEN + 1);
-    strncpy(product_secret, _product_secret, len);
+    memset(product_secret, 0x0, DEVICE_SECRET_LEN);
+    strncpy(product_secret, _product_secret, PRODUCT_SECRET_LEN);
 
     return strlen(_product_secret);
 }
@@ -350,7 +358,7 @@ int HAL_SetDeviceName(char *device_name)
         return 0;
     }
 
-    strncpy(_device_name, device_name, len);
+    strncpy(_device_name, device_name, DEVICE_NAME_LEN);
     aos_kv_set(DEVINFO_DN, device_name, len, 1);
 
     return len;
@@ -372,7 +380,7 @@ int HAL_SetDeviceSecret(char *device_secret)
         return 0;
     }
 
-    strncpy(_device_secret, device_secret, len);
+    strncpy(_device_secret, device_secret, DEVICE_SECRET_LEN);
     aos_kv_set(DEVINFO_DS, device_secret, len, 1);
     return len;
 }
@@ -393,7 +401,7 @@ int HAL_SetProductKey(char *product_key)
         return 0;
     }
 
-    strncpy(_product_key, product_key, len);
+    strncpy(_product_key, product_key, PRODUCT_KEY_LEN);
     aos_kv_set(DEVINFO_PK, product_key, len, 1);
 
     return len;
@@ -416,7 +424,7 @@ int HAL_SetProductSecret(char *product_secret)
         return 0;
     }
 
-    strncpy(_product_secret, product_secret, len);
+    strncpy(_product_secret, product_secret, PRODUCT_SECRET_LEN);
     aos_kv_set(DEVINFO_PS, product_secret, len, 1);
 
     return len;
@@ -445,14 +453,28 @@ char *HAL_GetTimeStr(char *buf, int len)
 
 void HAL_Srandom(uint32_t seed)
 {
-    long int curtime = time(NULL);
-    srand(((unsigned int)curtime));
+    srand(seed);
     return;
 }
 
 uint32_t HAL_Random(uint32_t region)
 {
-    return (rand() % region);
+#ifdef RNG1_PORT_NUM
+    int ret = -1;
+    uint32_t value = 0;
+    random_dev_t rng1;
+    rng1.port = RNG1_PORT_NUM;
+
+    ret = hal_random_num_read(rng1, &value, sizeof(uint32_t));
+    if (ret != 0) {
+        LOGD(TAG, "rng read error, use soft rand function!\n");
+        return (region > 0) ? (rand() % region) : 0;
+    } else {
+        return (region > 0) ? (value % region) : 0;
+    }
+#else
+    return (region > 0) ? (rand() % region) : 0;
+#endif
 }
 
 int HAL_Vsnprintf(char *str, const int len, const char *format, va_list ap)
@@ -463,7 +485,7 @@ int HAL_Vsnprintf(char *str, const int len, const char *format, va_list ap)
 int HAL_GetModuleID(char *mid_str)
 {
     memset(mid_str, 0x0, MID_STRLEN_MAX);
-    strcpy(mid_str, "example.demo.module-id");
+    strcpy(mid_str, CONFIG_MID_STR);
     return strlen(mid_str);
 }
 
@@ -526,7 +548,7 @@ int HAL_Sys_Net_Is_Ready()
 typedef void (*hal_timer_cb)(void *);
 
 typedef struct time_data {
-    sys_time_t expect_time;
+    uint64_t expect_time;
     void *user_data;
     hal_timer_cb  cb;
     struct time_data *next;
@@ -560,6 +582,7 @@ static void awss_timer_task(void *args)
     int sleep_time;
     int no_task_cnt = 0;
     timer_data_t *cur = NULL;
+    timer_data_t *next = NULL;
 
     while (1) {
         if (!data_list) {
@@ -577,11 +600,14 @@ static void awss_timer_task(void *args)
 
         cur = data_list;
         while (cur != NULL) {
-            if (cur->isactive && cur->expect_time + 1 <= krhino_sys_tick_get()) {
+            next = cur->next;
+            if (cur->isactive && cur->expect_time + 1 <= aos_now_ms()) {
                 cur->isactive = 0;
-                cur->cb(cur->user_data);
+                if (cur->cb) {
+                    cur->cb(cur->user_data);
+                }
             }
-            cur = cur->next;
+            cur = next;
         }
 
         HAL_MutexUnlock(mutex);
@@ -594,11 +620,16 @@ SLEEP:
 void *HAL_Timer_Create(const char *name, void (*func)(void *), void *user_data)
 {
     static aos_task_t *tsk = NULL;
+#ifdef AOS_TIMER_SERVICE
+    int stack_size  = 1024*7+256;
+#else
+    int stack_size  = 1024*2;
+#endif
 
     if (!tsk) {
         mutex = HAL_MutexCreate();
         tsk = (aos_task_t *)aos_malloc_check(sizeof(aos_task_t));
-        aos_task_new_ext(tsk, "AWSS_TIMER", awss_timer_task, NULL, 1024 * 2, 20);
+        aos_task_new_ext(tsk, "AWSS_TIMER", awss_timer_task, NULL, stack_size, 20);
     }
 
     timer_data_t *node = (timer_data_t *)aos_malloc(sizeof(timer_data_t));
@@ -650,7 +681,7 @@ int HAL_Timer_Start(void *timer, int ms)
     timer_data_t *cur = data_list;
     while (cur != NULL) {
         if (cur == timer) {
-            cur->expect_time = krhino_sys_tick_get() + krhino_ms_to_ticks(ms);
+            cur->expect_time = aos_now_ms() + ms;
             cur->isactive = 1;
             HAL_MutexUnlock(mutex);
             return 0;
@@ -684,4 +715,9 @@ int HAL_Timer_Stop(void *timer)
 void HAL_Reboot()
 {
     aos_reboot();
+}
+
+long long HAL_UTC_Get(void)
+{
+    return 0;
 }

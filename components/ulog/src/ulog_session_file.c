@@ -12,7 +12,7 @@
 #include "aos/errno.h"
 #include "cJSON.h"
 #include "aos/kernel.h"
-#include "uagent.h"
+//#include "uagent.h"
 
 /**
  * record the log files operating. Recover(reset or get) in reload_log_argu()
@@ -450,6 +450,7 @@ int write_log_line(const int file_instanse, const char* buf, const bool keep_ope
             } else {
                 rtn = rc;
             }
+            aos_sync(file_instanse);
         } else {
             SESSION_FS_INFO("write fail rc %d\n", rtn);
         }
@@ -760,6 +761,10 @@ int32_t ulog_fs_init()
         rc = reload_log_argu();
         if (rc == 0) {
             operating_fd = open_log_file(get_working_from_cfg_mm(), O_WRONLY, operating_file_offset);
+            if (operating_fd < 0) {
+                operating_file_offset = 0;
+                operating_fd = open_log_file(get_working_from_cfg_mm(), O_WRONLY | O_CREAT, 0);
+            }
             SESSION_FS_INFO("reload ulog idx %d off %d new fd %d\n", get_working_from_cfg_mm(), operating_file_offset, operating_fd);
 
         }

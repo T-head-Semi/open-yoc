@@ -33,7 +33,8 @@ static void _generic_onoff_status(struct bt_mesh_model *model,
 {
 
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_ONOFF_STATUS, &message);

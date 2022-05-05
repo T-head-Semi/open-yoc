@@ -84,7 +84,7 @@
 #define RHINO_CONFIG_PRI_MAX                 62
 #define RHINO_CONFIG_USER_PRI_MAX            (RHINO_CONFIG_PRI_MAX - 2)
 
-#define RHINO_CONFIG_MM_REGION_MUTEX         1
+#define RHINO_CONFIG_MM_REGION_MUTEX         0
 
 /* kernel workqueue conf */
 #ifdef CONFIG_KERNEL_WORKQUEUE

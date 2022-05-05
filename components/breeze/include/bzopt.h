@@ -9,17 +9,13 @@
 //#include "iotx_log.h"
 
 /* update to version 2.0.6 for supporting. */
-#define BZ_VERSION                    "2.0.6"
+#define BZ_VERSION                    "2.0.7"
 
 #define BZ_AUTH_TIMEOUT               30000  // not allowed to be 0
 
 #define BZ_TRANSPORT_TIMEOUT          10000
 
-#ifdef EN_LONG_MTU
-#define BZ_TRANSPORT_VER              1
-#else
 #define BZ_TRANSPORT_VER              0
-#endif
 
 #define BZ_ATT_HDR_SIZE               3
 #define BZ_FRAME_HDR_SIZE             4

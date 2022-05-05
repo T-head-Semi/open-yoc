@@ -7,6 +7,11 @@
  */
 #ifndef __HCI_CORE_H
 #define __HCI_CORE_H 
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#include "fsm.h"
+#endif
+
 /* LL connection parameters */
 #define LE_CONN_LATENCY		0x0000
 #define LE_CONN_TIMEOUT		0x002a
@@ -24,6 +29,10 @@
 enum {
 	BT_EVENT_CMD_TX,
 	BT_EVENT_CONN_TX_QUEUE,
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	BT_EVENT_RX_QUEUE,
+	BT_EVENT_RX,
+#endif
 };
 
 /* bt_dev flags: the flags defined here represent BT controller state */
@@ -53,7 +62,9 @@ enum {
 	BT_DEV_PSCAN,
 	BT_DEV_INQUIRY,
 #endif /* CONFIG_BT_BREDR */
-
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	BT_ST_INIT_DONE,
+#endif
 	/* Total number of flags - must be at the end of the enum */
 	BT_DEV_NUM_FLAGS,
 };
@@ -90,6 +101,8 @@ enum {
 	BT_ADV_CONNECTABLE,
 	/* Advertiser set is scannable */
 	BT_ADV_SCANNABLE,
+	/* Advertiser set is using extended advertising */
+	BT_ADV_EXT_ADV,
 	/* Advertiser set has disabled the use of private addresses and is using
 	 * the identity address instead.
 	 */
@@ -100,6 +113,13 @@ enum {
 	BT_ADV_PERSIST,
 	/* Advertiser has been temporarily disabled. */
 	BT_ADV_PAUSED,
+
+#if defined(CONFIG_BT_EXT_ADV)
+	/* Periodic Advertising has been enabled in the controller. */
+	BT_PER_ADV_ENABLED,
+	/* Periodic Advertising parameters has been set in the controller. */
+	BT_PER_ADV_PARAMS_SET,
+#endif
 
 	BT_ADV_NUM_FLAGS,
 };
@@ -114,6 +134,11 @@ struct bt_le_ext_adv {
 	/* Current local Random Address */
 	bt_addr_le_t		random_addr;
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	/* Current local Random Address pending to be set in the controller*/
+	bt_addr_le_t		pending_random_addr;
+#endif
+
 	/* Current target address */
 	bt_addr_le_t            target_addr;
 
@@ -127,6 +152,50 @@ struct bt_le_ext_adv {
 #endif /* defined(CONFIG_BT_EXT_ADV) */
 };
 
+#if defined(CONFIG_BT_EXT_ADV)
+#if defined(CONFIG_BT_PER_ADV_SYNC)
+
+enum {
+	/** Periodic Advertising Sync has been created in the host. */
+	BT_PER_ADV_SYNC_CREATED,
+
+	/** Periodic advertising is in sync and can be terminated */
+	BT_PER_ADV_SYNC_SYNCED,
+
+	/** Periodic advertising is attempting sync sync */
+	BT_PER_ADV_SYNC_SYNCING,
+
+	/** Periodic advertising is attempting sync sync */
+	BT_PER_ADV_SYNC_RECV_DISABLED,
+
+	BT_PER_ADV_SYNC_NUM_FLAGS,
+};
+
+struct bt_le_per_adv_sync {
+	/** Periodic Advertiser Address */
+	bt_addr_le_t addr;
+
+	/** Advertiser SID */
+	uint8_t sid;
+
+	/** Sync handle */
+	uint16_t handle;
+
+	/** Periodic advertising interval (N * 1.25MS) */
+	uint16_t interval;
+
+	/** Periodic advertising advertiser clock accuracy (ppm) */
+	uint16_t clock_accuracy;
+
+	/** Advertiser PHY */
+	uint8_t phy;
+
+	/** Flags */
+	ATOMIC_DEFINE(flags, BT_PER_ADV_SYNC_NUM_FLAGS);
+};
+#endif
+#endif
+
 struct bt_dev_le {
 	/* LE features */
 	u8_t			features[8];
@@ -137,7 +206,11 @@ struct bt_dev_le {
 	/* Controller buffer information */
 	u16_t			mtu_init;
 	u16_t			mtu;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_t        pkts;
+#else
 	struct k_sem		pkts;
+#endif
 #endif /* CONFIG_BT_CONN */
 
 #if defined(CONFIG_BT_SMP)
@@ -184,6 +257,10 @@ struct bt_dev {
 #endif
 	/* Current local Random Address */
 	bt_addr_le_t            random_addr;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	/* Current local Random Address pending to be set in the controller*/
+	bt_addr_le_t            pending_random_addr;
+#endif
 	u8_t                    adv_conn_id;
 
 	/* Controller version & manufacturer information */
@@ -217,10 +294,16 @@ struct bt_dev {
 	struct bt_dev_br	br;
 #endif
 
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_t            ncmd;
+	struct k_delayed_work cmd_sent_work;
+	bt_fsm_handle_t     fsm;
+#else
 	/* Number of commands controller can accept */
 	struct k_sem		ncmd_sem;
-
+#endif
 	/* Last sent HCI command */
 	struct net_buf		*sent_cmd;
 #endif
@@ -229,9 +312,12 @@ struct bt_dev {
 	struct kfifo		rx_queue;
 #endif
 
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 	/* Queue for outgoing HCI commands */
 	struct kfifo		cmd_tx_queue;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	struct kfifo		cmd_tx_pending_queue;
+#endif
 #endif
 
 	/* Registered HCI driver */
@@ -293,7 +379,7 @@ int hci_driver_init();
 
 int hci_h5_driver_init();
 
-#if defined(CONFIG_BT_USE_HCI_API)
+#if defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API
 
 struct event_handler {
 	u8_t event;
@@ -307,6 +393,34 @@ struct event_handler {
 	.handler = _handler, \
 	.min_len = _min_len, \
 }
+#endif
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+
+typedef int (*bt_hci_cmd_func_t)(u16_t opcode, u8_t status, struct net_buf *rsp, void *args);
+
+typedef struct _bt_hci_cmd_cb_t {
+	bt_hci_cmd_func_t func;
+	union {
+		void *args;
+		uint32_t args_int;
+	};
+} bt_hci_cmd_cb_t;
+
+int bt_hci_cmd_send_cb(u16_t opcode, struct net_buf *buf, bt_hci_cmd_cb_t *cb);
+
+int bt_fsm_le_scan_update(bool fast_scan, bt_fsm_handle_t fsm);
+
+int hci_cmd_le_read_max_data_len(struct bt_conn *conn);
+
+int bt_fsm_le_adv_start(const struct bt_le_adv_param *param,
+		    const struct bt_data *ad, size_t ad_len,
+		    const struct bt_data *sd, size_t sd_len,
+			void *msg, void *args, bt_fsm_handle_t src_handle);
+int bt_fsm_le_adv_stop(void *msg, void *args, bt_fsm_handle_t src_handle);
+int bt_fsm_le_scan_start(const struct bt_le_scan_param *param, bt_le_scan_cb_t cb, void *msg, void *args, bt_fsm_handle_t src_handle);
+int bt_fsm_le_scan_stop(void *msg, void *args, bt_fsm_handle_t src_handle);
+
 #endif
 
 #endif // __HCI_CORE_H

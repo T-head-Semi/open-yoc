@@ -446,10 +446,17 @@ ssize_t bt_gatt_attr_read_service(struct bt_conn *conn,
  *
  *  @param _name Service name.
  */
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
 #define BT_GATT_SERVICE_DEFINE(_name, ...)				\
-	struct bt_gatt_attr attr_##_name[] = { __VA_ARGS__ };	\
+	const Z_STRUCT_SECTION_ITERABLE(bt_gatt_attr, attr_##_name[])  = { __VA_ARGS__ };	\
 	const Z_STRUCT_SECTION_ITERABLE(bt_gatt_service_static, _name) =\
 						BT_GATT_SERVICE(attr_##_name)
+#else
+#define BT_GATT_SERVICE_DEFINE(_name, ...)				\
+	struct bt_gatt_attr attr_##_name[] = { __VA_ARGS__ };	\
+	const struct bt_gatt_service_static _name __used = \
+						BT_GATT_SERVICE(attr_##_name)
+#endif
 
 /** @def BT_GATT_SERVICE
  *  @brief Service Structure Declaration Macro.

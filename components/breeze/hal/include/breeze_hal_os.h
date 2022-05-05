@@ -37,7 +37,7 @@ int os_timer_new(os_timer_t *timer, os_timer_cb_t cb, void *arg, int ms);
  *
  * @return  0: success.
  */
-int os_timer_start(os_timer_t *timer);
+int bz_os_timer_start(os_timer_t *timer);
 
 /**
  * This function will stop a timer.

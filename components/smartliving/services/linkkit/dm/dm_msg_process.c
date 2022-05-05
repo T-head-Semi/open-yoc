@@ -5,6 +5,9 @@
 
 #include "sl_config.h"
 #include "iotx_dm_internal.h"
+#ifdef AIOT_AUTHORIZE_ENABLE
+#include "aiot_authorize_api.h"
+#endif
 
 const char DM_URI_SYS_PREFIX[]                        DM_READ_ONLY = "/sys/%s/%s/";
 const char DM_URI_EXT_SESSION_PREFIX[]                DM_READ_ONLY = "/ext/session/%s/%s/";
@@ -95,10 +98,11 @@ const char DM_URI_DEV_CORE_SERVICE_DEV[]              DM_READ_ONLY = "/dev/core/
     const char DM_URI_THING_TOPO_CHANGE[]                 DM_READ_ONLY = "thing/topo/change";
     const char DM_URI_THING_LIST_FOUND[]                  DM_READ_ONLY = "thing/list/found";
     const char DM_URI_THING_LIST_FOUND_REPLY[]            DM_READ_ONLY = "thing/list/found_reply";
-    const char DM_URI_COMBINE_LOGIN[]                     DM_READ_ONLY = "combine/login";
-    const char DM_URI_COMBINE_LOGIN_REPLY[]               DM_READ_ONLY = "combine/login_reply";
-    const char DM_URI_COMBINE_LOGOUT[]                    DM_READ_ONLY = "combine/logout";
-    const char DM_URI_COMBINE_LOGOUT_REPLY[]              DM_READ_ONLY = "combine/logout_reply";
+
+    const char DM_URI_COMBINE_BATCH_LOGIN[]               DM_READ_ONLY = "combine/batch_login";
+    const char DM_URI_COMBINE_BATCH_LOGIN_REPLY[]         DM_READ_ONLY = "combine/batch_login_reply";
+    const char DM_URI_COMBINE_BATCH_LOGOUT[]              DM_READ_ONLY = "combine/batch_logout";
+    const char DM_URI_COMBINE_BATCH_LOGOUT_REPLY[]        DM_READ_ONLY = "combine/batch_logout_reply";
 #endif
 
 int dm_msg_proc_thing_model_down_raw(_IN_ dm_msg_source_t *source)
@@ -350,7 +354,10 @@ int dm_msg_proc_thing_event_post_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -362,7 +369,12 @@ int dm_msg_proc_unified_service_post_reply(_IN_ dm_msg_source_t *source)
 {
     int res = 0;
     dm_msg_response_payload_t response;
-
+#ifdef AIOT_AUTHORIZE_ENABLE
+    if(strstr((char *)source->payload, "ServerCodeAuth.reply") != NULL){
+        aiot_authorize_setopt((void *)&(source->payload_len), AUTHORIZEOPT_AUTHORIZE_PARSE, (char *)source->payload);
+        return SUCCESS_RETURN;
+    }
+#endif
     memset(&response, 0, sizeof(dm_msg_response_payload_t));
 
     /* Response */
@@ -376,7 +388,10 @@ int dm_msg_proc_unified_service_post_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -403,7 +418,10 @@ int dm_msg_proc_thing_deviceinfo_update_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -428,7 +446,10 @@ int dm_msg_proc_thing_deviceinfo_delete_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -471,7 +492,10 @@ int dm_msg_proc_thing_event_notify_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -757,7 +781,10 @@ int dm_msg_proc_thing_sub_register_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -785,7 +812,10 @@ int dm_msg_proc_thing_sub_unregister_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -812,7 +842,10 @@ int dm_msg_proc_thing_topo_add_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -839,7 +872,10 @@ int dm_msg_proc_thing_topo_delete_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -866,7 +902,10 @@ int dm_msg_proc_thing_sub_reset_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -893,7 +932,10 @@ int dm_msg_proc_thing_topo_get_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
@@ -954,19 +996,22 @@ int dm_msg_proc_thing_list_found_reply(_IN_ dm_msg_source_t *source)
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
     return SUCCESS_RETURN;
 }
 
-int dm_msg_proc_combine_login_reply(_IN_ dm_msg_source_t *source)
+int dm_msg_proc_combine_batch_login_reply(_IN_ dm_msg_source_t *source)
 {
     int res = 0;
     dm_msg_response_payload_t response;
 
-    dm_log_info(DM_URI_COMBINE_LOGIN_REPLY);
+    dm_log_info(DM_URI_COMBINE_BATCH_LOGIN_REPLY);
 
     memset(&response, 0, sizeof(dm_msg_response_payload_t));
 
@@ -977,23 +1022,26 @@ int dm_msg_proc_combine_login_reply(_IN_ dm_msg_source_t *source)
     }
 
     /* Operation */
-    dm_msg_combine_login_reply(&response);
+    dm_msg_combine_batch_login_reply(&response);
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif
     return SUCCESS_RETURN;
 }
 
-int dm_msg_proc_combine_logout_reply(_IN_ dm_msg_source_t *source)
+int dm_msg_proc_combine_batch_logout_reply(_IN_ dm_msg_source_t *source)
 {
     int res = 0;
     dm_msg_response_payload_t response;
 
-    dm_log_info(DM_URI_COMBINE_LOGOUT_REPLY);
+    dm_log_info(DM_URI_COMBINE_BATCH_LOGOUT_REPLY);
 
     memset(&response, 0, sizeof(dm_msg_response_payload_t));
 
@@ -1004,11 +1052,14 @@ int dm_msg_proc_combine_logout_reply(_IN_ dm_msg_source_t *source)
     }
 
     /* Operation */
-    dm_msg_combine_logout_reply(&response);
+    dm_msg_combine_batch_logout_reply(&response);
 
     /* Remove Message From Cache */
 #if !defined(DM_MESSAGE_CACHE_DISABLED)
-    char int_id[DM_UTILS_UINT32_STRLEN] = {0};
+    char int_id[DM_UTILS_UINT32_STRLEN+1] = {0};
+    if (response.id.value_length > DM_UTILS_UINT32_STRLEN) {
+        return STATE_DEV_MODEL_WRONG_JSON_FORMAT;
+    }
     memcpy(int_id, response.id.value, response.id.value_length);
     dm_msg_cache_remove(atoi(int_id));
 #endif

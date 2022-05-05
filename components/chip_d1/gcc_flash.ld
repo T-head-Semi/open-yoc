@@ -26,7 +26,7 @@ ENTRY(Reset_Handler)
 SECTIONS
 {
  .text : {
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
   __stext = . ;
   KEEP(*startup.o)
   KEEP(*dispatcher_s.o)
@@ -42,18 +42,18 @@ SECTIONS
   *(.jcr)
   KEEP (*(.init))
   KEEP (*(.fini))
-  . = ALIGN (4) ;
+  . = ALIGN (8) ;
   PROVIDE(__ctbp = .);
   *(.call_table_data)
   *(.call_table_text)
-  . = ALIGN(0x10) ;
+  . = ALIGN(0x40) ;
   __etext = . ;
  } > REGION_TEXT
  .gcc_except_table : ONLY_IF_RO {
   *(.gcc_except_table .gcc_except_table.*)
  } > REGION_TEXT
  .rodata : {
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
   __srodata = .;
   *(.rdata)
   *(.rdata*)
@@ -65,7 +65,7 @@ SECTIONS
   *(.rodata.*)
   *(.rodata.str1.4)
   *(.srodata*)
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
 
    __init_array_start = .;
    __ctors_start__ = .;
@@ -88,17 +88,17 @@ SECTIONS
   KEEP (*(SORT(.dtors.*)))
   KEEP (*(.dtors))
   __dtor_end__ = .;
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
 
     /************** added drivers **************/
     _cli_region_begin = .;
     KEEP(*(CliRegion))
-    . = ALIGN(4);
+    . = ALIGN(8);
     _cli_region_end = .;
 
     __core_driver_start__ = .;
     KEEP(*(.core_driver_entry))
-    . = ALIGN(4);
+    . = ALIGN(8);
     __core_driver_end__ = .;
 
     __bus_driver_start__ = .;
@@ -139,7 +139,7 @@ SECTIONS
   __rodata_end__ = .;
  } > REGION_RODATA
  .data : {
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
   __sdata = . ;
   __data_start__ = . ;
   data_start = . ;
@@ -160,7 +160,7 @@ SECTIONS
   __stop_init_call = .;
   __start_cmd = .;
   *(.bootloaddata.cmd)
-  . = ALIGN(4) ;
+  . = ALIGN(8) ;
   __stop_cmd = .;
   __global_pointer$ = .;
   *(.sdata)
@@ -173,7 +173,7 @@ SECTIONS
   *(.note.ABI-tag)
   __edata = .;
   __data_end__ = .;
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
  } > REGION_DATA 
  .gcc_except_table : ONLY_IF_RW {
   *(.gcc_except_table .gcc_except_table.*)
@@ -181,15 +181,15 @@ SECTIONS
   __data_end__ = .;
  } > REGION_DATA
  ._ram_code : {
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
   __ram_code_start__ = .;
   *(.ram.code*)
   __ram_code_end__ = .;
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
  } > REGION_DATA
  .bss : {
-  . = ALIGN(0x4) ;
-  __sbss = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
+  __sbss = ALIGN(0x8) ;
   __bss_start__ = . ;
   *(.dynsbss)
   *(.sbss)
@@ -199,7 +199,7 @@ SECTIONS
   *(.bss)
   *(.bss.*)
   *(COMMON)
-  . = ALIGN(0x4) ;
+  . = ALIGN(0x8) ;
   __ebss = . ;
   __bss_end__ = .;
   __end = . ;

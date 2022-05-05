@@ -21,68 +21,6 @@
 extern "C" {
 #endif
 
-#if 0
-/* ================================================================================ */
-/* ================       Device Specific Peripheral Section       ================ */
-/* ================================================================================ */
-
-#define CONFIG_TIMER_NUM    4
-#define CONFIG_USART_NUM    1
-#define CONFIG_GPIO_NUM     8
-#define CONFIG_GPIO_PIN_NUM 8
-
-/* ================================================================================ */
-/* ================              Peripheral memory map             ================ */
-/* ================================================================================ */
-/* --------------------------  CPU FPGA memory map  ------------------------------- */
-#define CSKY_SRAM_BASE              (0x20000000UL)
-
-#define CSKY_UART_BASE              (0x02500000UL)
-#define CSKY_PMU_BASE               (0x10016000UL)
-#define CSKY_TIMER0_BASE            (0x10011000UL)
-#define CSKY_TIMER1_BASE            (0x10011014UL)
-#define CSKY_TIMER2_BASE            (0x10011028UL)
-#define CSKY_TIMER3_BASE            (0x1001103cUL)
-#define CSKY_TIMER_CONTROL_BASE     (0x100110a0UL)
-#define CSKY_CLK_GEN_BASE           (0x10017000UL)
-#define CSKY_STIMER0_BASE           (0x10018000UL)
-#define CSKY_STIMER1_BASE           (0x10018014UL)
-#define CSKY_STIMER2_BASE           (0x10018028UL)
-#define CSKY_STIMER3_BASE           (0x1001803cUL)
-#define CSKY_STIMER_CONTROL_BASE    (0x100110a0UL)
-
-#define CSKY_GPIOA_BASE             (0x10019000UL)
-#define CSKY_GPIOA_CONTROL_BASE     (0x10019030UL)
-#define CSKY_SMPU_BASE              (0x1001a000UL)
-
-/* ================================================================================ */
-/* ================             Peripheral declaration             ================ */
-/* ================================================================================ */
-#define CSKY_UART                  ((   CSKY_UART_TypeDef *)    CSKY_UART_BASE)
-
-typedef enum IRQn {
-    /* ----------------------  SmartL Specific Interrupt Numbers  --------------------- */
-    UART_IRQn                       =   18+0,     /* uart Interrupt */
-    TIM0_IRQn                       =   32+2,     /* timer0 Interrupt */
-    TIM1_IRQn                       =   32+3,     /* timer1 Interrupt */
-    TIM2_IRQn                       =   32+4,     /* timer1 Interrupt */
-    TIM3_IRQn                       =   32+5,     /* timer1 Interrupt */
-    GPIO0_IRQn                      =   32+6,     /* gpio0 Interrupt */
-    GPIO1_IRQn                      =   32+7,     /* gpio1 Interrupt */
-    GPIO2_IRQn                      =   32+8,     /* gpio2 Interrupt */
-    GPIO3_IRQn                      =   32+9,     /* gpio3 Interrupt */
-    GPIO4_IRQn                      =   32+10,     /* gpio4 Interrupt */
-    GPIO5_IRQn                      =   32+11,     /* gpio5 Interrupt */
-    GPIO6_IRQn                      =   32+12,     /* gpio6 Interrupt */
-    GPIO7_IRQn                      =   32+13,     /* gpio7 Interrupt */
-    STIM0_IRQn                      =   32+14,     /* stimer0 Interrupt */
-    STIM1_IRQn                      =   32+15,     /* stimer0 Interrupt */
-    STIM2_IRQn                      =   32+16,     /* stimer0 Interrupt */
-    STIM3_IRQn                      =   32+17,     /* stimer0 Interrupt */
-    PAD_IRQn                        =   32+18,     /* pad Interrupt */
-}
-IRQn_Type;
-#endif
 
 #ifndef EHS_VALUE
 #define EHS_VALUE               20000000U
@@ -100,7 +38,18 @@ IRQn_Type;
 #define ILS_VALUE               32768U
 #endif
 
-////////////////////////////////////////////////////////
+typedef enum {
+    Supervisor_Software_IRQn        =  1U,
+    Machine_Software_IRQn           =  3U,
+    Supervisor_Timer_IRQn           =  5U,
+    CORET_IRQn                      =  7U,
+    Supervisor_External_IRQn        =  9U,
+    Machine_External_IRQn           =  11U,
+
+    DW_UART0_IRQn                   =  18U,
+    DW_UART1_IRQn                   =  19U,
+} irqn_type_t;
+
 #define PA_BASE 0
 #define PB_BASE 32
 #define PC_BASE 64
@@ -116,8 +65,6 @@ IRQn_Type;
 #define PM_BASE 384
 #define PN_BASE 416
 #define PO_BASE 448
-
-/* sunxi gpio name space */
 #define GPIOA(n)    (PA_BASE + (n))
 #define GPIOB(n)    (PB_BASE + (n))
 #define GPIOC(n)    (PC_BASE + (n))
@@ -134,536 +81,637 @@ IRQn_Type;
 #define GPION(n)    (PN_BASE + (n))
 #define GPIOO(n)    (PO_BASE + (n))
 
-#define GPIO_MAX_BANK PG_BASE
-#define BANK_BOUNDARY PL_BASE
-#define SUNXI_GPIO_PBASE 0x02000000
-#define SUNXI_GPIO_RES_SIZE 0x07FF
+typedef enum {
+    PB0  = GPIOB(0),
+    PB1  = GPIOB(1),
+    PB2  = GPIOB(2),
+    PB3  = GPIOB(3),
+    PB4  = GPIOB(4),
+    PB5  = GPIOB(5),
+    PB6  = GPIOB(6),
+    PB7  = GPIOB(7),
+    PB8  = GPIOB(8),
+    PB9  = GPIOB(9),
+    PB10 = GPIOB(10),
+    PB11 = GPIOB(11),
+    PB12 = GPIOB(12),
 
-/* sunxi gpio irq*/
-#if defined(CONFIG_CORE_DSP0) /* DSP */
-#include <interrupt.h>
-#define SUNXI_IRQ_GPIOB (RINTC_IRQ_MASK | 40)
-#define SUNXI_IRQ_GPIOC (RINTC_IRQ_MASK | 42)
-#define SUNXI_IRQ_GPIOD (RINTC_IRQ_MASK | 44)
-#define SUNXI_IRQ_GPIOE (RINTC_IRQ_MASK | 46)
-#define SUNXI_IRQ_GPIOF (RINTC_IRQ_MASK | 48)
-#define SUNXI_IRQ_GPIOG (RINTC_IRQ_MASK | 50)
-#elif defined(CONFIG_ARCH_SUN8IW20) /* ARM */
-#define SUNXI_GIC_START 32
-#define SUNXI_IRQ_GPIOB (SUNXI_GIC_START + 69)
-#define SUNXI_IRQ_GPIOC (SUNXI_GIC_START + 71)
-#define SUNXI_IRQ_GPIOD (SUNXI_GIC_START + 73)
-#define SUNXI_IRQ_GPIOE (SUNXI_GIC_START + 75)
-#define SUNXI_IRQ_GPIOF (SUNXI_GIC_START + 77)
-#define SUNXI_IRQ_GPIOG (SUNXI_GIC_START + 79)
-#elif defined(CONFIG_SOC_SUN20IW1) /* RISC-V */
-#define SUNXI_IRQ_GPIOB (85)
-#define SUNXI_IRQ_GPIOC (87)
-#define SUNXI_IRQ_GPIOD (89)
-#define SUNXI_IRQ_GPIOE (91)
-#define SUNXI_IRQ_GPIOF (93)
-#define SUNXI_IRQ_GPIOG (95)
-#endif /* CONFIG_CORE_DSP0 */
+    PC0  = GPIOC(0),
+    PC1  = GPIOC(1),
+    PC2  = GPIOC(2),
+    PC3  = GPIOC(3),
+    PC4  = GPIOC(4),
+    PC5  = GPIOC(5),
+    PC6  = GPIOC(6),
+    PC7  = GPIOC(7),
 
-typedef enum
-{
-    GPIO_PB0 = GPIOB(0),
-    GPIO_PB1 = GPIOB(1),
-    GPIO_PB2 = GPIOB(2),
-    GPIO_PB3 = GPIOB(3),
-    GPIO_PB4 = GPIOB(4),
-    GPIO_PB5 = GPIOB(5),
-    GPIO_PB6 = GPIOB(6),
-    GPIO_PB7 = GPIOB(7),
+    PD0  = GPIOD(0),
+    PD1  = GPIOD(1),
+    PD2  = GPIOD(2),
+    PD3  = GPIOD(3),
+    PD4  = GPIOD(4),
+    PD5  = GPIOD(5),
+    PD6  = GPIOD(6),
+    PD7  = GPIOD(7),
+    PD8  = GPIOD(8),
+    PD9  = GPIOD(9),
+    PD10 = GPIOD(10),
+    PD11 = GPIOD(11),
+    PD12 = GPIOD(12),
+    PD13 = GPIOD(13),
+    PD14 = GPIOD(14),
+    PD15 = GPIOD(15),
+    PD16 = GPIOD(16),
+    PD17 = GPIOD(17),
+    PD18 = GPIOD(18),
+    PD19 = GPIOD(19),
+    PD20 = GPIOD(20),
+    PD21 = GPIOD(21),
+    PD22 = GPIOD(22),
 
-    GPIO_PC0 = GPIOC(0),
-    GPIO_PC1 = GPIOC(1),
-    GPIO_PC2 = GPIOC(2),
-    GPIO_PC3 = GPIOC(3),
-    GPIO_PC4 = GPIOC(4),
-    GPIO_PC5 = GPIOC(5),
-    GPIO_PC6 = GPIOC(6),
-    GPIO_PC7 = GPIOC(7),
+    PE0  = GPIOE(0),
+    PE1  = GPIOE(1),
+    PE2  = GPIOE(2),
+    PE3  = GPIOE(3),
+    PE4  = GPIOE(4),
+    PE5  = GPIOE(5),
+    PE6  = GPIOE(6),
+    PE7  = GPIOE(7),
+    PE8  = GPIOE(8),
+    PE9  = GPIOE(9),
+    PE10 = GPIOE(10),
+    PE11 = GPIOE(11),
+    PE12 = GPIOE(12),
+    PE13 = GPIOE(13),
+    PE14 = GPIOE(14),
+    PE15 = GPIOE(15),
+    PE16 = GPIOE(16),
+    PE17 = GPIOE(17),
 
-    GPIO_PD0 = GPIOD(0),
-    GPIO_PD1 = GPIOD(1),
-    GPIO_PD2 = GPIOD(2),
-    GPIO_PD3 = GPIOD(3),
-    GPIO_PD4 = GPIOD(4),
-    GPIO_PD5 = GPIOD(5),
-    GPIO_PD6 = GPIOD(6),
-    GPIO_PD7 = GPIOD(7),
-    GPIO_PD8 = GPIOD(8),
-    GPIO_PD9 = GPIOD(9),
-    GPIO_PD10 = GPIOD(10),
-    GPIO_PD11 = GPIOD(11),
-    GPIO_PD12 = GPIOD(12),
-    GPIO_PD13 = GPIOD(13),
-    GPIO_PD14 = GPIOD(14),
-    GPIO_PD15 = GPIOD(15),
-    GPIO_PD16 = GPIOD(16),
-    GPIO_PD17 = GPIOD(17),
-    GPIO_PD18 = GPIOD(18),
-    GPIO_PD19 = GPIOD(19),
-    GPIO_PD20 = GPIOD(20),
-    GPIO_PD21 = GPIOD(21),
-    GPIO_PD22 = GPIOD(22),
+    PF0  = GPIOF(0),
+    PF1  = GPIOF(1),
+    PF2  = GPIOF(2),
+    PF3  = GPIOF(3),
+    PF4  = GPIOF(4),
+    PF5  = GPIOF(5),
+    PF6  = GPIOF(6),
 
-    GPIO_PE0 = GPIOE(0),
-    GPIO_PE1 = GPIOE(1),
-    GPIO_PE2 = GPIOE(2),
-    GPIO_PE3 = GPIOE(3),
-    GPIO_PE4 = GPIOE(4),
-    GPIO_PE5 = GPIOE(5),
-    GPIO_PE6 = GPIOE(6),
-    GPIO_PE7 = GPIOE(7),
-    GPIO_PE8 = GPIOE(8),
-    GPIO_PE9 = GPIOE(9),
-    GPIO_PE10 = GPIOE(10),
-    GPIO_PE11 = GPIOE(11),
-    GPIO_PE12 = GPIOE(12),
-    GPIO_PE13 = GPIOE(13),
-    GPIO_PE14 = GPIOE(14),
-    GPIO_PE15 = GPIOE(15),
-    GPIO_PE16 = GPIOE(16),
-    GPIO_PE17 = GPIOE(17),
-
-    GPIO_PF0 = GPIOF(0),
-    GPIO_PF1 = GPIOF(1),
-    GPIO_PF2 = GPIOF(2),
-    GPIO_PF3 = GPIOF(3),
-    GPIO_PF4 = GPIOF(4),
-    GPIO_PF5 = GPIOF(5),
-    GPIO_PF6 = GPIOF(6),
-
-    GPIO_PG0 = GPIOG(0),
-    GPIO_PG1 = GPIOG(1),
-    GPIO_PG2 = GPIOG(2),
-    GPIO_PG3 = GPIOG(3),
-    GPIO_PG4 = GPIOG(4),
-    GPIO_PG5 = GPIOG(5),
-    GPIO_PG6 = GPIOG(6),
-    GPIO_PG7 = GPIOG(7),
-    GPIO_PG8 = GPIOG(8),
-    GPIO_PG9 = GPIOG(9),
-    GPIO_PG10 = GPIOG(10),
-    GPIO_PG11 = GPIOG(11),
-    GPIO_PG12 = GPIOG(12),
-    GPIO_PG13 = GPIOG(13),
-    GPIO_PG14 = GPIOG(14),
-    GPIO_PG15 = GPIOG(15),
+    PG0  = GPIOG(0),
+    PG1  = GPIOG(1),
+    PG2  = GPIOG(2),
+    PG3  = GPIOG(3),
+    PG4  = GPIOG(4),
+    PG5  = GPIOG(5),
+    PG6  = GPIOG(6),
+    PG7  = GPIOG(7),
+    PG8  = GPIOG(8),
+    PG9  = GPIOG(9),
+    PG10 = GPIOG(10),
+    PG11 = GPIOG(11),
+    PG12 = GPIOG(12),
+    PG13 = GPIOG(13),
+    PG14 = GPIOG(14),
+    PG15 = GPIOG(15),
+    PG16 = GPIOG(16),
+    PG17 = GPIOG(17),
+    PG18 = GPIOG(18),
 
     /* To aviod compile warnings. */
-    GPIO_MAX = GPIOO(31),
-
-} gpio_pin_t;
-////////////////////////////////////////////////////////
-typedef gpio_pin_t pin_name_t;
+    GPIO_MAX_PIN = GPIOO(31),
+} pin_name_t;
 
 typedef enum {
-    Supervisor_Software_IRQn        =  1U,
-    Machine_Software_IRQn           =  3U,
-    Supervisor_Timer_IRQn           =  5U,
-    CORET_IRQn                      =  7U,
-    Supervisor_External_IRQn        =  9U,
-    Machine_External_IRQn           =  11U,
-    // FIXME:
-    DW_WDT_IRQn                     =  17U,
-    DW_UART_IRQn                    =  18U,
-    DW_DMA_IRQn                     =  19U,
-    DW_TIMER0_IRQn                  =  20U,
-    DW_TIMER1_IRQn                  =  21U,
-    DW_TIMER2_IRQn                  =  22U,
-    DW_TIMER3_IRQn                  =  23U,
-    WJ_VAD_IRQn                     =  24U,
-    WJ_VAD_TRIG_IRQn                =  25U,
-    WJ_I2S0_IRQn                    =  26U,
-    WJ_I2S1_IRQn                    =  27U,
-    WJ_I2S2_IRQn                    =  28U,
-    WJ_I2S_IN_IRQn                  =  29U,
-    WJ_TDM_IRQn                     =  30U,
-    WJ_SPDIF0_IRQn                  =  31U,
-    WJ_SPDIF1_IRQn                  =  32U,
-    DW_GPIO_IRQn                    =  33U,
-    DW_IIC0_IRQn                    =  34U,
-    DW_IIC1_IRQn                    =  35U,
-    WJ_MAILBOX_IRQn                 =  36U,
-    WJ_BUS_MONITOR_IRQn             =  37U,
-    WJ_CPR_WK_IRQn                  =  38U,
-    WJ_NPU_IRQn                     =  39U,
-} irqn_type_t;
+    PB0_PWM3                = 2U,
+    PB0_IR_TX               = 3U,
+    PB0_TWI2_SCK            = 4U,
+    PB0_SPI1_WP_DBI_TE      = 5U,
+    PB0_UART0_TX            = 6U,
+    PB0_UART2_TX            = 7U,
+    PB0_OWA_OUT             = 8U,
+    PB0_PB_EINT0            = 14U,
+    PB1_PWM4                = 2U,
+    PB1_I2S2_DOUT3          = 3U,
+    PB1_TWI2_SDA            = 4U,
+    PB1_I2S2_DIN3           = 5U,
+    PB1_UART0_RX            = 6U,
+    PB1_UART2_RX            = 7U,
+    PB1_IR_RX               = 8U,
+    PB1_PB_EINT1            = 14U,
+    PB2_LCD0_D0             = 2U,
+    PB2_I2S2_DOUT2          = 3U,
+    PB2_TWI0_SDA            = 4U,
+    PB2_I2S2_DIN2           = 5U,
+    PB2_LCD0_D18            = 6U,
+    PB2_UART4_TX            = 7U,
+    PB2_PB_EINT2            = 14U,
+    PB3_LCD0_D1             = 2U,
+    PB3_I2S2_DOUT1          = 3U,
+    PB3_TWI0_SCK            = 4U,
+    PB3_I2S2_DIN0           = 5U,
+    PB3_LCD0_D19            = 6U,
+    PB3_UART4_RX            = 7U,
+    PB3_PB_EINT3            = 14U,
+    PB4_LCD0_D8             = 2U,
+    PB4_I2S2_DOUT0          = 3U,
+    PB4_TWI1_SCK            = 4U,
+    PB4_I2S2_DIN1           = 5U,
+    PB4_LCD0_D20            = 6U,
+    PB4_UART5_TX            = 7U,
+    PB4_PB_EINT4            = 14U,
+    PB5_LCD0_D9             = 2U,
+    PB5_I2S2_BCLK           = 3U,
+    PB5_TWI1_SDA            = 4U,
+    PB5_PWM0                = 5U,
+    PB5_LCD0_D21            = 6U,
+    PB5_UART5_RX            = 7U,
+    PB5_PB_EINT5            = 14U,
+    PB6_LCD0_D16            = 2U,
+    PB6_I2S2_LRCK           = 3U,
+    PB6_TWI3_SCK            = 4U,
+    PB6_PWM1                = 5U,
+    PB6_LCD0_D22            = 6U,
+    PB6_UART3_TX            = 7U,
+    PB6_CPUBIST0            = 8U,
+    PB6_PB_EINT6            = 14U,
+    PB7_LCD0_D17            = 2U,
+    PB7_I2S2_MCLK           = 3U,
+    PB7_TWI3_SDA            = 4U,
+    PB7_IR_RX               = 5U,
+    PB7_LCD0_D23            = 6U,
+    PB7_UART3_RX            = 7U,
+    PB7_CPUBIST1            = 8U,
+    PB7_PB_EINT7            = 14U,
+    PB8_DMIC_DATA3          = 2U,
+    PB8_PWM5                = 3U,
+    PB8_TWI2_SCK            = 4U,
+    PB8_DBI_WRX             = 5U,
+    PB8_UART0_TX            = 6U,
+    PB8_UART1_TX            = 7U,
+    PB8_PB_EINT8            = 14U,
+    PB9_DMIC_DATA2          = 2U,
+    PB9_PWM6                = 3U,
+    PB9_TWI2_SDA            = 4U,
+    PB9_DBI_DCX             = 5U,
+    PB9_UART0_RX            = 6U,
+    PB9_UART1_RX            = 7U,
+    PB9_PB_EINT9            = 14U,
+    PB10_DMIC_DATA1         = 2U,
+    PB10_PWM7               = 3U,
+    PB10_TWI0_SCK           = 4U,
+    PB10_DBI_SDO            = 5U,
+    PB10_CLK_FANOUT0        = 6U,
+    PB10_UART1_RTS          = 7U,
+    PB10_PB_EINT10          = 14U,
+    PB11_DMIC_DATA0         = 2U,
+    PB11_PWM2               = 3U,
+    PB11_TWI0_SDA           = 4U,
+    PB11_DBI_SCLK           = 5U,
+    PB11_CLK_FANOUT1        = 6U,
+    PB11_UART1_CTS          = 7U,
+    PB11_PB_EINT11          = 14U,
+    PB12_DMIC_CLK           = 2U,
+    PB12_PWM0               = 3U,
+    PB12_OWA_IN             = 4U,
+    PB12_DBI_CSX            = 5U,
+    PB12_CLK_FANOUT2        = 6U,
+    PB12_IR_RX              = 7U,
+    PB12_PB_EINT12          = 14U,
+    PC0_UART2_TX            = 2U,
+    PC0_TWI2_SCK            = 3U,
+    PC0_LEDC_DO             = 4U,
+    PC0_PC_EINT0            = 14U,
+    PC1_UART2_RX            = 2U,
+    PC1_TWI2_SDA            = 3U,
+    PC1_PC_EINT1            = 14U,
+    PC2_SPI0_CLK            = 2U,
+    PC2_SDC2_CLK            = 3U,
+    PC2_PC_EINT2            = 14U,
+    PC3_SPI0_CS0            = 2U,
+    PC3_SDC2_CMD            = 3U,
+    PC3_PC_EINT3            = 14U,
+    PC4_SPI0_MOSI           = 2U,
+    PC4_SDC2_D2             = 3U,
+    PC4_BOOT_SEL0           = 4U,
+    PC4_PC_EINT4            = 14U,
+    PC5_SPI0_MISO           = 2U,
+    PC5_SDC2_D1             = 3U,
+    PC5_BOOT_SEL1           = 4U,
+    PC5_PC_EINT5            = 14U,
+    PC6_SPI0_WP             = 2U,
+    PC6_SDC2_D0             = 3U,
+    PC6_UART3_TX            = 4U,
+    PC6_TWI3_SCK            = 5U,
+    PC6_DBG_CLK             = 6U,
+    PC6_PC_EINT6            = 14U,
+    PC7_SPI0_HOLD           = 2U,
+    PC7_SDC2_D3             = 3U,
+    PC7_UART3_RX            = 4U,
+    PC7_TWI3_SDA            = 5U,
+    PC7_TCON_TRIG           = 6U,
+    PC7_PC_EINT7            = 14U,
+    PD0_LCD0_D2             = 2U,
+    PD0_LVDS0_V0P           = 3U,
+    PD0_DSI_D0P             = 4U,
+    PD0_TWI0_SCK            = 5U,
+    PD0_PD_EINT0            = 14U,
+    PD1_LCD0_D3             = 2U,
+    PD1_LVDS0_V0N           = 3U,
+    PD1_DSI_D0N             = 4U,
+    PD1_UART2_TX            = 5U,
+    PD1_PD_EINT1            = 14U,
+    PD2_LCD0_D4             = 2U,
+    PD2_LVDS0_V1P           = 3U,
+    PD2_DSI_D1P             = 4U,
+    PD2_UART2_RX            = 5U,
+    PD2_PD_EINT2            = 14U,
+    PD3_LCD0_D5             = 2U,
+    PD3_LVDS0_V1N           = 3U,
+    PD3_DSI_D1N             = 4U,
+    PD3_UART2_RTS           = 5U,
+    PD3_PD_EINT3            = 14U,
+    PD4_LCD0_D6             = 2U,
+    PD4_LVDS0_V2P           = 3U,
+    PD4_DSI_CKP             = 4U,
+    PD4_UART2_CTS           = 5U,
+    PD4_PD_EINT4            = 14U,
+    PD5_LCD0_D7             = 2U,
+    PD5_LVDS0_V2N           = 3U,
+    PD5_DSI_CKN             = 4U,
+    PD5_UART5_TX            = 5U,
+    PD5_PD_EINT5            = 14U,
+    PD6_LCD0_D10            = 2U,
+    PD6_LVDS0_CKP           = 3U,
+    PD6_DSI_D2P             = 4U,
+    PD6_UART5_RX            = 5U,
+    PD6_PD_EINT6            = 14U,
+    PD7_LCD0_D11            = 2U,
+    PD7_LVDS0_CKN           = 3U,
+    PD7_DSI_D2N             = 4U,
+    PD7_UART4_TX            = 5U,
+    PD7_PD_EINT7            = 14U,
+    PD8_LCD0_D12            = 2U,
+    PD8_LVDS0_V3P           = 3U,
+    PD8_DSI_D3P             = 4U,
+    PD8_UART4_RX            = 5U,
+    PD8_PD_EINT8            = 14U,
+    PD9_LCD0_D13            = 2U,
+    PD9_LVDS0_V3N           = 3U,
+    PD9_DSI_D3N             = 4U,
+    PD9_PWM6                = 5U,
+    PD9_PD_EINT9            = 14U,
+    PD10_LCD0_D14           = 2U,
+    PD10_LVDS1_V0P          = 3U,
+    PD10_SPI1_CS_DBI_CSX    = 4U,
+    PD10_UART3_TX           = 5U,
+    PD10_PD_EINT10          = 14U,
+    PD11_LCD0_D15           = 2U,
+    PD11_LVDS1_V0N          = 3U,
+    PD11_DBI_SCLK           = 4U,
+    PD11_UART3_RX           = 5U,
+    PD11_PD_EINT11          = 14U,
+    PD12_LCD0_D18           = 2U,
+    PD12_LVDS1_V1P          = 3U,
+    PD12_DBI_SDO            = 4U,
+    PD12_TWI0_SDA           = 5U,
+    PD12_PD_EINT12          = 14U,
+    PD13_LCD0_D19           = 2U,
+    PD13_LVDS1_V1N          = 3U,
+    PD13_DBI_DCX            = 4U,
+    PD13_UART3_RTS          = 5U,
+    PD13_PD_EINT13          = 14U,
+    PD14_LCD0_D20           = 2U,
+    PD14_LVDS1_V2P          = 3U,
+    PD14_DBI_WRX            = 4U,
+    PD14_UART3_CTS          = 5U,
+    PD14_PD_EINT14          = 14U,
+    PD15_LCD0_D21           = 2U,
+    PD15_LVDS1_V2N          = 3U,
+    PD15_SPI1_WP_DBI_TE     = 4U,
+    PD15_IR_RX              = 5U,
+    PD15_PD_EINT15          = 14U,
+    PD16_LCD0_D22           = 2U,
+    PD16_LVDS1_CKP          = 3U,
+    PD16_DMIC_DATA3         = 4U,
+    PD16_PWM0               = 5U,
+    PD16_PD_EINT16          = 14U,
+    PD17_LCD0_D23           = 2U,
+    PD17_LVDS1_CKN          = 3U,
+    PD17_DMIC_DATA2         = 4U,
+    PD17_PWM1               = 5U,
+    PD17_PD_EINT17          = 14U,
+    PD18_LCD0_CLK           = 2U,
+    PD18_LVDS1_V3P          = 3U,
+    PD18_DMIC_DATA1         = 4U,
+    PD18_PWM2               = 5U,
+    PD18_PD_EINT18          = 14U,
+    PD19_LCD0_DE            = 2U,
+    PD19_LVDS1_V3N          = 3U,
+    PD19_DMIC_DATA0         = 4U,
+    PD19_PWM3               = 5U,
+    PD19_PD_EINT19          = 14U,
+    PD20_LCD0_HSYNC         = 2U,
+    PD20_TWI2_SCK           = 3U,
+    PD20_DMIC_CLK           = 4U,
+    PD20_PWM4               = 5U,
+    PD20_PD_EINT20          = 14U,
+    PD21_LCD0_VSYNC         = 2U,
+    PD21_TWI2_SDA           = 3U,
+    PD21_UART1_TX           = 4U,
+    PD21_PWM5               = 5U,
+    PD21_PD_EINT21          = 14U,
+    PD22_OWA_OUT            = 2U,
+    PD22_IR_RX              = 3U,
+    PD22_UART1_RX           = 4U,
+    PD22_PWM7               = 5U,
+    PD22_PD_EINT22          = 14U,
+    PE0_NCSI0_HSYNC         = 2U,
+    PE0_UART2_RTS           = 3U,
+    PE0_TWI1_SCK            = 4U,
+    PE0_LCD0_HSYNC          = 5U,
+    PE0_RMII_CRS_DV         = 8U,
+    PE0_PE_EINT0            = 14U,
+    PE1_NCSI0_VSYNC         = 2U,
+    PE1_UART2_CTS           = 3U,
+    PE1_TWI1_SDA            = 4U,
+    PE1_LCD0_VSYNC          = 5U,
+    PE1_RMII_RXD0           = 8U,
+    PE1_PE_EINT1            = 14U,
+    PE2_NCSI0_PCLK          = 2U,
+    PE2_UART2_TX            = 3U,
+    PE2_TWI0_SCK            = 4U,
+    PE2_CLK_FANOUT0         = 5U,
+    PE2_UART0_TX            = 6U,
+    PE2_RMII_RXD1           = 8U,
+    PE2_PE_EINT2            = 14U,
+    PE3_NCSI0_MCLK          = 2U,
+    PE3_UART2_RX            = 3U,
+    PE3_TWI0_SDA            = 4U,
+    PE3_CLK_FANOUT1         = 5U,
+    PE3_UART0_RX            = 6U,
+    PE3_RMII_TXCK           = 8U,
+    PE3_PE_EINT3            = 14U,
+    PE4_NCSI0_D0            = 2U,
+    PE4_UART4_TX            = 3U,
+    PE4_TWI2_SCK            = 4U,
+    PE4_CLK_FANOUT2         = 5U,
+    PE4_D_JTAG_MS           = 6U,
+    PE4_R_JTAG_MS           = 7U,
+    PE4_RMII_TXD0           = 8U,
+    PE4_PE_EINT4            = 14U,
+    PE5_NCSI0_D1            = 2U,
+    PE5_UART4_RX            = 3U,
+    PE5_TWI2_SDA            = 4U,
+    PE5_LEDC_DO             = 5U,
+    PE5_D_JTAG_DI           = 6U,
+    PE5_R_JTAG_DI           = 7U,
+    PE5_RMII_TXD1           = 8U,
+    PE5_PE_EINT5            = 14U,
+    PE6_NCSI0_D2            = 2U,
+    PE6_UART5_TX            = 3U,
+    PE6_TWI3_SCK            = 4U,
+    PE6_OWA_IN              = 5U,
+    PE6_D_JTAG_DO           = 6U,
+    PE6_R_JTAG_DO           = 7U,
+    PE6_RMII_TXEN           = 8U,
+    PE6_PE_EINT6            = 14U,
+    PE7_NCSI0_D3            = 2U,
+    PE7_UART5_RX            = 3U,
+    PE7_TWI3_SDA            = 4U,
+    PE7_OWA_OUT             = 5U,
+    PE7_D_JTAG_CK           = 6U,
+    PE7_R_JTAG_CK           = 7U,
+    PE7_RMII_RXER           = 8U,
+    PE7_PE_EINT7            = 14U,
+    PE8_NCSI0_D4            = 2U,
+    PE8_UART1_RTS           = 3U,
+    PE8_PWM2                = 4U,
+    PE8_UART3_TX            = 5U,
+    PE8_JTAG_MS             = 6U,
+    PE8_MDC                 = 8U,
+    PE8_PE_EINT8            = 14U,
+    PE9_NCSI0_D5            = 2U,
+    PE9_UART1_CTS           = 3U,
+    PE9_PWM3                = 4U,
+    PE9_UART3_RX            = 5U,
+    PE9_JTAG_DI             = 6U,
+    PE9_MDIO                = 8U,
+    PE9_PE_EINT9            = 14U,
+    PE10_NCSI0_D6           = 2U,
+    PE10_UART1_TX           = 3U,
+    PE10_PWM4               = 4U,
+    PE10_IR_RX              = 5U,
+    PE10_JTAG_DO            = 6U,
+    PE10_EPHY_25M           = 8U,
+    PE10_PE_EINT10          = 14U,
+    PE11_NCSI0_D7           = 2U,
+    PE11_UART1_RX           = 3U,
+    PE11_I2S0_DOUT3         = 4U,
+    PE11_I2S0_DIN3          = 5U,
+    PE11_JTAG_CK            = 6U,
+    PE11_RGMII_TXD2         = 8U,
+    PE11_PE_EINT11          = 14U,
+    PE12_TWI2_SCK           = 2U,
+    PE12_NCSI0_FIELD        = 3U,
+    PE12_I2S0_DOUT2         = 4U,
+    PE12_I2S0_DIN2          = 5U,
+    PE12_RGMII_TXD3         = 8U,
+    PE12_PE_EINT12          = 14U,
+    PE13_TWI2_SDA           = 2U,
+    PE13_PWM5               = 3U,
+    PE13_I2S0_DOUT0         = 4U,
+    PE13_I2S0_DIN1          = 5U,
+    PE13_DMIC_DATA3         = 6U,
+    PE13_RGMII_RXD2         = 8U,
+    PE13_PE_EINT13          = 14U,
+    PE14_TWI1_SCK           = 2U,
+    PE14_D_JTAG_MS          = 3U,
+    PE14_I2S0_DOUT1         = 4U,
+    PE14_I2S0_DIN0          = 5U,
+    PE14_DMIC_DATA2         = 6U,
+    PE14_RGMII_RXD3         = 8U,
+    PE14_PE_EINT14          = 14U,
+    PE15_TWI1_SDA           = 2U,
+    PE15_D_JTAG_DI          = 3U,
+    PE15_PWM6               = 4U,
+    PE15_I2S0_LRCK          = 5U,
+    PE15_DMIC_DATA1         = 6U,
+    PE15_RGMII_RXCK         = 8U,
+    PE15_PE_EINT15          = 14U,
+    PE16_TWI3_SCK           = 2U,
+    PE16_D_JTAG_DO          = 3U,
+    PE16_PWM7               = 4U,
+    PE16_I2S0_BCLK          = 5U,
+    PE16_DMIC_DATA0         = 6U,
+    PE16_PE_EINT16          = 14U,
+    PE17_TWI3_SDA           = 2U,
+    PE17_D_JTAG_CK          = 3U,
+    PE17_IR_TX              = 4U,
+    PE17_I2S0_MCLK          = 5U,
+    PE17_DMIC_CLK           = 6U,
+    PE17_PE_EINT17          = 14U,
+    PF0_SDC0_D1             = 2U,
+    PF0_JTAG_MS             = 3U,
+    PF0_R_JTAG_MS           = 4U,
+    PF0_I2S2_DOUT1          = 5U,
+    PF0_I2S2_DIN0           = 6U,
+    PF0_PF_EINT0            = 14U,
+    PF1_SDC0_D0             = 2U,
+    PF1_JTAG_DI             = 3U,
+    PF1_R_JTAG_DI           = 4U,
+    PF1_I2S2_DOUT0          = 5U,
+    PF1_I2S2_DIN1           = 6U,
+    PF1_PF_EINT1            = 14U,
+    PF2_SDC0_CLK            = 2U,
+    PF2_UART0_TX            = 3U,
+    PF2_TWI0_SCK            = 4U,
+    PF2_LEDC_DO             = 5U,
+    PF2_OWA_IN              = 6U,
+    PF2_PF_EINT2            = 14U,
+    PF3_SDC0_CMD            = 2U,
+    PF3_JTAG_DO             = 3U,
+    PF3_R_JTAG_DO           = 4U,
+    PF3_I2S2_BCLK           = 5U,
+    PF3_PF_EINT3            = 14U,
+    PF4_SDC0_D3             = 2U,
+    PF4_UART0_RX            = 3U,
+    PF4_TWI0_SDA            = 4U,
+    PF4_PWM6                = 5U,
+    PF4_IR_TX               = 6U,
+    PF4_PF_EINT4            = 14U,
+    PF5_SDC0_D2             = 2U,
+    PF5_JTAG_CK             = 3U,
+    PF5_R_JTAG_CK           = 4U,
+    PF5_I2S2_LRCK           = 5U,
+    PF5_PF_EINT5            = 14U,
+    PF6_OWA_OUT             = 3U,
+    PF6_IR_RX               = 4U,
+    PF6_I2S2_MCLK           = 5U,
+    PF6_PWM5                = 6U,
+    PF6_PF_EINT6            = 14U,
+    PG0_SDC1_CLK            = 2U,
+    PG0_UART3_TX            = 3U,
+    PG0_RMII_CRS_DV         = 4U,
+    PG0_PWM7                = 5U,
+    PG0_PG_EINT0            = 14U,
+    PG1_SDC1_CMD            = 2U,
+    PG1_UART3_RX            = 3U,
+    PG1_RMII_RXD0           = 4U,
+    PG1_PWM6                = 5U,
+    PG1_PG_EINT1            = 14U,
+    PG2_SDC1_D0             = 2U,
+    PG2_UART3_RTS           = 3U,
+    PG2_RMII_RXD1           = 4U,
+    PG2_UART4_TX            = 5U,
+    PG2_PG_EINT2            = 14U,
+    PG3_SDC1_D1             = 2U,
+    PG3_UART3_CTS           = 3U,
+    PG3_RMII_TXCK           = 4U,
+    PG3_UART4_RX            = 5U,
+    PG3_PG_EINT3            = 14U,
+    PG4_SDC1_D2             = 2U,
+    PG4_UART5_TX            = 3U,
+    PG4_RMII_TXD0           = 4U,
+    PG4_PWM5                = 5U,
+    PG4_PG_EINT4            = 14U,
+    PG5_SDC1_D3             = 2U,
+    PG5_UART5_RX            = 3U,
+    PG5_RMII_TXD1           = 4U,
+    PG5_PWM4                = 5U,
+    PG5_PG_EINT5            = 14U,
+    PG6_UART1_TX            = 2U,
+    PG6_TWI2_SCK            = 3U,
+    PG6_RGMII_TXD2          = 4U,
+    PG6_PWM1                = 5U,
+    PG6_PG_EINT6            = 14U,
+    PG7_UART1_RX            = 2U,
+    PG7_TWI2_SDA            = 3U,
+    PG7_RGMII_TXD3          = 4U,
+    PG7_OWA_IN              = 5U,
+    PG7_PG_EINT7            = 14U,
+    PG8_UART1_RTS           = 2U,
+    PG8_TWI1_SCK            = 3U,
+    PG8_RGMII_RXD2          = 4U,
+    PG8_UART3_TX            = 5U,
+    PG8_PG_EINT8            = 14U,
+    PG9_UART1_CTS           = 2U,
+    PG9_TWI1_SDA            = 3U,
+    PG9_RGMII_RXD3          = 4U,
+    PG9_UART3_RX            = 5U,
+    PG9_PG_EINT9            = 14U,
+    PG10_PWM3               = 2U,
+    PG10_TWI3_SCK           = 3U,
+    PG10_RGMII_RXCK         = 4U,
+    PG10_CLK_FANOUT0        = 5U,
+    PG10_IR_RX              = 6U,
+    PG10_PG_EINT10          = 14U,
+    PG11_I2S1_MCLK          = 2U,
+    PG11_TWI3_SDA           = 3U,
+    PG11_EPHY_25M           = 4U,
+    PG11_CLK_FANOUT1        = 5U,
+    PG11_TCON_TRIG          = 6U,
+    PG11_PG_EINT11          = 14U,
+    PG12_I2S1_LRCK          = 2U,
+    PG12_TWI0_SCK           = 3U,
+    PG12_RMII_TXEN          = 4U,
+    PG12_CLK_FANOUT2        = 5U,
+    PG12_PWM0               = 6U,
+    PG12_UART1_TX           = 7U,
+    PG12_PG_EINT12          = 14U,
+    PG13_I2S1_BCLK          = 2U,
+    PG13_TWI0_SDA           = 3U,
+    PG13_RMII_RXER          = 4U,
+    PG13_PWM2               = 5U,
+    PG13_LEDC_DO            = 6U,
+    PG13_UART1_RX           = 7U,
+    PG13_PG_EINT13          = 14U,
+    PG14_I2S1_DIN0          = 2U,
+    PG14_TWI2_SCK           = 3U,
+    PG14_MDC                = 4U,
+    PG14_I2S1_DOUT1         = 5U,
+    PG14_SPI0_WP            = 6U,
+    PG14_UART1_RTS          = 7U,
+    PG14_PG_EINT14          = 14U,
+    PG15_I2S1_DOUT0         = 2U,
+    PG15_TWI2_SDA           = 3U,
+    PG15_MDIO               = 4U,
+    PG15_I2S1_DIN1          = 5U,
+    PG15_SPI0_HOLD          = 6U,
+    PG15_UART1_CTS          = 7U,
+    PG15_PG_EINT15          = 14U,
+    PG16_IR_RX              = 2U,
+    PG16_TCON_TRIG          = 3U,
+    PG16_PWM5               = 4U,
+    PG16_CLK_FANOUT2        = 5U,
+    PG16_OWA_IN             = 6U,
+    PG16_LEDC_DO            = 7U,
+    PG16_PG_EINT16          = 14U,
+    PG17_UART2_TX           = 2U,
+    PG17_TWI3_SCK           = 3U,
+    PG17_PWM7               = 4U,
+    PG17_CLK_FANOUT0        = 5U,
+    PG17_IR_TX              = 6U,
+    PG17_UART0_TX           = 7U,
+    PG17_PG_EINT17          = 14U,
+    PG18_UART2_RX           = 2U,
+    PG18_TWI3_SDA           = 3U,
+    PG18_PWM6               = 4U,
+    PG18_CLK_FANOUT1        = 5U,
+    PG18_OWA_OUT            = 6U,
+    PG18_UART0_RX           = 7U,
+    PG18_PG_EINT18          = 14U,
 
-typedef enum {
-    WJ_IOCTL_Wakeupn               =  29U,     /* IOCTOL wakeup */
-} wakeupn_type_t;
-
-typedef enum {
-    WJ_USB_CLK_MANAGERN            = 28U,
-} clk_manager_type_t;
-
-typedef enum {
-    WJ_VAD_RX0_L,
-    WJ_VAD_RX0_R,
-    WJ_VAD_RX1_L,
-    WJ_VAD_RX1_R,
-    WJ_VAD_RX2_L,
-    WJ_VAD_RX2_R,
-    WJ_VAD_RX3_L,
-    WJ_VAD_RX3_R,
-    WJ_I2S0_RX,
-    WJ_I2S0_TX,
-    WJ_I2S1_RX,
-    WJ_I2S1_TX,
-    WJ_I2S2_RX,
-    WJ_I2S2_TX,
-    WJ_I2S_IN_RX0,
-    WJ_I2S_IN_RX1,
-    WJ_I2S_IN_RX2,
-    WJ_I2S_IN_RX3,
-    UART_RX,
-    UART_TX,
-    IIC0_RX,
-    IIC0_TX,
-    IIC1_RX,
-    IIC1_TX,
-    SPDIF0_RX,
-    SPDIF0_TX,
-    SPDIF1_RX,
-    SPDIF1_TX,
-    TDM_RX0,
-    TDM_RX1,
-    TDM_RX2,
-    TDM_RX3,
-    TDM_RX4,
-    TDM_RX5,
-    TDM_RX6,
-    TDM_RX7,
-} dman_type_t;
-
-// FIXME:
-typedef enum {
-    PB0 = GPIO_PB0,
-    PB1 = GPIO_PB1,
-    PB2 = GPIO_PB2,
-    PB3 = GPIO_PB3,
-    PB4 = GPIO_PB4,
-    PB5 = GPIO_PB5,
-    PB6 = GPIO_PB6,
-    PB7 = GPIO_PB7,
-
-    PC0 = GPIO_PC0,
-    PC1 = GPIO_PC1,
-    PC2 = GPIO_PC2,
-    PC3 = GPIO_PC3,
-    PC4 = GPIO_PC4,
-    PC5 = GPIO_PC5,
-    PC6 = GPIO_PC6,
-    PC7 = GPIO_PC7,
-
-    PD0 = GPIO_PD0,
-    PD1 = GPIO_PD1,
-    PD2 = GPIO_PD2,
-    PD3 = GPIO_PD3,
-    PD4 = GPIO_PD4,
-    PD5 = GPIO_PD5,
-    PD6 = GPIO_PD6,
-    PD7 = GPIO_PD7,
-    PD8 = GPIO_PD8,
-    PD9 = GPIO_PD9,
-    PD10 = GPIO_PD10,
-    PD11 = GPIO_PD11,
-    PD12 = GPIO_PD12,
-    PD13 = GPIO_PD13,
-    PD14 = GPIO_PD14,
-    PD15 = GPIO_PD15,
-    PD16 = GPIO_PD16,
-    PD17 = GPIO_PD17,
-    PD18 = GPIO_PD18,
-    PD19 = GPIO_PD19,
-    PD20 = GPIO_PD20,
-    PD21 = GPIO_PD21,
-    PD22 = GPIO_PD22,
-
-    PE0 = GPIO_PE0,
-    PE1 = GPIO_PE1,
-    PE2 = GPIO_PE2,
-    PE3 = GPIO_PE3,
-    PE4 = GPIO_PE4,
-    PE5 = GPIO_PE5,
-    PE6 = GPIO_PE6,
-    PE7 = GPIO_PE7,
-    PE8 = GPIO_PE8,
-    PE9 = GPIO_PE9,
-    PE10 = GPIO_PE10,
-    PE11 = GPIO_PE11,
-    PE12 = GPIO_PE12,
-    PE13 = GPIO_PE13,
-    PE14 = GPIO_PE14,
-    PE15 = GPIO_PE15,
-    PE16 = GPIO_PE16,
-    PE17 = GPIO_PE17,
-
-    PF0 = GPIO_PF0,
-    PF1 = GPIO_PF1,
-    PF2 = GPIO_PF2,
-    PF3 = GPIO_PF3,
-    PF4 = GPIO_PF4,
-    PF5 = GPIO_PF5,
-    PF6 = GPIO_PF6,
-    
-    PG0 = GPIO_PG0,
-    PG1 = GPIO_PG1,
-    PG2 = GPIO_PG2,
-    PG3 = GPIO_PG3,
-    PG4 = GPIO_PG4,
-    PG5 = GPIO_PG5,
-    PG6 = GPIO_PG6,
-    PG7 = GPIO_PG7,
-    PG8 = GPIO_PG8,
-    PG9 = GPIO_PG9,
-    PG10 = GPIO_PG10,
-    PG11 = GPIO_PG11,
-    PG12 = GPIO_PG12,
-    PG13 = GPIO_PG13,
-    PG14 = GPIO_PG14,
-    PG15 = GPIO_PG15,
-
-    /* To aviod compile warnings. */
-    // GPIO_MAX
-} pin_name2_t;
-
-// FIXME:
-typedef enum {
-    PA0         = 0U,
-    PA1,
-    PA2,
-    PA3,
-    PA4,
-    PA5,
-    PA6,
-    PA7,
-    PA8,
-    PA9,
-    PA10,
-    PA11,
-    PA12,
-    PA13,
-    PA14,
-    PA15,
-    PA16,
-    PA17,
-    PA18,
-    PA19,
-    PA20,
-    PA21,
-    PA22,
-    PA23,
-    PA24,
-    PA25,
-    PA26,
-    PA27,
-    PA28,
-    PA29,
-    PA30,
-} pin_name3_t;
-
-typedef enum {
-    PA0_VAD_DIN0                   =  0U,
-    PA0_VAD_PDM_DIN0               =  1U,
-    PA0_SPDIF0_DOUT                =  2U,
-    PA0_I2S_IN_SDA2                =  3U,
-    PA1_VAD_DIN1                   =  0U,
-    PA1_VAD_PDM_DIN1               =  1U,
-    PA1_SPDIF0_DIN                 =  2U,
-    PA1_I2S_IN_SDA3                =  3U,
-    PA2_VAD_WS                     =  0U,
-    PA2_SPDIF1_DOUT                =  2U,
-    PA2_I2S_IN_WSCLK               =  3U,
-    PA3_VAD_SCLK                   =  0U,
-    PA3_VAD_PDM_CLK                =  1U,
-    PA3_SPDIF1_DIN                 =  2U,
-    PA3_I2S_IN_SCLK                =  3U,
-    PA4_VAD_DIN2                   =  0U,
-    PA4_VAD_PDM_DIN2               =  1U,
-    PA4_UART_RX                    =  2U,
-    PA4_I2S_IN_SDA0                =  3U,
-    PA5_VAD_DIN3                   =  0U,
-    PA5_VAD_PDM_DIN3               =  1U,
-    PA5_UART_TX                    =  2U,
-    PA5_I2S_IN_SDA1                =  3U,
-    PA6_IIC0_SCL                   =  0U,
-    PA6_T_CPU_CLK                  =  1U,
-    PA6_IIC1_SCL                   =  2U,
-    PA6_UART_RX                    =  3U,
-    PA7_IIC0_SDA                   =  0U,
-    PA7_T_AXI_CLK                  =  1U,
-    PA7_IIC1_SDA                   =  2U,
-    PA7_UART_TX                    =  3U,
-    PA8_CLK_12M                    =  0U,
-    PA8_TAHB_CLK                   =  1U,
-    PA8_VAD_MCLK                   =  2U,
-    PA8_I2S_IN_MCLK                =  3U,
-    PA9_I2S0_WSCLK                 =  0U,
-    PA9_T_APB_CLK                  =  1U,
-    PA9_TDM_DAT                    =  2U,
-    PA9_I2S1_WSCLK                 =  3U,
-    PA10_I2S0_SCLK                 =  0U,
-    PA10_T_UART_CLK                =  1U,
-    PA10_TDM_SCLK                  =  2U,
-    PA10_I2S1_SCLK                 =  3U,
-    PA11_I2S0_SDA                  =  0U,
-    PA11_T_AUDIO_CLK               =  1U,
-    PA11_TDM_WSCLK                 =  2U,
-    PA11_I2S1_DIN                  =  3U,
-    PA12_I2S0_MCLK                 =  0U,
-    PA12_IIC1_SCL                  =  1U,
-    PA12_UART_TX                   =  2U,
-    PA12_I2S1_DOUT                 =  3U,
-    PA13_I2S1_MCLK                 =  0U,
-    PA13_IIC1_SDA                  =  1U,
-    PA13_VAD_MCLK                  =  2U,
-    PA13_UART_RX                   =  3U,
-    PA14_I2S1_WSCLK                =  0U,
-    PA14_VAD_PDM_DIN0              =  1U,
-    PA14_VAD_DIN0                  =  2U,
-    PA14_I2S0_WSCLK                =  3U,
-    PA15_I2S1_SCLK                 =  0U,
-    PA15_VAD_PDM_DIN1              =  1U,
-    PA15_VAD_DIN1                  =  2U,
-    PA15_CLK_12M                   =  3U,
-    PA16_I2S1_SDI                  =  0U,
-    PA16_VAD_PDM_CLK               =  1U,
-    PA16_VAD_WS                    =  2U,
-    PA16_IIC1_SCL                  =  3U,
-    PA17_I2S1_SDO                  =  0U,
-    PA17_VAD_PDM_DIN2              =  1U,
-    PA17_VAD_SCLK                  =  2U,
-    PA17_IIC1_SDA                  =  3U,
-    PA18_I2S2_WSCLK                =  0U,
-    PA18_TDM_DAT                   =  1U,
-    PA18_VAD_DIN2                  =  2U,
-    PA18_UART_CTS                  =  3U,
-    PA19_I2S2_SCLK                 =  0U,
-    PA19_TDM_SCLK                  =  1U,
-    PA19_VAD_DIN3                  =  2U,
-    PA19_UART_RTS                  =  3U,
-    PA20_I2S2_MCLK                 =  0U,
-    PA20_TDM_WSCLK                 =  1U,
-    PA20_IIC1_SCL                  =  2U,
-    PA20_IIC1_SDA                  =  3U,
-    PA21_I2S2_SDI                  =  0U,
-    PA21_SPDIF0_DIN                =  1U,
-    PA21_IIC1_SDA                  =  2U,
-    PA21_IIC1_SCL                  =  3U,
-    PA22_I2S2_SDO                  =  0U,
-    PA22_SPDIF0_DOUT               =  1U,
-    PA22_CLK_12M                   =  2U,
-    PA23_UART_RX                   =  0U,
-    PA23_SPDIF1_DIN                =  1U,
-    PA23_SPDIF0_DIN                =  2U,
-    PA23_IIC1_SCL                  =  3U,
-    PA24_UART_TX                   =  0U,
-    PA24_SPDIF1_DOUT               =  1U,
-    PA24_SPDIF0_DOUT               =  2U,
-    PA24_IIC1_SDA                  =  3U,
-    PA25_I2S_IN_DIN2               =  0U,
-    PA25_UART_RTS                  =  1U,
-    PA25_SPDIF0_DIN                =  2U,
-    PA26_I2S_IN_DIN3               =  0U,
-    PA26_UART_CTS                  =  1U,
-    PA26_SPDIF0_DOUT               =  2U,
-    PA26_CLK_12M                   =  3U,
-    PA27_I2S_IN_WSCLK              =  0U,
-    PA27_TDM_WSCLK                 =  1U,
-    PA27_SPDIF1_DIN                =  2U,
-    PA27_I2S0_WSCLK                =  3U,
-    PA28_I2S_IN_SCLK               =  0U,
-    PA28_TDM_SCLK                  =  1U,
-    PA28_SPDIF1_DOUT               =  2U,
-    PA28_I2S0_SCLK                 =  3U,
-    PA29_I2S_IN_DIN0               =  0U,
-    PA29_TDM_DAT                   =  1U,
-    PA29_IIC0_SCL                  =  2U,
-    PA29_I2S0_SDA                  =  3U,
-    PA30_I2S_IN_DIN1               =  0U,
-    PA30_IIC0_SDA                  =  2U,
-    PA30_I2S0_MCLK                 =  3U,
-    PIN_FUNC_GPIO                  =  4U,
+    PIN_FUNC_GPIO_IN        = 0U,
+    PIN_FUNC_GPIO           = 1U,   // means GPIO out in d1
+    PIN_FUNC_DISABLED       = 15U,
 } pin_func_t;
 
 #define CONFIG_GPIO_NUM             2
 #define CONFIG_IRQ_NUM              1023U
-#define CONFIG_DMA_NUM              1
 
-
-#define DW_TIMER0_BASE              0xFFCB011000UL
-#define DW_TIMER0_SIZE              0x14U
-
-#define DW_TIMER1_BASE              (DW_TIMER0_BASE+DW_TIMER0_SIZE)
-#define DW_TIMER1_SIZE              DW_TIMER0_SIZE
-
-#define DW_TIMER2_BASE              (DW_TIMER1_BASE+DW_TIMER1_SIZE)
-#define DW_TIMER2_SIZE              DW_TIMER1_SIZE
-
-#define DW_TIMER3_BASE              (DW_TIMER2_BASE+DW_TIMER2_SIZE)
-#define DW_TIMER3_SIZE              DW_TIMER2_SIZE
-
-#define DW_UART_BASE                0x02500000UL
+#define DW_UART0_BASE               0x02500000UL
+#define DW_UART1_BASE               0x02500400UL
 #define DW_UART_SIZE                0x1000U
 
-#define DW_GPIO_BASE                0xFFCB013000UL
-#define DW_GPIO_SIZE                0x1000U
-
-#define DW_WDT_BASE                 0xFFCB010000UL
-#define DW_WDT_BASE_SZIE            0x1000U
-
-#define DW_DMA_BASE                 0xFFC8000000UL
-#define DW_DMA_BASE_SZIE            0x1000U
-
-#define DW_BUS_MONITOR_BASE         0xFFCB020000UL
-#define DW_BUS_MONITOR_BASE_SZIE    0x1000U
-
-#define DW_MAILBOX_BASE             0xFFCA000000UL
-#define DW_MAILBOX_BASE_SZIE        0x1000U
-
-#define WJ_TDM_BASE                 0xFFCB012000UL
-#define WJ_TDM_BASE_SZIE            0x1000U
-
-#define WJ_I2S0_BASE                0xFFCB014000UL
-#define WJ_I2S0_SIZE                0x1000U
-#define WJ_I2S1_BASE                0xFFCB015000UL
-#define WJ_I2S1_SIZE                0x1000U
-#define WJ_I2S2_BASE                0xFFCB016000UL
-#define WJ_I2S2_SIZE                0x1000U
-#define WJ_I2S3_BASE                0xFFCB017000UL
-#define WJ_I2S3_SIZE                0x1000U
-
-#define WJ_SPDIF0_BASE              0xFFCB018000UL
-#define WJ_SPDIF0_SIZE              0x1000U
-#define WJ_SPDIF1_BASE              0xFFCB019000UL
-#define WJ_SPDIF1_SIZE              0x1000U
-
-#define DW_IIC0_BASE                0xFFCB01A000UL
-#define DW_IIC0_BASE_SIZE           0x1000U
-
-#define DW_IIC1_BASE                0xFFCB01B000UL
-#define DW_IIC1_BASE_SIZE           0x1000U
-
-#define WJ_IOC_BASE                 0xFFCB01D000UL
-#define WJ_IOC_SIZE                 0x1000U
-
-#define WJ_VAD_BASE                 0xFFCB01E000UL
-#define WJ_VAD_BASE_SIZE            0x1000U
-
-#define WJ_CPR_BASE                 0xFFCB000000UL
-#define WJ_CPR_BASE_SIZE            0x10000U
-
-#define WJ_MBOX_BASE                0xFFEFC48000UL
-#define WJ_MBOX_SIZE                0x4000U
-
-#define CONFIG_RTC_FAMILY_D
-
-#define CONFIG_DW_AXI_DMA_32CH_NUM_CHANNELS
 
 #define PLIC_BASE           (0x10000000UL)
 #define CORET_BASE          (PLIC_BASE + 0x4000000UL)               /*!< CORET Base Address */

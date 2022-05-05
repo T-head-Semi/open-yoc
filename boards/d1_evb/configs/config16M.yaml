@@ -1,0 +1,24 @@
+mtb_version: 4
+chip: d1
+
+diff:
+  fota_version: 0
+  ram_buf: 50           #DEC     KB   ( max ram need)
+  flash_buf: 16         #DEC     KB   ( buffer size)
+  flash_sector: 4096    #DEC     byte ( flash sector)
+  diff_mode: 010        #BIN
+  double_control: 1
+flash:
+  base_address: 0         # 存储基地址，比如FLASH的基地址
+  sector: 4096            # Bytes
+  size: 16777216          # 4096 $(sector count) * sector
+
+partitions:
+  - { name: boot0,    address: 0x000000, size: 0x00C000 } # don't touch
+  - { name: gpt,      address: 0x00C000, size: 0x004000 } # don't touch
+  - { name: boot,     address: 0x010000, size: 0x025000 }
+  - { name: imtb,     address: 0x035000, size: 0x002000 }
+  - { name: prim,     address: 0x037000, size: 0x400000, verify: true }
+  - { name: lfs,      address: 0x437000, size: 0x700000 }
+  - { name: misc,     address: 0xB37000, size: 0x410000 }
+  - { name: kv,       address: 0xF47000, size: 0x004000 }

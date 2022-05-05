@@ -8,6 +8,7 @@
 void *cpu_task_stack_init(cpu_stack_t *stack_base, size_t stack_size,
                           void *arg, task_entry_t entry)
 {
+    register int *gp asm("x3");
     cpu_stack_t *stk;
 
     /* stack aligned by 8 byte */
@@ -78,6 +79,7 @@ void *cpu_task_stack_init(cpu_stack_t *stack_base, size_t stack_size,
     *(--stk)  = (cpu_stack_t)0x0606060606060606L;       /* X6          */
     *(--stk)  = (cpu_stack_t)0x0505050505050505L;       /* X5          */
     *(--stk)  = (cpu_stack_t)0x0404040404040404L;       /* X4          */
+    *(--stk)  = (uint64_t)gp;                           /* X3          */
     *(--stk)  = (cpu_stack_t)krhino_task_deathbed;      /* X1          */
 
     return (void *)stk;

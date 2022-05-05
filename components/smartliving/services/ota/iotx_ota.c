@@ -146,7 +146,7 @@ static int offline_ota_upgrade_cb(void* pctx, char *json)
     }
 #endif
 
-    if (0 != otalib_GetParams(pvalue, val_len, &h_ota->purl, &h_ota->version, h_ota->md5sum, &h_ota->size_file)) {
+    if (0 != otalib_GetParams(pvalue, val_len, &h_ota->purl, &h_ota->version, &h_ota->sign, &h_ota->signMethod, &h_ota->size_file)) {
         OTA_LOG_ERROR("Get config parameter failed");
         return ret_offline_ota;
     }
@@ -209,7 +209,7 @@ static int ota_callback(void *pcontext, const char *msg, uint32_t msg_len, iotx_
                 return -1;
             }
 
-            if (0 != otalib_GetParams(pvalue, val_len, &h_ota->purl, &h_ota->version, h_ota->md5sum, &h_ota->size_file)) {
+            if (0 != otalib_GetParams(pvalue, val_len, &h_ota->purl, &h_ota->version, &h_ota->sign, &h_ota->signMethod, &h_ota->size_file)) {
                 OTA_LOG_ERROR("Get config parameter failed");
                 return -1;
             }
@@ -602,7 +602,6 @@ do_exit:
 #undef MSG_REQUEST_LEN
 }
 
-
 int IOT_OTA_ReportProgress(void *handle, IOT_OTA_Progress_t progress, const char *msg)
 {
 #define MSG_REPORT_LEN  (256)
@@ -861,6 +860,25 @@ int IOT_OTA_FetchYield(void *handle, char *buf, uint32_t buf_len, uint32_t timeo
     return ret;
 }
 
+static const char *ota_to_capital(char *value, int len)
+{
+    int i = 0;
+
+    if (value == NULL || len <= 0)
+    {
+        return NULL;
+    }
+
+    for (i = 0; i < len; i++)
+    {
+        if (*(value + i) >= 'a' && *(value + i) <= 'z')
+        {
+            *(value + i) -= ('a' - 'A');
+        }
+    }
+
+    return value;
+}
 
 int IOT_OTA_Ioctl(void *handle, IOT_OTA_CmdType_t type, void *buf, size_t buf_len)
 {
@@ -1021,31 +1039,63 @@ int IOT_OTA_Ioctl(void *handle, IOT_OTA_CmdType_t type, void *buf, size_t buf_le
             break;
 
         case IOT_OTAG_CHECK_FIRMWARE:
-            if ((4 != buf_len) || (0 != ((unsigned long)buf & 0x3))) {
+            if ((4 != buf_len) || (0 != ((unsigned long)buf & 0x3)))
+            {
                 OTA_LOG_ERROR("Invalid parameter");
                 h_ota->err = IOT_OTAE_INVALID_PARAM;
                 return -1;
-            } else if (h_ota->state != IOT_OTAS_FETCHED) {
+            }
+            else if (h_ota->state != IOT_OTAS_FETCHED)
+            {
                 h_ota->err = IOT_OTAE_INVALID_STATE;
                 OTA_LOG_ERROR("Firmware can be checked in IOT_OTAS_FETCHED state only");
                 return -1;
-            } else {
+            }
+            else
+            {
                 int offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_OK;
-                char md5_str[33];
-                otalib_MD5Finalize(h_ota->md5, md5_str);
-                OTA_LOG_DEBUG("origin=%s, now=%s", h_ota->md5sum, md5_str);
-                if (0 == strcmp(h_ota->md5sum, md5_str)) {
-                    *((uint32_t *)buf) = 1;
-                    offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_OK;
-                } else {
-                    *((uint32_t *)buf) = 0;
-                    offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_VERIFY_FAILED;
+
+                ota_to_capital(h_ota->signMethod, strlen(h_ota->signMethod));
+                if (0 == strncmp(h_ota->signMethod, "MD5", strlen(h_ota->signMethod)))
+                {
+                    char md5_str[33];
+                    otalib_MD5Finalize(h_ota->md5, md5_str);
+                    if (0 == strcmp(h_ota->sign, md5_str))
+                    {
+                        *((uint32_t *)buf) = 1;
+                        offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_OK;
+                    }
+                    else
+                    {
+                        *((uint32_t *)buf) = 0;
+                        offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_VERIFY_FAILED;
+                    }
+                    OTA_LOG_INFO("md5 origin=%s, now=%s equal:%d", h_ota->sign, md5_str, *((uint32_t *)buf));
+                }
+
+                if (0 == strncmp(h_ota->signMethod, "SHA256", strlen(h_ota->signMethod)))
+                {
+                    char sha256_str[65];
+                    otalib_Sha256Finalize(h_ota->sha256, sha256_str);
+                    if (0 == strcmp(h_ota->sign, sha256_str))
+                    {
+                        *((uint32_t *)buf) = 1;
+                        offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_OK;
+                    }
+                    else
+                    {
+                        *((uint32_t *)buf) = 0;
+                        offline_ota_resp_code = DEV_OFFLINE_OTA_RSP_VERIFY_FAILED;
+                    }
+                    OTA_LOG_ERROR("sha256 origin=%s, now=%s equal:%d", h_ota->sign, sha256_str, *((uint32_t *)buf));
                 }
 #ifdef DEV_OFFLINE_OTA_ENABLE
-                if(h_ota->type == IOT_OTAT_FOTA_OFFLINE) {
+                if (h_ota->type == IOT_OTAT_FOTA_OFFLINE)
+                {
                     /*notify 10 times to assure APP to receive successfully */
                     uint8_t i = 0;
-                    for(; i < 10; i++) {
+                    for (; i < 10; i++)
+                    {
                         dev_notify_offline_ota_result(offline_ota_resp_code);
                         HAL_SleepMs(300);
                     }

@@ -35,6 +35,8 @@
 #include "hci_core.h"
 #endif
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
 /*
 	NOTE: This is an advanced setting and should not be changed unless
 	  absolutely necessary
@@ -44,7 +46,8 @@
 #endif
 
 static struct k_thread ecc_thread_data;
-static BT_STACK_NOINIT(ecc_thread_stack, 1100);
+static BT_STACK_NOINIT(ecc_thread_stack, CONFIG_BT_HCI_ECC_STACK_SIZE);
+#endif
 
 /* based on Core Specification 4.2 Vol 3. Part H 2.3.5.6.1 */
 static const u32_t debug_private_key[8] = {
@@ -73,8 +76,13 @@ enum {
 
 static ATOMIC_DEFINE(flags, NUM_FLAGS);
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+static struct k_delayed_work ecc_work;
+#define HCI_ECC_PUB_KEY_DELAY_MS (1000)
+#else
 //static K_SEM_DEFINE(cmd_sem, 0, 1);
 static struct k_sem cmd_sem;
+#endif
 
 static struct {
 	u8_t private_key[32];
@@ -220,6 +228,19 @@ static void emulate_le_generate_dhkey(void)
 	bt_recv(buf);
 }
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+static void ecc_work_hander(struct k_work *work)
+{
+	if (atomic_test_bit(flags, PENDING_PUB_KEY)) {
+		emulate_le_p256_public_key_cmd();
+	} else if (atomic_test_bit(flags, PENDING_DHKEY)) {
+		emulate_le_generate_dhkey();
+	} else {
+		__ASSERT(0, "Unhandled ECC command");
+	}
+}
+
+#else
 static void ecc_thread(void *arg)
 {
 	while (true) {
@@ -234,6 +255,7 @@ static void ecc_thread(void *arg)
 		}
 	}
 }
+#endif
 
 static void clear_ecc_events(struct net_buf *buf)
 {
@@ -275,12 +297,21 @@ static void le_gen_dhkey(struct net_buf *buf)
 	 */
 	sys_memcpy_swap(ecc.pk, cmd->key, 32);
 	sys_memcpy_swap(&ecc.pk[32], &cmd->key[32], 32);
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
 	k_sem_give(&cmd_sem);
+#endif
+
 	status = BT_HCI_ERR_SUCCESS;
 
 send_status:
 	net_buf_unref(buf);
 	send_cmd_status(BT_HCI_OP_LE_GENERATE_DHKEY, status);
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	k_delayed_work_submit(&ecc_work, 0);
+#endif
 }
 
 static void le_p256_pub_key(struct net_buf *buf)
@@ -294,11 +325,21 @@ static void le_p256_pub_key(struct net_buf *buf)
 	} else if (atomic_test_and_set_bit(flags, PENDING_PUB_KEY)) {
 		status = BT_HCI_ERR_CMD_DISALLOWED;
 	} else {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
 		k_sem_give(&cmd_sem);
+#endif
 		status = BT_HCI_ERR_SUCCESS;
 	}
 
 	send_cmd_status(BT_HCI_OP_LE_P256_PUBLIC_KEY, status);
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	if (status == BT_HCI_ERR_SUCCESS)
+	{
+		k_delayed_work_submit(&ecc_work, HCI_ECC_PUB_KEY_DELAY_MS);
+	}
+#endif
 }
 
 int bt_hci_ecc_send(struct net_buf *buf)
@@ -333,9 +374,13 @@ int default_CSPRNG(u8_t *dst, unsigned int len)
 
 void bt_hci_ecc_init(void)
 {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+    k_delayed_work_init(&ecc_work, ecc_work_hander);
+#else
     k_sem_init(&cmd_sem, 0, 1);
 
-    k_thread_spawn(&ecc_thread_data, "ecc task", ecc_thread_stack,
+    k_thread_spawn(&ecc_thread_data, "ecc task", (uint32_t *)ecc_thread_stack,
                    K_THREAD_STACK_SIZEOF(ecc_thread_stack),
-                   ecc_thread, NULL, 30);
+                   ecc_thread, NULL, K_THREAD_DEFAULT_APP_PRI);
+#endif
 }

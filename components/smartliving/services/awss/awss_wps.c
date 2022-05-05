@@ -148,6 +148,9 @@ static int get_ssid_passwd_from_w(uint8_t *in, int total_len, uint8_t *src, uint
     passwd_len = total_len - ssid_len - EXTRA_LEN; /* ssid_len(1B), crc(2B) */
     if (ssid_len > W_LEN - EXTRA_LEN || passwd_len < 0)
         return GOT_NOTHING;
+    if (zconfig_data == NULL) {
+        return GOT_NOTHING;
+    }
 
     AWSS_UPDATE_STATIS(AWSS_STATIS_WPS_IDX, AWSS_STATIS_TYPE_TIME_START);
     /* ssid_len(1B), ssid, passwd, crc(2B) */

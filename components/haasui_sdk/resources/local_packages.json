@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "PackageList": [
+    {
+      "id": "8080251822789980",
+      "Name": "桌面",
+      "Category": "HOME",
+      "Path": "resources/presetpkgs/8080251822789980.amr"
+    },
+    {
+      "id": "8080211650566964",
+      "Name": "向导",
+      "Category": "GUIDE",
+      "Path": "resources/presetpkgs/8080211650566964.amr"
+    },
+    {
+      "id": "8180000000000022",
+      "Name": "设置",
+      "Category": "SETTING",
+      "Path": "resources/presetpkgs/8180000000000022.amr"
+    },
+    {
+      "id": "8180000000000025",
+      "Name": "软键盘",
+      "Category": "IM_PANEL",
+      "Path": "resources/presetpkgs/8180000000000025.amr"
+    }
+  ]
+}
+

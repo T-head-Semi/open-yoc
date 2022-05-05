@@ -1,0 +1,56 @@
+
+## 第一部分： 基础信息
+name: haasui_sdk                                 # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
+version: v7.5.1                                  # <必选项> 组件版本号
+description: the libs and resources for haasui   # <必选项> 建议至少20字以上
+type: common                                     # <必选项> 组件类型，为：solution, chip, board, common, sdk
+
+## 第四部分：编译连接信息
+# build_config:                            # <可选项> 编译配置项
+#   include:                               # <可选项> 编译时，影响编译器的-I 参数 ,全局有效
+#     - src                                #        include 只能是该软件包下的目录，不能使用外部目录
+#   internal_include:                      # <可选项> 编译时，影响编译器的-I 参数 ,组件内有效
+#     - include
+#   cflag: ''                              # <可选项> C 编译器所需要要的编译参数
+#   cxxflag: ''                            # <可选项> CXX 编译器所需要要的编译参数
+#   asmflag: ''                            # <可选项> 汇编器所需要要参数
+#   define:                                # <可选项> 宏定义, 增加编译器的-D 选项,如：
+#     XXX: 1                               #   -DXXX=1
+#     AAA: 1                               #   -DAAA
+#     STR: "abc"                           #   -DSTR="abc"
+#   libs:                                  # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
+#     - xxx                                #   -lxxx
+#     - yyy                                #   -lyyy
+#   libpath:                               # 指定静态库所在的路径（相对于该组件路径）
+#     - libs                               #   -Llibs
+build_config:
+  libs:                                  # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
+    - falcon_entry
+    - jquick_falcon                            #   -lxxx
+    - jquick_core                              #   -lyyy
+    - jsapi_fs
+    - jsapi_file
+    - jsapi_dbus
+    - JQuickCommon
+    - JQuickBase
+    - JQuickPort
+    - greenui
+    - greenuix
+    - expat
+    - skia
+    - png
+    - quickjs
+    - ft2
+    - gif
+    - jpeg
+    - qrencode
+    - json-jquick
+    - yoga
+    - jsapi_proxy
+    - pms
+     #- message_knife                                 # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
+  libpath:                               # 指定静态库所在的路径（相对于该组件路径）
+    - lib/<cpu>
+
+def_config:
+  CONFIG_HAASUI_SDK: 1

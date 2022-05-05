@@ -18,6 +18,14 @@ enum {
 
 static slist_t bas_list = {NULL};
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+GATT_SERVICE_STATIC_DEFINE(bas_service, 
+    [BAS_IDX_SVC] = GATT_PRIMARY_SERVICE_DEFINE(UUID_BAS),
+    [BAS_IDX_LEVEL_CHAR] = GATT_CHAR_DEFINE(UUID_BAS_BATTERY_LEVEL,  GATT_CHRC_PROP_READ | GATT_CHRC_PROP_NOTIFY),
+    [BAS_IDX_LEVEL_VAL] = GATT_CHAR_VAL_DEFINE(UUID_BAS_BATTERY_LEVEL, GATT_PERM_READ),
+    [BAS_IDX_LEVEL_CCC] = GATT_CHAR_CCC_DEFINE(),
+);
+#else
 gatt_service bas_service;
 
 static gatt_attr_t bas_attrs[BAS_IDX_MAX] = {
@@ -26,6 +34,7 @@ static gatt_attr_t bas_attrs[BAS_IDX_MAX] = {
     [BAS_IDX_LEVEL_VAL] = GATT_CHAR_VAL_DEFINE(UUID_BAS_BATTERY_LEVEL, GATT_PERM_READ),
     [BAS_IDX_LEVEL_CCC] = GATT_CHAR_CCC_DEFINE(),
 };
+#endif
 
 static inline bas_t *get_bas(uint16_t bas_svc_handle)
 {
@@ -123,7 +132,11 @@ bas_handle_t bas_init(bas_t *bas)
         goto err;
     }
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	ret = ble_stack_gatt_service_handle(&bas_service);
+#else
     ret = ble_stack_gatt_registe_service(&bas_service, bas_attrs, BLE_ARRAY_NUM(bas_attrs));
+#endif
 
     if (ret < 0) {
         goto err;

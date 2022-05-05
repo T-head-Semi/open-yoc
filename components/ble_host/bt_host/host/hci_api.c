@@ -53,7 +53,7 @@
 #include "soc.h"
 #include "hci_api.h"
 
-#if defined(CONFIG_BT_USE_HCI_API)
+#if defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API
 
 #define __hci_api_weak__ __attribute__((weak))
 
@@ -1720,7 +1720,7 @@ static void hci_data_buf_overflow(struct net_buf *buf)
 }
 
 static const struct event_handler prio_events[] = {
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 	EVENT_HANDLER(BT_HCI_EVT_CMD_COMPLETE, hci_cmd_complete,
 		      sizeof(struct bt_hci_evt_cmd_complete)),
 	EVENT_HANDLER(BT_HCI_EVT_CMD_STATUS, hci_cmd_status,

@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: chip_d1                                    # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.5.0                                   # <必选项> 组件版本号
+version: v7.5.1                                   # <必选项> 组件版本号
 description: driver & sdk for platform/mcu d1  chip         # <必选项> 建议至少20字以上
 type: chip                                          # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
@@ -15,6 +15,8 @@ license: Apache license v2.0                        # <可选项> 源代码的�
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
+# depends:
+#   - chip_d1_melis: v7.5.1
 
 hw_info:
   arch_name: riscv
@@ -43,23 +45,56 @@ hw_info:
 #   libpath:                               # 指定静态库所在的路径（相对于该组件路径）
 #     - libs                               #   -Llibs
 build_config:
-  libs:
-    - xr829_40M
-    - chip_d1_melis
-  libpath:
-    - libs
   cflag:
   cxxflag:
   ldflag:
   asmflag: -D__ASSEMBLY__
+  libs:                                  # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
+    - chip_d1_melis                      #   -lxxx
+  libpath:                               # 指定静态库所在的路径（相对于该组件路径）
+    - libs                               #   -Llibs
   include:
-    - include/
-    - melis/include/osal
+    - include
+    - melis/include/hal/sdmmc
+    - melis/include/hal/sdmmc/osal
   internal_include:
+    - melis/include/osal
+    - melis/include/hal
+    - melis/misc/
+    - melis/hal/source
+    - melis/hal/source/ccmu/sunxi-ng
+    - melis/hal/source/ccmu/
+    - sys
     - drivers/ll
 
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
+source_file:
+  - sys/*.c
+  - sys/startup.S
+  - sys/vectors.S
+  - sys/dispatcher_boot.S
+  - drivers/spi.c
+  - drivers/uart.c
+  - drivers/dw_uart_ll.c
+  - drivers/spinorflash.c
+  - drivers/wdt.c
+  - drivers/rtc.c
+  - drivers/pwm.c
+  - drivers/gpio_pin.c
+  - drivers/gpio.c
+  - drivers/pinmux.c
+  - drivers/iic.c
+  - drivers/dma.c
+  - drivers/codec.c
+  - drivers/timer.c
+  - drivers/irq_port.c
+  - drivers/display.c
+  - drivers/g2d.c
+  - drivers/ll/*.c
+  - drivers/touchscreen.c
+  - drivers/lradc.c
+  - aos_pcm.c
 
 ## 第五部分：配置信息
 # def_config:                              # 组件的可配置项
@@ -67,6 +102,7 @@ build_config:
 #   CONFIG_PARAM_NOT_CHECK: y
 #   CONFIG_CLI: y
 def_config:
+  CONFIG_VIC_TSPDR: 0x14000000
   CONFIG_LOG_DEFAULT_LEVEL: 2
   HAVE_INIT_ARRAY_LD: y
   CONFIG_NON_ADDRESS_FLASH: y
@@ -81,7 +117,6 @@ def_config:
   CONFIG_DRIVERS_SUNXI_CCU: 1   # common_ccmu.h
   # SPINOR
   CONFIG_SUNXI_SPI_CPU_XFER_ONLY: 1 # SPI not DMA
-  # CONFIG_DRIVERS_SPINOR_WRITE_LOCK: 1
   CONFIG_DRIVERS_SPINOR_FREQ: 50
   CONFIG_DRIVERS_SPINOR_4K_SECTORS: 1
   #
@@ -118,13 +153,13 @@ def_config:
   CONFIG_NO_ACCOUNTING: 1
   CONFIG_NO_VLAN: 1
   CONFIG_NO_CTRL_IFACE: 1
-  CONFIG_XR829: 1
   CONFIG_OS_NUTTX: 1
   CONFIG_OS_NUTTX_CM_PASS: 1
   CONFIG_AOS: 1
   CONFIG_USE_SDIO: 1
   CONFIG_DETECT_CARD: 1
   CONFIG_USE_SD: 1
+  CONFIG_SDIO_IRQ_SUPPORT: 1
 ## 第六部分：安装信息
 # install:
 #   - dest: include/                       # 安装的目的路径 dest是相当路径，通常是相对于YoC SDK 安装目录

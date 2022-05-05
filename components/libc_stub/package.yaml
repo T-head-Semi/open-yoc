@@ -1,10 +1,10 @@
 
 ## 第一部分： 基础信息
 name: libc_stub                                     # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.5.0                                    # <必选项> 组件版本号
-description: c库扩展                                 # <必选项> 建议至少20字以上
+version: v7.5.1                                     # <必选项> 组件版本号
+description: c库扩展                                # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
-tag: 核心模块                                        # <可选项> 组件分类，缺省值： ''
+tag: 核心模块                                       # <可选项> 组件分类，缺省值： ''
 license: Apache license v2.0                        # <可选项> 源代码的许可证，要确保所有代码、文件的许可证不冲突。如：MIT，Apache license v2.0，BSD
 
 ## 第二部分：依赖信息
@@ -44,6 +44,8 @@ build_config:
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
 source_file:
   - "*.c"
+  - "sys/*.c"
+  - "string/*.c"
 
 ## 第五部分：配置信息
 # def_config:                              # 组件的可配置项

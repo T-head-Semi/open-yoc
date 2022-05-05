@@ -82,8 +82,8 @@ static int otamqtt_Publish(otamqtt_Struct_pt handle, const char *topic_type, int
         return IOT_OTAE_OSC_FAILED;
     }
 
-    printf("%s, %d， topic %s  ", __FUNCTION__, __LINE__, topic_name);
-    printf("msg %s\r\n", msg);
+    HAL_Printf("%s, %d, topic %s  ", __FUNCTION__, __LINE__, topic_name);
+    HAL_Printf("msg %s\r\n", msg);
 
     return 0;
 }

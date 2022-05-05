@@ -57,7 +57,7 @@ rws_thread rws_thread_create(rws_thread_funct thread_function, void * user_objec
                 pthread_attr_init(&attr);
                 struct sched_param sched;
                 pthread_attr_getschedparam(&attr,&sched);
-                sched.sched_priority = AOS_DEFAULT_APP_PRI;
+                sched.sched_priority = AOS_DEFAULT_APP_PRI + 1;
                 pthread_attr_setschedparam(&attr,&sched);
                 pthread_attr_setstacksize(&attr, 8192);
                 if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) == 0) {

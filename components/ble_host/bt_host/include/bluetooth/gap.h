@@ -53,6 +53,8 @@ extern "C" {
 #define BT_DATA_MESH_PROV               0x29 /* Mesh Provisioning PDU */
 #define BT_DATA_MESH_MESSAGE            0x2a /* Mesh Networking PDU */
 #define BT_DATA_MESH_BEACON             0x2b /* Mesh Beacon */
+#define BT_DATA_BIG_INFO                0x2c /* BIGInfo */
+#define BT_DATA_BROADCAST_CODE          0x2d /* Broadcast Code */
 
 #define BT_DATA_MANUFACTURER_DATA       0xff /* Manufacturer Specific Data */
 
@@ -71,13 +73,18 @@ extern "C" {
 #define BT_GAP_ADV_FAST_INT_MAX_1               0x0060  /* 60 ms    */
 #define BT_GAP_ADV_FAST_INT_MIN_2               0x00a0  /* 100 ms   */
 #define BT_GAP_ADV_FAST_INT_MAX_2               0x00f0  /* 150 ms   */
+#define BT_GAP_ADV_FAST_INT_MIN_3               0x0100  /* 160 ms   */
+#define BT_GAP_ADV_FAST_INT_MAX_3               0x0120  /* 180 ms   */
 #define BT_GAP_ADV_SLOW_INT_MIN                 0x0640  /* 1 s      */
 #define BT_GAP_ADV_SLOW_INT_MAX                 0x0780  /* 1.2 s    */
+#define BT_GAP_ADV_SLOW_INT_MAX_2               0x0f00  /* 2.4 s    */
 #define BT_GAP_INIT_CONN_INT_MIN                0x0018  /* 30 ms    */
 #define BT_GAP_INIT_CONN_INT_MAX                0x0028  /* 50 ms    */
 
 /** LE PHY types */
 enum {
+	/** Convenience macro for when no PHY is set. */
+	BT_GAP_LE_PHY_NONE                    = 0,
 	/** LE 1M PHY */
 	BT_GAP_LE_PHY_1M                      = BIT(0),
 	 /** LE 2M PHY */
@@ -98,8 +105,12 @@ enum {
 	BT_GAP_ADV_TYPE_ADV_NONCONN_IND       = 0x03,
 	/** Additional advertising data requested by an active scanner. */
 	BT_GAP_ADV_TYPE_SCAN_RSP              = 0x04,
-	/** Extended advertising, see advertising properties. */
-	BT_GAP_ADV_TYPE_EXT_ADV               = 0x05,
+    /** Extended not complete advertising , see advertising properties. */
+	BT_GAP_ADV_TYPE_EXT_ADV_COMPLETE      = 0x05,
+    /** Extended complete advertising but data truncated, see advertising properties. */
+	BT_GAP_ADV_TYPE_EXT_ADV_TRUNCATED     = 0x06,
+	/** Extended not complete advertising , see advertising properties. */
+	BT_GAP_ADV_TYPE_EXT_ADV_INCOMPLETE    = 0x07,
 };
 
 /** Advertising PDU properties */
@@ -140,6 +151,23 @@ enum {
 
 #define BT_GAP_DATA_TIME_DEFAULT                0x0148 /* 328 us */
 #define BT_GAP_DATA_TIME_MAX                    0x4290 /* 17040 us */
+
+#define BT_GAP_SID_MAX                          0x0F
+#define BT_GAP_PER_ADV_MAX_MAX_SKIP             0x01F3
+#define BT_GAP_PER_ADV_MAX_MAX_TIMEOUT          0x4000
+
+
+/** Constant Tone Extension (CTE) types */
+enum {
+	/** Angle of Arrival */
+	BT_GAP_CTE_AOA = 0x00,
+	/** Angle of Departure with 1 us slots */
+	BT_GAP_CTE_AOD_1US = 0x01,
+	/** Angle of Departure with 2 us slots */
+	BT_GAP_CTE_AOD_2US = 0x02,
+	/** No extensions */
+	BT_GAP_CTE_NONE = 0xFF,
+};
 
 /**
  * @}

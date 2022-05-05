@@ -5,8 +5,6 @@
 #ifndef __IOT_EXPORT_AWSS_H__
 #define __IOT_EXPORT_AWSS_H__
 
-#include "../iot_export.h"
-
 #if defined(__cplusplus)  /* If this is a C++ compiler, use C linkage */
 extern "C" {
 #endif
@@ -15,6 +13,9 @@ typedef enum {
     IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_ONLY         = 0,
     IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_SHADOW_CLEAR = 1,
     IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_ALL_CLEAR    = 2,
+    IOTX_VENDOR_DEV_RESET_TYPE_GW_UNBIND_ONLY    = 10, //Not unbind subdev with APP User
+    IOTX_VENDOR_DEV_RESET_TYPE_GW_UNBIND_SHADOW_CLEAR    = 11, //Not unbind subdev with APP User
+    IOTX_VENDOR_DEV_RESET_TYPE_GW_UNBIND_ALL_CLEAR    = 12, //Not unbind subdev with APP User
 	IOTX_VENDOR_DEV_RESET_TYPE_INVALID
 } iotx_vendor_dev_reset_type_t;
 
@@ -30,7 +31,6 @@ typedef struct {
 } ap_scan_info_t;
 
 typedef int (*pair_success_callback)(int success, char *ssid, char *password, int timeout);
-
 /**
  * @brief   start wifi setup service
  *
@@ -142,9 +142,39 @@ DLL_IOT_API int awss_dev_ap_reg_modeswit_cb(awss_modeswitch_cb_t callback);
  * @retval  -1 : failure
  * @retval  0 : sucess
  * @note
- *      this function can only be called in station(not connected with AP) mode
+ *      this function can only be called in wifi station(not connected with AP) mode
  */
 DLL_IOT_API int awss_apscan_process(uint32_t *p_scan_time, char *p_scan_ssid, ap_scan_info_t *p_scan_result);
+
+/**
+ * @brief send confused beacon for a time
+ * 
+ * @param [in] none
+ *
+ * @retval  -1 : failure
+ * @retval  0 : sucess
+ * @note
+ *      this function can only be called in wifi station(not connected with AP) mode
+ */
+DLL_IOT_API int apscan_send_unusable_beacon(void);
+
+/**
+ * @brief reset the channel index of wifi fixed-channel list
+ * 
+ * @param [in] none
+ *
+ * @retval  none
+ */
+DLL_IOT_API void apscan_reset_scan_chan(void);
+
+/**
+ * @brief get the next channel in wifi fixed-channel list
+ * 
+ * @param [in] none
+ *
+ * @retval  wifi channel number
+ */
+DLL_IOT_API uint8_t apscan_next_scan_chan(void);
 
 DLL_IOT_API int awss_check_reset(iotx_vendor_dev_reset_type_t *reset_type);
 

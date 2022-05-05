@@ -9,12 +9,20 @@
 #include <drv/uart.h>
 #include <aos/ringbuffer.h>
 
-#define HAL_UART_RINGBUF_LEN 256
+#ifdef CONFIG_HAL_UART_RINGBUF_LEN
+#define HAL_UART_RINGBUF_LEN (CONFIG_HAL_UART_RINGBUF_LEN)
+#else
+#define HAL_UART_RINGBUF_LEN (256)
+#endif
+
+#ifdef CONFIG_HAL_UART_NUM
+#define HAL_UART_NUM (CONFIG_HAL_UART_NUM)
+#else
+#define HAL_UART_NUM (6)
+#endif
 
 #define EVENT_WRITE 0x0F0F0000
 #define EVENT_READ  0x00000F0F
-
-#define UART_RB_SIZE    256
 
 typedef struct {
     csi_uart_t     handle;
@@ -31,7 +39,7 @@ typedef struct {
 #endif
 } hal_uart_priv_t;
 
-static hal_uart_priv_t uart_list[6];
+static hal_uart_priv_t uart_list[HAL_UART_NUM];
 
 #ifndef UART_MODE_SYNC
 static void uart_event_cb(csi_uart_t *uart, csi_uart_event_t event, void *arg)
@@ -51,9 +59,9 @@ static void uart_event_cb(csi_uart_t *uart, csi_uart_event_t event, void *arg)
     case UART_EVENT_RECEIVE_FIFO_READABLE: {
         int ret = 0;
         if (&uart_list[(unsigned int)uart->dev.idx].recv_buf != NULL) {
-            uint8_t temp_buf[16] = {0};
+            uint8_t temp_buf[256] = {0};
             do {
-                ret = csi_uart_receive(uart, temp_buf, 16, 0);
+                ret = csi_uart_receive(uart, temp_buf, 256, 0);
                 if (ret > 0) {
                     if (ringbuffer_write(&uart_list[(unsigned int)uart->dev.idx].read_buffer, (uint8_t*)temp_buf, ret) != ret) {
                         break;
@@ -70,9 +78,9 @@ static void uart_event_cb(csi_uart_t *uart, csi_uart_event_t event, void *arg)
 
     case UART_EVENT_ERROR_OVERFLOW: {
         int ret = 0;
-        uint8_t temp_buf[16];
+        uint8_t temp_buf[256];
         do {
-            ret = csi_uart_receive(uart, temp_buf, 16, 0);
+            ret = csi_uart_receive(uart, temp_buf, 256, 0);
         } while(ret);
 
         ringbuffer_clear(&uart_list[(unsigned int)uart->dev.idx].read_buffer);
@@ -94,6 +102,7 @@ static void uart_event_cb(csi_uart_t *uart, csi_uart_event_t event, void *arg)
 int32_t hal_uart_init(uart_dev_t *uart)
 {
     int32_t ret;
+    csi_uart_parity_t parity;
 
     if (uart == NULL) {
         return -1;
@@ -132,8 +141,33 @@ int32_t hal_uart_init(uart_dev_t *uart)
         return -1;
     }
 
+    switch (uart->config.parity)
+    {
+    case NO_PARITY:
+        parity = UART_PARITY_NONE;
+        break;
+    
+    case ODD_PARITY:
+        parity = UART_PARITY_ODD;
+        break;
+
+    case EVEN_PARITY:
+        parity = UART_PARITY_EVEN;
+        break;
+    default:
+        parity = UART_PARITY_NONE;
+        break;
+    }
+
     /* set uart format */
-    ret = csi_uart_format(&uart_list[uart->port].handle, uart->config.data_width, uart->config.parity, uart->config.stop_bits);
+    ret = csi_uart_format(&uart_list[uart->port].handle, uart->config.data_width, parity, uart->config.stop_bits);
+
+    if (ret < 0) {
+        return -1;
+    }
+
+    /* set uart format */
+    ret = csi_uart_flowctrl(&uart_list[uart->port].handle, uart->config.flow_control);
 
     if (ret < 0) {
         return -1;
@@ -147,13 +181,13 @@ int32_t hal_uart_init(uart_dev_t *uart)
         return -1;
     }
 
-    uart_list[uart->port].recv_buf = (char *)aos_malloc(UART_RB_SIZE);
+    uart_list[uart->port].recv_buf = (char *)aos_malloc(HAL_UART_RINGBUF_LEN);
 
     if (uart_list[uart->port].recv_buf == NULL) {
         return -1;
     }
 
-    ringbuffer_create(&uart_list[uart->port].read_buffer, uart_list[uart->port].recv_buf, UART_RB_SIZE);
+    ringbuffer_create(&uart_list[uart->port].read_buffer, uart_list[uart->port].recv_buf, HAL_UART_RINGBUF_LEN);
 
 #endif
 

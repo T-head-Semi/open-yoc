@@ -350,7 +350,7 @@ void dump_mm_all_error_block(void *pmm_head, int (*print_func)(const char *fmt, 
         print_func = panic_print_direct;
     }
 
-    print_func("g_kmm_head = %8x\r\n", (unsigned int)pmm_head);
+    print_func("g_kmm_head = %p\r\n", pmm_head);
     /* kernel and user space use the same mm head file */
     debug_dump_mm_error(pmm_head, print_func);
 }
@@ -519,11 +519,13 @@ void debug_fatal_error(kstat_t err, char *file, int line)
 
     g_crash_steps = 1;
 
-    panic_print("!!!!!!!!!! Fatal Error !!!!!!!!!!\r\n");
+    panic_print("!!!!!!!!!! Fatal Error(file: %s, line: %d) !!!!!!!!!!\r\n", file, line);
 
     if (err == RHINO_TASK_STACK_OVF) {
         panic_print("Task : %s  Stack Overflow!\r\n", g_active_task[cpu_cur_get()]->task_name);
     }
+
+    backtrace_now(panic_print);
 
     debug_cur_task_show();
 
@@ -534,9 +536,6 @@ void debug_fatal_error(kstat_t err, char *file, int line)
 
     panic_print("========== Task Info  ==========\r\n");
     debug_task_overview(panic_print);
-
-    //debug_backtrace_now();
-    backtrace_now(panic_print);
 
 #if RHINO_CONFIG_MM_DEBUG
     panic_print("======== all memory error blocks =========\r\n");

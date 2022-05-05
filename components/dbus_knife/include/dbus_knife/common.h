@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "ulog/ulog.h"
+#include "aos_port/common.h"
 #else
 #include <aos/types.h>
 #include <aos/aos.h>
@@ -29,8 +30,6 @@
 #include <aos/kernel.h>
 #include <aos/list.h>
 #endif
-
-#include "aos_port/common.h"
 
 #define os_memcpy       memcpy
 #define os_strlen       strlen

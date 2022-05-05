@@ -260,21 +260,12 @@ typedef enum {
 #endif
 
 #if ULOG_POP_FS_ENABLE
-#ifdef CSP_LINUXHOST
-#error(modify below PATH as log file located, then disable this statement)
+#ifndef ULOG_CONFIG_POP_FS_PATH
 #define FS_PATH              "/workspace/"
-#elif defined (AOS_COMP_SPIFFS)
-#define FS_PATH              "/spiffs/"
-#elif defined (AOS_COMP_FATFS)
-#ifdef CONFIG_AOS_FATFS_SUPPORT_MMC
-#define FS_PATH              "/sdcard/"
 #else
-#define FS_PATH              "/fatfs/"
-#endif /* CONFIG_AOS_FATFS_SUPPORT_MMC */
-#else
-#error ("select comp spiffs or fatfs, or disable this function")
+#define FS_PATH              ULOG_CONFIG_POP_FS_PATH
 #endif
-#endif /* ULOG_POP_FS_ENABLE  */
+#endif
 
 #if ULOG_POP_UDP_ENABLE
 #ifdef CONFIG_NO_TCPIP

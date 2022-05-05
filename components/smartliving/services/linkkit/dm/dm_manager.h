@@ -49,6 +49,7 @@ int dm_mgr_get_dev_avail(_IN_ char product_key[PRODUCT_KEY_MAXLEN], _IN_ char de
 int dm_mgr_set_dev_status(_IN_ int devid, _IN_ iotx_dm_dev_status_t status);
 int dm_mgr_get_dev_status(_IN_ int devid, _OU_ iotx_dm_dev_status_t *status);
 int dm_mgr_set_device_secret(_IN_ int devid, _IN_ char device_secret[DEVICE_SECRET_MAXLEN]);
+int dm_mgr_get_device_secret(char *pk, char *dn, _IN_ char device_secret[DEVICE_SECRET_MAXLEN]);
 int dm_mgr_dev_initialized(int devid);
 
 #ifdef DEVICE_MODEL_GATEWAY
@@ -59,8 +60,9 @@ int dm_mgr_upstream_thing_topo_delete(_IN_ int devid);
 int dm_mgr_upstream_thing_subdev_reset(_IN_ int devid);
 int dm_mgr_upstream_thing_topo_get(void);
 int dm_mgr_upstream_thing_list_found(_IN_ int devid);
-int dm_mgr_upstream_combine_login(_IN_ int devid);
-int dm_mgr_upstream_combine_logout(_IN_ int devid);
+
+int dm_mgr_upstream_combine_batch_login(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total);
+int dm_mgr_upstream_combine_batch_logout(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total);
 
 int dm_mgr_subdev_connect(int devid, const char *params, int params_len);
 int dm_mgr_multi_subdev_connect(_IN_ int devid, _IN_ iotx_linkkit_dev_meta_info_t *subdev_list, _IN_ int subdev_total);
@@ -73,7 +75,7 @@ int dm_mgr_upstream_thing_property_post(_IN_ int devid, _IN_ char *payload, _IN_
 int dm_mgr_upstream_thing_property_post_to(_IN_ int devid, _IN_ char *payload, _IN_ int payload_len, _IN_ int sendto);
 
 #ifdef DM_UNIFIED_SERVICE_POST
-int dm_mgr_unified_service_post(_IN_ int devid, _IN_ char *payload, _IN_ int payload_len);
+int dm_mgr_unified_service_post(_IN_ int devid,  _IN_ int msgid, _IN_ char *payload, _IN_ int payload_len);
 #endif
 
 #ifdef LOG_REPORT_TO_CLOUD

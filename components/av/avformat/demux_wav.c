@@ -89,7 +89,7 @@ static int _demux_wav_open(demux_cls_t *o)
     char buf[4];
     struct wav_priv *priv;
     int start_pos, ext_size, size;
-    unsigned int riff_size, fmt_size;
+    unsigned int riff_size, fmt_size = 0;
     unsigned int format_tag, channels, rate, bits, isfloat;
 
     priv = av_zalloc(sizeof(struct wav_priv));

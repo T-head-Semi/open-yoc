@@ -74,7 +74,7 @@ static char *url_decode(const char *str)
                     return dStr;
                 }
 
-                if (isxdigit(dStr[i + 1]) && isxdigit(dStr[i + 2])) {
+                if (isxdigit((uint8_t)dStr[i + 1]) && isxdigit((uint8_t)dStr[i + 2])) {
 
                     d = 0;
 
@@ -782,7 +782,9 @@ static int ap_prov_start(wifi_prov_cb cb)
 
     memset(&config, 0, sizeof(wifi_config_t));
 
-    snprintf(config.ssid, sizeof(config.ssid), "%s[%02x:%02x:%02x:%02x:%02x:%02x]", context->ap_ssid, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#define snprintf_nowarn(...) (snprintf(__VA_ARGS__) < 0 ? abort() : (void)0)
+    snprintf_nowarn(config.ssid, sizeof(config.ssid), "%s[%02x:%02x:%02x:%02x:%02x:%02x]",
+                    context->ap_ssid, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     config.ssid[sizeof(config.ssid) - 1] = 0;
     config.mode = WIFI_MODE_AP;
 

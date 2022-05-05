@@ -38,8 +38,7 @@ static pthread_environ_t *env_new(const char *envname, const char *envval)
         return NULL;
     }
 
-    strncpy(penv->envname, envname, envname_len);
-    penv->envname[envname_len] = '\0';
+    strcpy(penv->envname, envname);
 
     /* malloc envval and copy the envval */
     envval_len = strlen(envval);
@@ -50,8 +49,7 @@ static pthread_environ_t *env_new(const char *envname, const char *envval)
         return NULL;
     }
 
-    strncpy(penv->envval, envval, envval_len);
-    penv->envval[envval_len] = '\0';
+    strcpy(penv->envval, envval);
 
     penv->next = NULL;
 
@@ -140,7 +138,7 @@ int setenv(const char *envname, const char *envval, int overwrite)
                 if (!envval_deprecat(penv->envval)) {
                     envval_len = strlen(envval);
                     penv->envval = malloc(envval_len + 1);
-                    strncpy(penv->envval, envval, envval_len);
+                    strncpy(penv->envval, envval, envval_len + 1);
                     penv->envval[envval_len] = '\0';
                     pthread_mutex_unlock(&g_enviro_mutex);
                     return 0;

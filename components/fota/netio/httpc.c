@@ -6,6 +6,8 @@
 #if CONFIG_FOTA_USE_HTTPC == 1
 #include <yoc/netio.h>
 #include <ulog/ulog.h>
+#include <aos/kernel.h>
+#include <errno.h>
 #include <http_client.h>
 #include "util/network.h"
 
@@ -187,7 +189,7 @@ static int http_read(netio_t *io, uint8_t *buffer, int length, int timeoutms)
             ret = -ENOMEM;
             goto exit;
         }
-        snprintf(range, RANGE_BUF_SIZE, "bytes=%d-", io->offset);
+        snprintf(range, RANGE_BUF_SIZE, "bytes=%zu-", io->offset);
         LOGD(TAG, "range:%s", range);
         err = http_client_set_header(client, "Range", range);
         if (err != HTTP_CLI_OK) {
@@ -221,6 +223,7 @@ static int http_read(netio_t *io, uint8_t *buffer, int length, int timeoutms)
             goto exit;
         }
         io->size = http_client_get_content_length(client);
+        io->size += io->offset;
         LOGD(TAG, "range_len: %d", io->size);
         priv->http_client = client;
 exit:
@@ -232,7 +235,7 @@ exit:
         }
     }
     if (io->offset >= io->size) {
-        LOGD(TAG, "http_read done: %d %d", io->size, io->offset);
+        LOGW(TAG, "http_read done: offset:%d tsize:%d", io->offset, io->size);
         return 0;
     }
 
@@ -243,11 +246,16 @@ exit:
             break;
         }
         int data_read = http_client_read(client, (char *)buffer + read_len, length - read_len);
-        if (data_read <= 0) {
+        if (data_read < 0) {
+            LOGW(TAG, "http client read error:%d, errno:%d", data_read, errno);
+            return data_read;
+        } else if (data_read == 0) {
+            LOGD(TAG, "http client read 0 size");
             break;
         }
         read_len += data_read;
     }
+    io->offset += read_len;
     return read_len;
 }
 

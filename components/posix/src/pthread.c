@@ -379,7 +379,7 @@ int pthread_getschedparam(pthread_t thread, int *policy, struct sched_param *par
         return EINVAL;
     }
 
-    *policy = sched_policy_rhino2posix(kpolicy);
+    *policy = sched_policy_aos2posix(kpolicy);
     param->sched_priority = sched_priority_rhino2posix(kpolicy, priority);
     param->slice = slice;
 
@@ -398,7 +398,7 @@ int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param
         return EINVAL;
     }
 
-    kpolicy = sched_policy_posix2rhino(policy);
+    kpolicy = sched_policy_posix2aos(policy);
     if (kpolicy == -1) {
         return EINVAL;
     }
@@ -412,7 +412,7 @@ int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param
 
     /* Change the policy and priority of the thread */
     ret = aos_task_sched_policy_set(&(ptcb->task), kpolicy, priority);
-    if ((ret == 0) && (kpolicy == KSCHED_RR)) {
+    if ((ret == 0) && (kpolicy == AOS_KSCHED_RR)) {
         ret = aos_task_time_slice_set(&(ptcb->task), param->slice);
     }
     if (ret != 0) {

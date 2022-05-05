@@ -6,7 +6,6 @@
 #define __TOUCHSCREEN_H__
 
 #include <drv/common.h>
-#include <hal_sem.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +29,7 @@ struct csi_touchscreen {
     csi_dev_t dev;
     uint16_t iic_port;
     uint16_t iic_addr;
-    hal_sem_t isr_sem;
+    void *isr_sem;
     void *priv;
 };
 

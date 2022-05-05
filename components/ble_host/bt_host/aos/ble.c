@@ -222,20 +222,31 @@ static void identity_address_resolved(struct bt_conn *conn,
 
 #endif
 
-static void scan_cb(const bt_addr_le_t *addr, s8_t rssi, u8_t adv_type, struct net_buf_simple *buf)
+static void scan_cb(const struct bt_le_scan_recv_info *info, struct net_buf_simple *buf)
 {
     evt_data_gap_dev_find_t event_data;
 
-    memcpy(&event_data.dev_addr, addr, sizeof(dev_addr_t));
-    event_data.adv_type = adv_type;
+    memcpy(&event_data.dev_addr, info->addr, sizeof(dev_addr_t));
+    event_data.adv_type = info->adv_type;
 
+#if defined(CONFIG_BT_EXT_ADV)
+    event_data.sid = info->sid;
+    event_data.rssi = info->rssi;
+    event_data.tx_power = info->tx_power;
+    event_data.adv_props = info->adv_props;
+    event_data.interval = info->interval;
+    event_data.primary_phy = info->primary_phy;
+    event_data.secondary_phy = info->secondary_phy;
+    if (buf->len > 255) {
+#else
     if (buf->len > 31) {
+#endif
         return;
     }
 
     memcpy(event_data.adv_data, buf->data, buf->len);
     event_data.adv_len = buf->len;
-    event_data.rssi = rssi;
+    event_data.rssi = info->rssi;
 
     ble_stack_event_callback(EVENT_GAP_DEV_FIND, &event_data, sizeof(event_data));
 }
@@ -319,6 +330,51 @@ static void auth_pairing_failed(struct bt_conn *conn, enum bt_security_err reaso
     ble_stack_event_callback(EVENT_SMP_PAIRING_COMPLETE, &event_data, sizeof(event_data));
 }
 
+void ble_event_init_done(int16_t err)
+{
+    if (!err)
+    {
+        ble_dev.is_init = 1;
+    }
+
+    evt_data_stack_init_t event_data;
+    event_data.err = err;
+
+    ble_stack_event_callback(EVENT_STACK_INIT, &event_data, sizeof(event_data));
+}
+
+void ble_event_adv_start(int16_t err)
+{
+    evt_data_gap_adv_start_t event_data;
+    event_data.err = err;
+
+    ble_stack_event_callback(EVENT_GAP_ADV_START, &event_data, sizeof(event_data));
+}
+
+void ble_event_adv_stop(int16_t err)
+{
+    evt_data_gap_adv_stop_t event_data;
+    event_data.err = err;
+
+    ble_stack_event_callback(EVENT_GAP_ADV_STOP, &event_data, sizeof(event_data));
+}
+
+void ble_event_scan_start(int16_t err)
+{
+    evt_data_gap_scan_start_t event_data;
+    event_data.err = err;
+
+    ble_stack_event_callback(EVENT_GAP_SCAN_START, &event_data, sizeof(event_data));
+}
+
+void ble_event_scan_stop(int16_t err)
+{
+    evt_data_gap_scan_stop_t event_data;
+    event_data.err = err;
+
+    ble_stack_event_callback(EVENT_GAP_SCAN_STOP, &event_data, sizeof(event_data));
+}
+
 static struct bt_conn_cb conn_callbacks = {
     .connected = connected,
     .disconnected = disconnected,
@@ -395,10 +451,6 @@ int ble_stack_init(init_param_t *param)
 
     slist_init(&ble_dev.cb_list);
 
-    ble_stack_setting_load();
-
-    ble_dev.is_init = 1;
-
     return ret;
 }
 
@@ -470,6 +522,15 @@ int ble_stack_event_register(ble_event_cb_t *callback)
         return -BLE_STACK_ERR_NULL;
     }
 
+    slist_t *tmp;
+    ble_event_cb_t *node;
+
+    slist_for_each_entry_safe(&ble_dev.cb_list, tmp, node, ble_event_cb_t, next) {
+        if (node == callback) {
+            return 0;
+        }
+    }
+
     slist_add(&callback->next, &ble_dev.cb_list);
     return 0;
 }
@@ -508,6 +569,27 @@ int ble_stack_adv_start(adv_param_t *param)
         return -BLE_STACK_ERR_PARAM;
     }
 
+#if defined(CONFIG_BT_EXT_ADV)
+    if (param->phy_select > (ADV_PHY_1M | ADV_PHY_2M | ADV_PHY_CODED))
+    {
+        return -BLE_STACK_ERR_PARAM;
+    }
+
+    if (param->phy_select)
+    {
+        p.options |= BT_LE_ADV_OPT_EXT_ADV;
+    }
+
+    if ((param->phy_select & ADV_PHY_2M) == 0)
+    {
+        p.options |= BT_LE_ADV_OPT_NO_2M;
+    }
+
+    if ((param->phy_select & ADV_PHY_CODED) == ADV_PHY_CODED)
+    {
+        p.options |= BT_LE_ADV_OPT_CODED;
+    }
+#endif
     if (param->type == ADV_DIRECT_IND_LOW_DUTY) {
         p.options |= BT_LE_ADV_OPT_DIR_MODE_LOW_DUTY;
     }
@@ -569,6 +651,10 @@ int ble_stack_adv_stop()
     return ret;
 }
 
+static struct bt_le_scan_cb ble_scan_cb = {
+    .recv = scan_cb,
+};
+
 int ble_stack_scan_start(const scan_param_t *param)
 {
     int ret;
@@ -590,15 +676,35 @@ int ble_stack_scan_start(const scan_param_t *param)
     p.interval = param->interval;
     p.window = param->window;
 
+#if defined(CONFIG_BT_EXT_ADV)
+    if (param->phy_select > (SCAN_PHY_1M | SCAN_PHY_2M | SCAN_PHY_CODED))
+    {
+        return -BLE_STACK_ERR_PARAM;
+    }
+
+    if (param->phy_select && (param->phy_select & SCAN_PHY_CODED) != 0)
+    {
+        p.options |= BT_LE_SCAN_OPT_CODED;
+    }
+
+    if (param->phy_select && (param->phy_select & SCAN_PHY_1M) == 0)
+    {
+        p.options |= BT_LE_SCAN_OPT_NO_1M;
+    }
+#endif
+
     if (param->filter_dup == SCAN_FILTER_DUP_ENABLE) {
-        p.options |= BT_LE_SCAN_OPT_FILTER_DUPLICATE;
+        p.options |= BT_LE_SCAN_FILTER_DUPLICATE;
     }
 
     if (param->scan_filter == SCAN_FILTER_POLICY_WHITE_LIST) {
-        p.options |= BT_LE_SCAN_OPT_FILTER_WHITELIST;
+        p.options |= BT_LE_SCAN_FILTER_WHITELIST;
     }
 
-    ret = bt_le_scan_start(&p, scan_cb);
+
+    bt_le_scan_cb_register(&ble_scan_cb);
+
+    ret = bt_le_scan_start(&p, NULL);
 
     return ret;
 }
@@ -611,19 +717,19 @@ int ble_stack_scan_stop()
         return -BLE_STACK_ERR_INIT;
     }
 
+    bt_le_scan_cb_unregister(&ble_scan_cb);
+
     ret = bt_le_scan_stop();
 
     return ret;
 }
 
-static ssize_t gatt_read_handle(struct bt_conn *conn,
-                                const struct bt_gatt_attr *attr, void *buf,
-                                u16_t len, u16_t offset)
+int gatt_read_handle(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset)
 {
     evt_data_gatt_char_read_t event_data = {0};
 
     event_data.conn_handle = bt_conn_index(conn);
-    event_data.char_handle = attr->handle;
+    event_data.char_handle = ((const struct bt_gatt_attr *)attr)->handle;
     event_data.offset = offset;
 
     ble_stack_event_callback(EVENT_GATT_CHAR_READ, &event_data, sizeof(event_data));
@@ -639,15 +745,12 @@ static ssize_t gatt_read_handle(struct bt_conn *conn,
     return 0;
 }
 
-static ssize_t gatt_write_handle(struct bt_conn *conn,
-                                 const struct bt_gatt_attr *attr,
-                                 const void *buf, u16_t len, u16_t offset,
-                                 u8_t flags)
+int gatt_write_handle(void *conn, const void *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
     evt_data_gatt_char_write_t event_data;
 
     event_data.conn_handle = bt_conn_index(conn);
-    event_data.char_handle = attr->handle;
+    event_data.char_handle = ((const struct bt_gatt_attr *)attr)->handle;
     event_data.data = buf;
     event_data.len = len;
     event_data.offset = offset;
@@ -658,12 +761,12 @@ static ssize_t gatt_write_handle(struct bt_conn *conn,
     return event_data.len;
 }
 
-static ssize_t gatt_cfg_write(struct bt_conn *conn, const struct bt_gatt_attr *attr, u16_t value)
+int gatt_cfg_write(void *conn, const void *attr, u16_t value)
 {
     evt_data_gatt_char_ccc_write_t event_data;
 
     event_data.conn_handle = bt_conn_index(conn);
-    event_data.char_handle = attr->handle;
+    event_data.char_handle = ((const struct bt_gatt_attr *)attr)->handle;
     event_data.ccc_value = value;
     event_data.allow_write = true;
 
@@ -672,12 +775,12 @@ static ssize_t gatt_cfg_write(struct bt_conn *conn, const struct bt_gatt_attr *a
     return event_data.allow_write ? true : false;
 }
 
-static bool gatt_cfg_match(struct bt_conn *conn, const struct bt_gatt_attr *attr)
+int gatt_cfg_match(void *conn, const void *attr)
 {
     evt_data_gatt_char_ccc_match_t event_data;
 
     event_data.conn_handle = bt_conn_index(conn);
-    event_data.char_handle = attr->handle;
+    event_data.char_handle = ((const struct bt_gatt_attr *)attr)->handle;
     event_data.is_matched = true;
 
     ble_stack_event_callback(EVENT_GATT_CHAR_CCC_MATCH, &event_data, sizeof(event_data));
@@ -685,12 +788,11 @@ static bool gatt_cfg_match(struct bt_conn *conn, const struct bt_gatt_attr *attr
     return event_data.is_matched ? true : false;
 }
 
-static void cfg_changed_cb(const struct bt_gatt_attr *attr,
-                           u16_t value)
+void gatt_cfg_changed(const void *attr, u16_t value)
 {
     evt_data_gatt_char_ccc_change_t event_data;
 
-    event_data.char_handle = attr->handle;
+    event_data.char_handle = ((const struct bt_gatt_attr *)attr)->handle;
     event_data.ccc_value = value;
 
     ble_stack_event_callback(EVENT_GATT_CHAR_CCC_CHANGE, &event_data, sizeof(event_data));
@@ -701,10 +803,35 @@ int uuid_compare(const uuid_t *uuid1, const uuid_t *uuid2)
     return bt_uuid_cmp((struct bt_uuid *)uuid1, (struct bt_uuid *)uuid2);
 }
 
+int gatt_attr_read_service(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset)
+{
+    return bt_gatt_attr_read_service(conn, attr, buf, len, offset);
+}
+
+int gatt_attr_read_chrc(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset)
+{
+    return bt_gatt_attr_read_chrc(conn, attr, buf, len, offset);
+}
+
+int gatt_attr_read_ccc(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset)
+{
+    return bt_gatt_attr_read_ccc(conn, attr, buf, len, offset);
+}
+
+int gatt_attr_write_ccc(void *conn, const void *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+{
+    return bt_gatt_attr_write_ccc(conn, attr, buf, len ,offset, flags);
+}
+
+int gatt_attr_read_cep(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset)
+{
+    return bt_gatt_attr_read_cep(conn, attr, buf, len,offset);
+}
+
 int ble_stack_gatt_registe_service(gatt_service *s, gatt_attr_t attrs[], uint16_t attr_num)
 {
-    int ret;
-    int i;
+    int ret = 0;
+
     struct bt_gatt_service  *ss;
 
     ss = (struct bt_gatt_service *)s;
@@ -720,41 +847,6 @@ int ble_stack_gatt_registe_service(gatt_service *s, gatt_attr_t attrs[], uint16_
     ss->attr_count = attr_num;
     ss->attrs = (struct bt_gatt_attr *)attrs;
 
-    for (i = 0; i < attr_num; i++) {
-        if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_PRIMARY) || UUID_EQUAL(attrs[i].uuid, UUID_GATT_SECONDARY)
-            || UUID_EQUAL(attrs[i].uuid, UUID_GATT_INCLUDE)) {
-            ss->attrs[i].read = bt_gatt_attr_read_service;
-        } else if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_CHRC)) {
-            if (i + 1 >= attr_num) {
-                return -BLE_STACK_ERR_PARAM;
-            }
-
-            ss->attrs[i].read = bt_gatt_attr_read_chrc;
-            ss->attrs[i + 1].read  = gatt_read_handle;
-            ss->attrs[i + 1].write = gatt_write_handle;
-            i++;
-        } else if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_CCC)) {
-            struct _bt_gatt_ccc *val = NULL;
-            val = (struct _bt_gatt_ccc *)(attrs[i].user_data);
-            val->cfg_changed = cfg_changed_cb;
-            val->cfg_write = gatt_cfg_write;
-            val->cfg_match = gatt_cfg_match;
-            ss->attrs[i].perm = GATT_PERM_READ | GATT_PERM_WRITE;
-            ss->attrs[i].read = bt_gatt_attr_read_ccc;
-            ss->attrs[i].write = bt_gatt_attr_write_ccc;
-            ss->attrs[i].user_data = val;
-        } else if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_CEP)) {
-            ss->attrs[i].read = bt_gatt_attr_read_cep;
-        } else if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_CUD)) {
-            ss->attrs[i].read = gatt_read_handle;
-            ss->attrs[i].write = gatt_write_handle;
-        } else if (UUID_EQUAL(attrs[i].uuid, UUID_GATT_CPF)) {
-            ss->attrs[i].read = bt_gatt_attr_read_cpf;
-        } else {
-            ss->attrs[i].read = gatt_read_handle;
-            ss->attrs[i].write = gatt_write_handle;
-        }
-    }
 
     ret = bt_gatt_service_register(ss);
 
@@ -765,12 +857,23 @@ int ble_stack_gatt_registe_service(gatt_service *s, gatt_attr_t attrs[], uint16_
     return ss->attrs[0].handle;
 }
 
-static uint8_t ble_gatt_attr_notify(const struct bt_gatt_attr *attr, void *user_data)
+int ble_stack_gatt_service_handle(const gatt_service_static *service)
 {
-    ble_attr_notify_t *notify = (ble_attr_notify_t *)user_data;
-    notify->err = bt_gatt_notify(notify->conn, attr, notify->data, notify->len);
+    if (!ble_dev.is_init) {
+        return -BLE_STACK_ERR_INIT;
+    }
 
-    return BT_GATT_ITER_STOP;
+    if (NULL == service) {
+        return -BLE_STACK_ERR_NULL;
+    }
+
+    if (service->attrs[0].handle == 0)
+    {
+        extern u16_t find_static_attr(const struct bt_gatt_attr *attr);
+        return find_static_attr((const struct bt_gatt_attr *)service->attrs);
+    }
+
+    return service->attrs[0].handle + service->attr_count;
 }
 
 static void ble_gatt_indicate_cb(struct bt_conn *conn,
@@ -821,14 +924,22 @@ int ble_stack_gatt_notificate(int16_t conn_handle, uint16_t char_handle, const u
     notify.len = len;
     notify.err = 0;
 
-    bt_gatt_foreach_attr(char_handle, char_handle,
-                         ble_gatt_attr_notify, &notify);
+	struct bt_gatt_notify_params params;
+
+	memset(&params, 0, sizeof(params));
+
+	params.data = data;
+	params.len = len;
+
+    extern int gatt_notify(struct bt_conn *conn, u16_t handle,
+		       struct bt_gatt_notify_params *params);
+    int ret = gatt_notify(conn, char_handle, &params);
 
     if (notify.conn) {
         bt_conn_unref(notify.conn);
     }
 
-    return notify.err;
+    return ret;
 }
 
 int ble_stack_gatt_indicate(int16_t conn_handle, int16_t char_handle, const uint8_t *data, uint16_t len)
@@ -1365,26 +1476,23 @@ int ble_stack_connect_info_get(int16_t conn_handle, connect_info_t *info)
         return -BLE_STACK_ERR_PARAM;
     }
 
+    struct bt_conn_info bt_conn_info = {0};
     struct bt_conn *conn = bt_conn_lookup_index(conn_handle);
 
     if (conn) {
-        info->conn_handle = conn_handle;
-        info->role = conn->role;
-        info->interval = conn->le.interval;
-        info->latency = conn->le.latency;
-        info->timeout = conn->le.timeout;
 
-        if (conn->role == BT_HCI_ROLE_MASTER) {
-            info->local_addr.type = conn->le.init_addr.type;
-            memcpy(info->local_addr.val, conn->le.init_addr.a.val, 6);
-            info->peer_addr.type = conn->le.resp_addr.type;
-            memcpy(info->peer_addr.val, conn->le.resp_addr.a.val, 6);
-        } else {
-            info->local_addr.type = conn->le.resp_addr.type;
-            memcpy(info->local_addr.val, conn->le.resp_addr.a.val, 6);
-            info->peer_addr.type = conn->le.init_addr.type;
-            memcpy(info->peer_addr.val, conn->le.init_addr.a.val, 6);
-        }
+        bt_conn_get_info(conn, &bt_conn_info);
+
+        info->conn_handle = conn_handle;
+        info->role = bt_conn_info.role;
+        info->interval = bt_conn_info.le.interval;
+        info->latency = bt_conn_info.le.latency;
+        info->timeout = bt_conn_info.le.timeout;
+
+        info->local_addr.type = bt_conn_info.le.src->type;
+        memcpy(info->local_addr.val, bt_conn_info.le.src->a.val, 6);
+        info->peer_addr.type = bt_conn_info.le.dst->type;
+        memcpy(info->peer_addr.val, bt_conn_info.le.dst->a.val, 6);
 
         bt_conn_unref(conn);
     } else {
@@ -1473,6 +1581,10 @@ int ble_stack_connect_param_update(int16_t conn_handle, conn_param_t *param)
     if (conn) {
         ret = bt_conn_le_param_update(conn, (struct bt_le_conn_param *)param);
         bt_conn_unref(conn);
+    }
+    else
+    {
+        return -BLE_STACK_ERR_CONN;
     }
 
     return ret;
@@ -1628,6 +1740,15 @@ int ble_stack_set_name(const char *name)
     return bt_set_name(name);
 }
 
+int ble_stack_set_addr(const uint8_t addr[6])
+{
+    bt_addr_le_t le_addr;
+    le_addr.type = 0;
+    memcpy(le_addr.a.val, addr, 6);
+    extern int bt_set_bdaddr(const bt_addr_le_t *addr);
+    return bt_set_bdaddr(&le_addr);
+}
+
 char *uuid_str(uuid_t *uuid)
 {
     static char uuid_str[37];
@@ -1662,3 +1783,37 @@ char *uuid_str(uuid_t *uuid)
     return uuid_str;
 }
 
+typedef void (*event_callback_dev_addr_func)(dev_addr_t *addr, void *data);
+
+struct dev_addr_callback_func{
+    event_callback_dev_addr_func func;
+    void *data;
+};
+
+static void _paired_key_find(const struct bt_bond_info *info, void *data)
+{
+    dev_addr_t peer_addr;
+    struct dev_addr_callback_func *call = (struct dev_addr_callback_func *)data;
+
+    if (info) {
+        peer_addr.type = info->addr.type;
+        memcpy(peer_addr.val, info->addr.a.val, sizeof(peer_addr.val));
+        call->func(&peer_addr, call->data);
+    }
+}
+
+int ble_stack_paired_dev_foreach(void (*func)(dev_addr_t *addr, void *data), void *data)
+{
+    struct dev_addr_callback_func inpara = {
+        .func = func,
+        .data = data,
+    };
+
+    if (!func) {
+        return -BLE_STACK_ERR_NULL;
+    }
+
+    bt_foreach_bond(0, _paired_key_find, &inpara);
+
+    return BLE_STACK_OK;
+}

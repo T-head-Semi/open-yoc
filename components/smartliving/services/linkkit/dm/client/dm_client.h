@@ -82,9 +82,9 @@ void dm_client_thing_topo_change(int fd, const char *topic, const char *payload,
                                     void *context);
 void dm_client_thing_list_found_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
                                       void *context);
-void dm_client_combine_login_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
+void dm_client_combine_batch_login_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
                                    void *context);
-void dm_client_combine_logout_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
+void dm_client_combine_batch_logout_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
                                     void *context);
 #endif
 #endif

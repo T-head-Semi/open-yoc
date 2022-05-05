@@ -286,9 +286,9 @@ CJSON_PUBLIC(char*) cJSON_SetValuestring(cJSON *object, const char *valuestring)
 CJSON_PUBLIC(void *) cJSON_malloc(size_t size);
 CJSON_PUBLIC(void) cJSON_free(void *object);
 
-#ifndef fabs
-#define fabs(a) ((a > 0)? a : -a)
-#endif
+//#ifndef fabs
+//#define fabs(a) ((a > 0)? a : -a)
+//#endif
 
 #ifdef __cplusplus
 }

@@ -5,43 +5,48 @@ VERB := --verbose
 endif
 
 MK_GENERATED_IMGS_PATH:=generated
-CONFIG_FILE:= generated/data/config.yaml
+ALGORITHMS_PATH:=../../components/chip_d1/d1_flash.elf
 
-ifeq ($(CONFIG_FILE), $(wildcard $(CONFIG_FILE)))
-CHIP_NAME:=$(shell cat generated/data/config.yaml | grep chip | sed 's/[[:space:]\"]//g' | awk -F":" '{print $$2}')
-
-ifeq ($(CHIP_NAME), pangu)
-PRODUCT_ELF := -f PanGu_CK804EF_QSPIFlash_CDK.elf
-else
-PRODUCT_ELF :=
-endif
-endif
 .PHONY:startup
 startup: all
 
 all:
-	$(CPRE) rm $(MK_GENERATED_IMGS_PATH) -rf
-	@echo "Build Solution by $(BOARD) $(SDK) "
-	$(CPRE) scons $(VERB) --board=$(BOARD) --sdk=$(SDK) -j4
+	@echo "Build Solution by $(BOARD) "
+	$(CPRE) scons $(VERB) --board=$(BOARD) -j4
 	@echo YoC SDK Done
 
 	@echo [INFO] Create bin files
-	$(CPRE) product image $(MK_GENERATED_IMGS_PATH)/images.zip -i $(MK_GENERATED_IMGS_PATH)/data -l -p
-	$(CPRE) product image $(MK_GENERATED_IMGS_PATH)/images.zip -e $(MK_GENERATED_IMGS_PATH) -x
-
-.PHONY:flash
-flash:
-	$(CPRE) scons --flash=prim --board=$(BOARD) --sdk=$(SDK)
+	$(CPRE) bash packimg.sh
 
 .PHONY:flashall
 flashall:
-	$(CPRE) scons --flash=all --board=$(BOARD) --sdk=$(SDK)
+	$(CPRE) product flash ${MK_GENERATED_IMGS_PATH}/images.zip -a -x gdbinit -f ${ALGORITHMS_PATH}
+
+.PHONY:flash
+flash:
+	$(CPRE) product flash ${MK_GENERATED_IMGS_PATH}/images.zip -w prim -x gdbinit -f ${ALGORITHMS_PATH}
+
+.PHONY:flashboot
+flashboot:
+	$(CPRE) product flash ${MK_GENERATED_IMGS_PATH}/images.zip -w boot -x gdbinit -f ${ALGORITHMS_PATH}
+
+.PHONY:flashfs
+flashfs:
+	$(CPRE) product flash ${MK_GENERATED_IMGS_PATH}/images.zip -w lfs -x gdbinit -f ${ALGORITHMS_PATH}
 
 sdk:
 	$(CPRE) yoc sdk
+
 .PHONY:clean
 clean:
-	$(CPRE) rm $(MK_GENERATED_IMGS_PATH) -rf
-	$(CPRE) rm yoc_sdk yoc.* generated out -rf
-	$(CPRE) find . -name "*.[od]" -delete
 	$(CPRE) scons -c
+ifeq ($(OS), Windows_NT)
+	$(CPRE) if exist yoc_sdk rmdir /s /q yoc_sdk
+	$(CPRE) if exist binary rmdir /s /q binary
+	$(CPRE) if exist out rmdir /s /q out
+	$(CPRE) if exist generated rmdir /s /q generated
+	$(CPRE) if exist yoc.elf del /f /q yoc.elf
+	$(CPRE) if exist yoc.map del /f /q yoc.map
+else
+	$(CPRE) rm -rf yoc_sdk binary out yoc.elf yoc.map generated
+endif

@@ -63,6 +63,13 @@ int aos_pcm_close(aos_pcm_t *pcm)
         pcm->ops->close(pcm);
     }
     PCM_UNLOCK(pcm);
+    if (pcm->hw_params) {
+        aos_free(pcm->hw_params);
+    }
+
+    if (pcm->sw_params) {
+        aos_free(pcm->sw_params);
+    }
     aos_mutex_free(&pcm->mutex);
     free(pcm->name);
     free(pcm);

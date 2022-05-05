@@ -142,7 +142,10 @@ struct bt_conn {
 
 	/* Queue for outgoing ACL data */
 	struct kfifo		tx_queue;
-
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	/* Queue for outgoing ACL data */
+	sys_slist_t		    tx_pending_queue;
+#endif
 	/* Active L2CAP channels */
 	sys_slist_t		channels;
 
@@ -289,16 +292,25 @@ struct net_buf *bt_conn_create_frag_timeout_debug(size_t reserve,
 #define bt_conn_create_frag_timeout(_reserve, _timeout) \
 	bt_conn_create_frag_timeout_debug(_reserve, _timeout, \
 					  __func__, __LINE__)
-
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#define bt_conn_create_frag(_reserve) \
+	bt_conn_create_frag_timeout_debug(_reserve, 0, \
+					  __func__, __LINE__)
+#else
 #define bt_conn_create_frag(_reserve) \
 	bt_conn_create_frag_timeout_debug(_reserve, K_FOREVER, \
 					  __func__, __LINE__)
+#endif
 #else
 struct net_buf *bt_conn_create_frag_timeout(size_t reserve,
 					    k_timeout_t timeout);
-
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#define bt_conn_create_frag(_reserve) \
+	bt_conn_create_frag_timeout(_reserve, 0)
+#else
 #define bt_conn_create_frag(_reserve) \
 	bt_conn_create_frag_timeout(_reserve, K_FOREVER)
+#endif
 #endif
 
 /* Initialize connection management */

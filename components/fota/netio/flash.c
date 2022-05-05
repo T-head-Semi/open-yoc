@@ -3,14 +3,14 @@
  */
 
 #include <stdio.h>
-#include <aos/aos.h>
-#include <yoc/partition.h>
-
+#include <aos/kernel.h>
 #include <yoc/netio.h>
 
 #define TAG "fota"
 
-
+#ifndef __linux__
+#include <aos/aos.h>
+#include <yoc/partition.h>
 static int flash_open(netio_t *io, const char *path)
 {
     partition_t handle = partition_open(path + sizeof("flash://") - 1);
@@ -22,7 +22,7 @@ static int flash_open(netio_t *io, const char *path)
         io->size = lp->length;
         io->block_size = lp->sector_size;
 
-        io->private = (void *)handle;
+        io->private = (void *)((long)handle);
 
         return 0;
     }
@@ -32,7 +32,7 @@ static int flash_open(netio_t *io, const char *path)
 
 static int flash_close(netio_t *io)
 {
-    partition_t handle = (partition_t)io->private;
+    partition_t handle = (partition_t)((long)io->private);
     partition_close(handle);
 
     return 0;
@@ -40,7 +40,7 @@ static int flash_close(netio_t *io)
 
 static int flash_read(netio_t *io, uint8_t *buffer, int length, int timeoutms)
 {
-    partition_t handle = (partition_t)io->private;
+    partition_t handle = (partition_t)((long)io->private);
 
     if (io->size - io->offset < length)
         length = io->size - io->offset;
@@ -67,7 +67,7 @@ static int fota_flash_erase(partition_t partition, off_t off_set, int block_size
 
 static int flash_write(netio_t *io, uint8_t *buffer, int length, int timeoutms)
 {
-    partition_t handle = (partition_t)io->private;
+    partition_t handle = (partition_t)((long)io->private);
     // LOGD(TAG, "%d %d %d\n", io->size, io->offset, length);
     if (io->size - io->offset < length)
         length = io->size - io->offset;
@@ -106,6 +106,48 @@ static int flash_seek(netio_t *io, size_t offset, int whence)
 
     return -1;
 }
+#else
+typedef int partition_t;
+
+static int flash_open(netio_t *io, const char *path)
+{
+    return 0;
+}
+
+static int flash_close(netio_t *io)
+{
+    return 0;
+}
+
+static int flash_read(netio_t *io, uint8_t *buffer, int length, int timeoutms)
+{
+    return 0;
+}
+
+static int flash_write(netio_t *io, uint8_t *buffer, int length, int timeoutms)
+{
+    return 0;
+}
+
+static int flash_seek(netio_t *io, size_t offset, int whence)
+{
+    // partition_t handle = (partition_t)io->private;
+
+    switch (whence) {
+        case SEEK_SET:
+            io->offset = offset;
+            return 0;
+        case SEEK_CUR:
+            io->offset += offset;
+            return 0;
+        case SEEK_END:
+            io->offset = io->size - offset;
+            return 0;
+    }
+
+    return -1;
+}
+#endif /* __linux__ */
 
 const netio_cls_t flash = {
     .name = "flash",

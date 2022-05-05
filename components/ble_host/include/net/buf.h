@@ -943,7 +943,7 @@ extern const struct net_buf_data_cb net_buf_fixed_cb;
 				.alloc_data = (void *)&net_buf_fixed_##_name,                 \
 	};                                                                    \
 	struct net_buf_pool _name __net_buf_align                             \
-	__in_section(_net_buf_pool, static, _name) =          \
+	__in_section(data._net_buf_pool, static, _name) =          \
 				NET_BUF_POOL_INITIALIZER(_name, &net_buf_fixed_alloc_##_name, \
 										net_buf_##_name, _count, _destroy)
 #else
@@ -959,7 +959,7 @@ extern const struct net_buf_data_cb net_buf_fixed_cb;
 		.alloc_data = (void *)&net_buf_fixed_##_name,                 \
 	};                                                                    \
 	struct net_buf_pool _name __net_buf_align                             \
-			__in_section(_net_buf_pool, static, _name) =          \
+			__in_section(data._net_buf_pool, static, _name) =          \
 		NET_BUF_POOL_INITIALIZER(_name, &net_buf_fixed_alloc_##_name, \
 					 net_buf_##_name, _count, _destroy)
 
@@ -1856,6 +1856,24 @@ void net_buf_frag_insert(struct net_buf *parent, struct net_buf *frag);
 struct net_buf *net_buf_frag_add(struct net_buf *head, struct net_buf *frag);
 
 /**
+ * @brief Add a new fragment to the end of a chain of bufs,with frag flag.
+ *
+ * Append a new fragment into the buffer fragments list.
+ *
+ * Note: This function takes ownership of the fragment reference so the
+ * caller is not required to unref.
+ *
+ * @param head Head of the fragment chain.
+ * @param frag Fragment to add.
+ *
+ * @return New head of the fragment chain. Either head (if head
+ *         was non-NULL) or frag (if head was NULL).
+ */
+
+struct net_buf *net_buf_frag_add_with_flags(struct net_buf *head, struct net_buf *frag);
+
+
+/**
  * @brief Delete existing fragment from a chain of bufs.
  *
  * @param parent Parent buffer/fragment, or NULL if there is no parent.
@@ -1874,6 +1892,14 @@ struct net_buf *net_buf_frag_del_debug(struct net_buf *parent,
 struct net_buf *net_buf_frag_del(struct net_buf *parent, struct net_buf *frag);
 #endif
 
+#if defined(CONFIG_NET_BUF_LOG)
+void net_buf_frag_del_all_debug(struct net_buf *parent,
+				       const char *func, int line);
+#define net_buf_frag_del_all(_parent) \
+	net_buf_frag_del_all_debug(_parent, __func__, __LINE__)
+#else
+void net_buf_frag_del_all(struct net_buf *parent);
+#endif
 /**
  * @brief Copy bytes from net_buf chain starting at offset to linear buffer
  *

@@ -27,6 +27,8 @@
 #include "rws_memory.h"
 #include "rws_string.h"
 
+extern const char *strstri(const char *str, const char *substr);
+
 #define READ_TIMEOUT_MS     3000
 #define WRITE_TIMEOUT_MS    3000
 #define RWS_CONNECT_RETRY_DELAY 200
@@ -230,7 +232,6 @@ rws_bool rws_socket_process_handshake_responce(rws_socket s)
 {
     const char * str = (const char *)s->received;
     const char * sub = NULL;
-    float http_ver = -1;
     int http_code = -1;
 
     rws_error_delete_clean(&s->error);
@@ -240,11 +241,18 @@ rws_bool rws_socket_process_handshake_responce(rws_socket s)
     }
 
     sub += 5;
-    if (rws_sscanf(sub, "%f %i", &http_ver, &http_code) != 2) {
-        http_ver = -1;
+#if 0
+    float http_ver = -1;
+    // if (rws_sscanf(sub, "%f %i", &http_ver, &http_code) != 2) {
+    //     http_ver = -1;
+    //     http_code = -1;
+    // }
+#else
+    sub += 3;
+    if (rws_sscanf(sub, " %i", &http_code) != 1) {
         http_code = -1;
     }
-
+#endif
     sub = strstri(str, k_rws_socket_sec_websocket_accept); // "Sec-WebSocket-Accept"
     if (sub) {
         sub += strlen(k_rws_socket_sec_websocket_accept);
@@ -265,15 +273,21 @@ rws_bool rws_socket_send(rws_socket s, const void * data, const size_t data_size
     int sended = -1, error_number = -1;
     rws_error_delete_clean(&s->error);
 
-    //errno = -1;
+    for (int i = 0; i < 100; i++) {
 #ifdef WEBSOCKET_SSL_ENABLE
-    if(s->scheme && strcmp(s->scheme, "wss") == 0)
-        sended = mbedtls_ssl_write(&(s->ssl->ssl_ctx), (const unsigned char *)data, (int)data_size);
-    else
+        if(s->scheme && strcmp(s->scheme, "wss") == 0)
+            sended = mbedtls_ssl_write(&(s->ssl->ssl_ctx), (const unsigned char *)data, (int)data_size);
+        else
 #endif /* WEBSOCKET_SSL_ENABLE */
-        // sended = (int)send(s->socket, data, (int)data_size, 0);
-        sended = s->n.net_write(&s->n, (unsigned char *)data, (int)data_size,
-                                s->write_timeout == 0 ? WRITE_TIMEOUT_MS : s->write_timeout);
+            // sended = (int)send(s->socket, data, (int)data_size, 0);
+            sended = s->n.net_write(&s->n, (unsigned char *)data, (int)data_size,
+                                    s->write_timeout == 0 ? WRITE_TIMEOUT_MS : s->write_timeout);
+
+        if (sended != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            break;
+        }
+        aos_msleep(100);
+    }
 
     error_number = errno;
 
@@ -286,6 +300,7 @@ rws_bool rws_socket_send(rws_socket s, const void * data, const size_t data_size
 
     rws_socket_check_write_error(s, error_number);
     if (s->error) {
+        DBG("send failed, close socket 0x%X, err %d", sended, error_number);
         rws_socket_close(s);
         return rws_false;
     }
@@ -367,7 +382,7 @@ rws_bool rws_socket_recv(rws_socket s)
     }
     // DBG("s->received_len:%d, error_number:%d", s->received_len, error_number);
     if (error_number != WSAEWOULDBLOCK && error_number != WSAEINPROGRESS && ssl_status != 1) {
-        // DBG("len:%d, s->received_len:%d, error_number:%d", len, s->received_len, error_number);
+        DBG("len:%d, s->received_len:%d, error_number:%d", len, s->received_len, error_number);
         s->error = rws_error_new_code_descr(rws_error_code_read_write_socket, "Failed read/write socket");
         rws_socket_close(s);
         rws_free(buffer);
@@ -474,19 +489,23 @@ void rws_socket_idle_recv(rws_socket s)
         return;
     }
 
-    const size_t nframe_size = rws_check_recv_frame_size(s->received, s->received_len);
-    if (nframe_size) {
-        frame = rws_frame_create_with_recv_data(s->received, nframe_size);
-        if (frame)  {
-            rws_socket_process_received_frame(s, frame);
-        }
+    while (1) {
+        const size_t nframe_size = rws_check_recv_frame_size(s->received, s->received_len);
+        if (nframe_size) {
+            frame = rws_frame_create_with_recv_data(s->received, nframe_size);
+            if (frame)  {
+                rws_socket_process_received_frame(s, frame);
+            }
 
-        if (nframe_size == s->received_len) {
-            s->received_len = 0;
-        } else if (s->received_len > nframe_size) {
-            const size_t nLeftLen = s->received_len - nframe_size;
-            memmove((char*)s->received, (char*)s->received + nframe_size, nLeftLen);
-            s->received_len = nLeftLen;
+            if (nframe_size == s->received_len) {
+                s->received_len = 0;
+            } else if (s->received_len > nframe_size) {
+                const size_t nLeftLen = s->received_len - nframe_size;
+                memmove((char*)s->received, (char*)s->received + nframe_size, nLeftLen);
+                s->received_len = nLeftLen;
+            }
+        } else {
+            break;
         }
     }
 }
@@ -512,7 +531,7 @@ void rws_socket_idle_send(rws_socket s)
         rws_socket_delete_all_frames_in_list(s->send_frames);
         rws_list_delete_clean(&s->send_frames);
         s->send_append_size = 0;
-        
+
         if (s->error) {
             s->command = COMMAND_INFORM_DISCONNECTED;
         }
@@ -809,6 +828,11 @@ void rws_socket_close(rws_socket s)
     if (s->socket != RWS_INVALID_SOCKET) {
         RWS_SOCK_CLOSE(s->socket);
         s->socket = RWS_INVALID_SOCKET;
+#ifdef WEBSOCKET_SSL_ENABLE
+        if (s->ssl) {
+            s->ssl->net_ctx.fd = -1;
+        }
+#endif /* WEBSOCKET_SSL_ENABLE */
     }
     s->is_connected = rws_false;
 }
@@ -971,7 +995,7 @@ rws_bool rws_socket_send_bin_finish_priv(rws_socket s, const char *bin, size_t l
     if (rws_socket_mem_used_out(s, len)) {
         return rws_false;
     }
-    
+
     frame = rws_frame_create();
     frame->is_masked = rws_true;
     frame->opcode = rws_opcode_continuation;
@@ -1020,7 +1044,7 @@ void rws_socket_check_write_error(rws_socket s, int error_num)
     // send errors
     case EACCES: //
 
-//		case EAGAIN: // The socket is marked nonblocking and the requested operation would block
+    case EAGAIN: // The socket is marked nonblocking and the requested operation would block
 //		case EWOULDBLOCK: // The socket is marked nonblocking and the receive operation would block
 
     case EBADF: // An invalid descriptor was specified
@@ -1097,11 +1121,17 @@ int rws_ssl_conn(rws_socket s)
     mbedtls_ctr_drbg_init(&ssl->ctr_drbg);
     mbedtls_entropy_init(&ssl->entropy);
     if ((value = mbedtls_ctr_drbg_seed(&ssl->ctr_drbg,
-                               mbedtls_entropy_func,
-                               &ssl->entropy,
-                               (const unsigned char*)pers,
-                               strlen(pers))) != 0) {
+                                       mbedtls_entropy_func,
+                                       &ssl->entropy,
+                                       (const unsigned char*)pers,
+                                       strlen(pers))) != 0) {
         DBG("mbedtls_ctr_drbg_seed() failed, value:-0x%x.", -value);
+        ret = -1;
+        goto exit;
+    }
+    
+    if ((ret = mbedtls_ssl_set_hostname(&ssl->ssl_ctx, s->host)) != 0) {
+        LOGE(TAG, "mbedtls_ssl_set_hostname returned -0x%x", -ret);
         ret = -1;
         goto exit;
     }

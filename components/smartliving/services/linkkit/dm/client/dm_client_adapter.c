@@ -44,6 +44,7 @@ int dm_client_open(void)
 static void *_iotx_cm_reconnect_thread_func(void *params);
 static void *reconnect_thread = NULL;
 static int reconnect_task_leave = 1;
+static int reconnect_task_exit = 0;
 
 static void *_iotx_cm_reconnect_thread_func(void *params)
 {
@@ -51,14 +52,20 @@ static void *_iotx_cm_reconnect_thread_func(void *params)
     int timeout_ms = IOTX_DM_CLIENT_CONNECT_TIMEOUT_MS;
     dm_client_ctx_t *ctx = dm_client_get_ctx();
 
+    reconnect_task_exit = 0;
     reconnect_task_leave = 0;
-    while (res < SUCCESS_RETURN) {
+    while (res < SUCCESS_RETURN && (reconnect_task_exit == 0)) {
         dm_log_info("iotx_cm_connect, timeout_ms:%d", timeout_ms);
         res = iotx_cm_connect(ctx->fd, timeout_ms);
         dm_log_info("iotx_cm_connect, res:%d", res);
         HAL_SleepMs(10000);
     }
     reconnect_task_leave = 1;
+
+    if (reconnect_thread != NULL) {
+        HAL_ThreadDelete(reconnect_thread);
+        reconnect_thread = NULL;
+    }
     return NULL;
 }
 #endif
@@ -84,7 +91,6 @@ int dm_client_connect(int timeout_ms)
     res = HAL_ThreadCreate(&reconnect_thread, _iotx_cm_reconnect_thread_func, NULL, &task_parms, &stack_used);
 #else
     res = iotx_cm_connect(ctx->fd, timeout_ms);
-
     if (res < SUCCESS_RETURN) {
         return res;
     }
@@ -99,12 +105,8 @@ int dm_client_close(void)
 
     dm_client_ctx_t *ctx = dm_client_get_ctx();
 
-    ret = iotx_cm_close(ctx->fd);
-    if (ret == 0) {
-        ctx->fd = -1;
-    }
-
 #if (CONFIG_SDK_THREAD_COST == 1)
+    reconnect_task_exit = 1;
     while (!reconnect_task_leave) {
         HAL_SleepMs(10);
     }
@@ -113,6 +115,10 @@ int dm_client_close(void)
         reconnect_thread = NULL;
     }
 #endif
+    ret = iotx_cm_close(ctx->fd);
+    if (ret == 0) {
+        ctx->fd = -1;
+    }
 
     return ret;
 }

@@ -333,7 +333,7 @@ static void prov_open_complete(struct bt_conn * conn)
 
 static void proxy_prov_connected(struct bt_conn * conn, u8_t err)
 {
-    if (!bt_mesh_is_provisioner_en())
+    if (!bt_mesh_is_provisioner_en() || conn->role == BT_HCI_ROLE_SLAVE)
     {
         return;
     }
@@ -342,6 +342,12 @@ static void proxy_prov_connected(struct bt_conn * conn, u8_t err)
     int id = bt_prov_get_gattc_id(conn->le.dst.a.val);
     conn_count++;
     BT_DBG("proxy connected conn 0x%x, err %d", conn, err);
+	//make sure adv and scan stop first
+	bt_mesh_adv_disable();
+	bt_mesh_scan_disable();
+
+    //enable scan again
+	bt_mesh_scan_enable();
 
     if (err)
     {
@@ -351,8 +357,6 @@ static void proxy_prov_connected(struct bt_conn * conn, u8_t err)
 
         provisioner_pbg_count_dec();
 
-        bt_mesh_scan_enable();
-
         BT_WARN("proxy connect err %d", err);
         return;
     }
@@ -360,7 +364,6 @@ static void proxy_prov_connected(struct bt_conn * conn, u8_t err)
     if (id < 0)
     {
         bt_conn_disconnect(conn, 0x13);
-        bt_mesh_scan_enable();
         BT_ERR("No matching gattc info");
         return;
     }
@@ -375,7 +378,6 @@ static void proxy_prov_connected(struct bt_conn * conn, u8_t err)
          *  information, like uuid, dev_addr, linking flag, etc.
          */
         bt_conn_disconnect(conn, 0x13);
-        bt_mesh_scan_enable();
         return;
     }
 
@@ -400,7 +402,7 @@ static void proxy_prov_disconnected(struct bt_conn * conn, u8_t reason)
 {
     int i;
 
-    if (!bt_mesh_is_provisioner_en())
+    if (!bt_mesh_is_provisioner_en() || conn->role == BT_HCI_ROLE_SLAVE)
     {
         return;
     }
@@ -412,6 +414,9 @@ static void proxy_prov_disconnected(struct bt_conn * conn, u8_t reason)
     }
 
     provisioner_pbg_count_dec();
+
+    //make sure scan stop first
+	bt_mesh_scan_disable();
 
     bt_mesh_scan_enable();
 
@@ -536,6 +541,12 @@ ssize_t proxy_notification(struct bt_conn * conn, u8_t *data, u16_t len)
     return proxy_recv(conn, NULL, data, len, 0, 0);
 }
 
+
+static struct bt_conn_cb provisioner_conn_callbacks = {
+    .connected = proxy_prov_connected,
+    .disconnected = proxy_prov_disconnected,
+};
+
 /** Currently provisioner does't need bt_mesh_provisioner_proxy_enable()
  *  and bt_mesh_provisioner_proxy_disable() functions, and once they are
  *  used, provisioner can be enabled to parse node_id_adv and net_id_adv
@@ -548,6 +559,8 @@ int bt_mesh_provisioner_proxy_enable(void)
     int i;
 
     BT_DBG("%s", __func__);
+
+    bt_conn_cb_register(&provisioner_conn_callbacks);
 
     for (i = 0; i < ARRAY_SIZE(servers); i++) {
         if (servers[i].conn) {
@@ -580,6 +593,7 @@ static void bt_mesh_proxy_gatt_proxy_disconnect(void)
     }
 }
 
+
 int bt_mesh_provisioner_proxy_disable(void)
 {
     BT_DBG("%s", __func__);
@@ -590,6 +604,8 @@ int bt_mesh_provisioner_proxy_disable(void)
      */
 
     bt_mesh_proxy_gatt_proxy_disconnect();
+
+	bt_conn_cb_unregister(&provisioner_conn_callbacks);
 
     return 0;
 }
@@ -686,10 +702,6 @@ int provisioner_proxy_pdu_send(struct net_buf_simple *msg)
     return provisioner_proxy_send(conn, BT_MESH_PROXY_NET_PDU, msg);
 }
 
-static struct bt_conn_cb conn_callbacks = {
-    .connected = proxy_prov_connected,
-    .disconnected = proxy_prov_disconnected,
-};
 
 extern u8_t prov_addr;
 
@@ -809,7 +821,7 @@ int provisioner_proxy_init(void)
         server->buf.size = SERVER_BUF_SIZE;
     }
 
-    bt_conn_cb_register(&conn_callbacks);
+    bt_conn_cb_register(&provisioner_conn_callbacks);
 
     bt_mesh_gatt_recv_callback(proxy_recv);
 

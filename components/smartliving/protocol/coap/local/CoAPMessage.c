@@ -515,7 +515,7 @@ int CoAPMessage_send(CoAPContext *context, NetworkAddr *remote, CoAPMessage *mes
 
     msglen = CoAPSerialize_MessageLength(message);
     if (COAP_MSG_MAX_PDU_LEN < msglen) {
-        COAP_INFO("The message length %d is too loog", msglen);
+        COAP_INFO("The message length %d is too long", msglen);
         return COAP_ERROR_DATA_SIZE;
     }
 
@@ -895,7 +895,6 @@ int CoAPMessage_process(CoAPContext *context, unsigned int timeout)
         return COAP_ERROR_NULL;
     }
 
-    HAL_Wifi_Get_IP(ip_addr, NULL);
 
     //while (1) {
         memset(&remote, 0x00, sizeof(NetworkAddr));
@@ -904,9 +903,10 @@ int CoAPMessage_process(CoAPContext *context, unsigned int timeout)
                                &remote,
                                ctx->recvbuf,
                                COAP_MSG_MAX_PDU_LEN, timeout);
-        if (strlen(ip_addr) > 0 && strncmp((const char *)ip_addr, (const char *)remote.addr, sizeof(ip_addr)) == 0) /* drop the packet from itself*/
-            return 0;
         if (len > 0) {
+            HAL_Wifi_Get_IP(ip_addr, NULL);
+            if (strlen(ip_addr) > 0 && strncmp((const char *)ip_addr, (const char *)remote.addr, sizeof(ip_addr)) == 0) /* drop the packet from itself*/
+                return 0;
             CoAPMessage_handle(ctx, &remote, ctx->recvbuf, len);
         } else {
             return len;
@@ -1024,7 +1024,7 @@ int CoAPMessage_cycle(CoAPContext *context)
     }
 
     if (res < 0) {
-        HAL_SleepMs(20);
+        HAL_SleepMs(100);
     }
 
     return res;

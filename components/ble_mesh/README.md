@@ -39,8 +39,8 @@ yoc install ble_mesh
 | CONFIG_BT_MESH_PB_ADV            | 1      | 启用PB-ADV配网功能，启用后支持通过蓝牙广播进行配网           |
 | CONFIG_BT_MESH_PB_GATT           | 0      | 启用PB-GATT配网功能，启用后支持BLE GATT进行配网，通常需要支持手机来配网时，需要启用该功能 |
 | CONFIG_BT_MESH_SUBNET_COUNT      | 1      | 默认子网数量为1                                              |
-| CONFIG_BT_MESH_APP_KEY_COUNT     | 1      | 默认应用密钥数量为1                                          |
-| CONFIG_BT_MESH_MODEL_KEY_COUNT   | 1      | 默认Model可绑定密钥数量为1                                   |
+| CONFIG_BT_MESH_APP_KEY_COUNT     | 2      | 默认应用密钥数量为2                                          |
+| CONFIG_BT_MESH_MODEL_KEY_COUNT   | 2      | 默认Model可绑定密钥数量为2                                   |
 | CONFIG_BT_MESH_MODEL_GROUP_COUNT | 1      | 默认Model可绑定组地址数量为1                                 |
 | CONFIG_BT_MESH_CRPL              | 10     | 默认RPL缓存数量为10条                                        |
 | CONFIG_BT_MESH_MSG_CACHE_SIZE    | 10     | 默认底层消息缓存数量为10条                                   |
@@ -68,6 +68,7 @@ yoc install ble_mesh
 | CONFIG_BT_MESH_DEBUG_FRIEND      | 0      | 启用Mesh Friend层调试                                        |
 | CONFIG_BT_MESH_DEBUG_PROXY       | 0      | 启用Mesh 代理层调试                                          |
 | CONFIG_BT_MESH_DEBUG_SETTINGS    | 0      | 启用Mesh 存储调试                                            |
+| CONFIG_BT_ADV_SCAN_SCHEDULE_IN_HOST    | 1      | 启用扫描和广播自动调度模式，默认启用，需要注意切换效率     |
 
 # 接口
 

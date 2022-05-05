@@ -9,7 +9,7 @@
 #include <stddef.h>
 
 #ifndef CONFIG_BZ_BT_DEVICE_NAME
-#define CONFIG_BZ_BT_DEVICE_NAME "FY"
+#define CONFIG_BZ_BT_DEVICE_NAME "TG"
 #endif
 
 #define BZ_BT_DEVICE_NAME CONFIG_BZ_BT_DEVICE_NAME

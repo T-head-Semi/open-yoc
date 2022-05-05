@@ -1,3 +1,18 @@
+/******************************************************************************
+ * Copyright (c) 2013-2016 Realtek Semiconductor Corp.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 /*
  * This file define a set of standard wireless extensions
  *
@@ -72,11 +87,13 @@
 /* This header is used in user-space, therefore need to be sanitised
  * for that purpose. Those includes are usually not compatible with glibc.
  * To know which includes to use in user-space, check iwlib.h. */
+#ifndef CONFIG_PLATFORM_TIZENRT
 #ifdef __KERNEL__
 #include <linux/types.h>		/* for "caddr_t" et al		*/
 #include <linux/socket.h>		/* for "struct sockaddr" et al	*/
 #include <linux/if.h>			/* for IFNAMSIZ and co... */
 #endif	/* __KERNEL__ */
+#endif
 
 //#include <sockets.h>
 #ifndef IFNAMSIZ
@@ -393,6 +410,10 @@ typedef	long long __i64;
 #define SOICSITESTENABLE 0x8B46
 /*SOICSIBTCLDISABLE*/
 #define SOICSITESTDISABLE 0x8B47
+/*Set the multi_ssid scan*/
+#define SIOCSIWMULTISCAN 0x8B48
+/*Get wlan trans info*/
+#define SIOCSIWGETTRINFO   0x8B4B
 
 /* -------------------- DEV PRIVATE IOCTL LIST -------------------- */
 
@@ -1239,11 +1260,13 @@ struct iw_event
 #define IW_EVT_STR_NO_NETWORK "No Assoc Network After Scan Done"
 #define IW_EVT_STR_ICV_ERROR "ICV Eror"
 #define IW_EVT_STR_CHALLENGE_FAIL "Auth Challenge Fail"
+
 #define IW_EVT_STR_SCAN_START "Scan start"
 #define IW_EVT_STR_SCAN_FAILED "Scan fail"
 #define IW_EVT_STR_AUTH "Authentication start"
 #define IW_EVT_STR_AUTH_REJECT "Auth rejected "
 #define IW_EVT_STR_DEAUTH "Deauth received"
+#define IW_EVT_STR_ISSUE_DEAUTH "Issue Deauth"
 #define IW_EVT_STR_AUTH_TIMEOUT "Auth timeout "
 #define IW_EVT_STR_ASSOCIATING "start associating"
 #define IW_EVT_STR_ASSOCIATED "Associated"
@@ -1254,6 +1277,7 @@ struct iw_event
 #define IW_EVT_STR_GROUP_HANDSHAKE "On group handshake"
 #define IW_EVT_STR_GROUP_HANDSHAKE_DONE "Group handshake done"
 #define IW_EVT_STR_CONN_TIMEOUT "Connect timeout"
+#define IW_EVT_STR_LEAVE_BUSY_TRAFFIC "Wifi leave busy traffic"
 #ifdef __cplusplus
 }
 #endif

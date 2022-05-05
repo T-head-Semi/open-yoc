@@ -45,6 +45,7 @@
 #ifndef __ASSEMBLY__
 typedef struct {
     long X1;
+    long X3;
     long X4;
     long X5;
     long X6;

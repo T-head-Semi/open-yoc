@@ -29,6 +29,7 @@
 #define LOG_TAG "bt_hwcfg"
 #define RTKBT_RELEASE_NAME "20171130_BT_ANDROID_7.0"
 
+#include <ulog/ulog.h>
 #include <aos/aos.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -36,7 +37,11 @@
 #include "bt_vendor_rtk.h"
 #include "userial_vendor.h"
 
+#ifdef CONFIG_BT_DRV_NO_ONESHOT
 #include "rtl8723d_fw.c"
+#else
+#include "rtl8723d_fw_oneshot.c"
+#endif
 #include "rtl8723d_config.c"
 #include "rtl8723ds_mp_fw.c"
 #include "rtl8723ds_mp_config.c"
@@ -333,9 +338,9 @@ static uint32_t rtk_parse_config_file(unsigned char **config_buf, size_t *filele
                 if (entry->entry_len >= 12) {
                     hw_cfg_cb.hw_flow_cntrl |= 0x80; /* bit7 set hw flow control */
 
-                    //if (entry->entry_data[12] & 0x04) { /* offset 0x18, bit2 */
-                    //    hw_cfg_cb.hw_flow_cntrl |= 1;    /* bit0 enable hw flow control */
-                    //}
+                    if (entry->entry_data[12] & 0x04) { /* offset 0x18, bit2 */
+                       hw_cfg_cb.hw_flow_cntrl |= 1;    /* bit0 enable hw flow control */
+                    }
                 }
 
                 HCI_LOGD(TAG,"config baud rate to :0x%08x, hwflowcontrol:0x%x, 0x%x", baudrate, entry->entry_data[12], hw_cfg_cb.hw_flow_cntrl);
@@ -694,9 +699,13 @@ static void hw_h5_config_set_controller_baudrate(uint32_t baudrate)
     // *p++ = 4;
     UINT32_TO_STREAM(p, baudrate);
 
+    HCI_LOGD(TAG,"%s band %x", __func__, baudrate);
+
     if (g_send_cmd) {
         ret = g_send_cmd(HCI_VSC_UPDATE_BAUDRATE, send_data, 4, resp_data, &resp_len);
     }
+
+    HCI_LOGD(TAG,"%s  resp_len %ld, resp_data %x", __func__, resp_len, resp_data[0]);
 
     aos_check(!ret, EIO);
 }
@@ -726,8 +735,10 @@ static int hw_h5_download_patch_cmd(int index, uint8_t *data, int len)
     aos_check(!ret, EIO);
 
     iIndexRx = *((uint8_t *)(resp_data + 1) + HCI_EVT_CMD_CMPL_STATUS_OFFSET + 1 - 6);
-    HCI_LOGD(TAG,"bt vendor lib: HW_CFG_DL_FW_PATCH, iIndexRx:%i", iIndexRx);
+    // HCI_LOGD(TAG,"bt vendor lib: HW_CFG_DL_FW_PATCH, iIndexRx:%i", iIndexRx);
     hw_cfg_cb.patch_frag_idx++;
+
+    free(send_data);
     
     if (iIndexRx & 0x80) {
         HCI_LOGD(TAG,"vendor lib fwcfg completed");
@@ -757,6 +768,8 @@ static void hw_h5_download_patch()
             iIndexRx &= 0x7F;
             hw_cfg_cb.patch_frag_len = PATCH_DATA_FIELD_MAX_SIZE;
         }
+
+        HCI_LOGD(TAG,"HW_CFG_DL_FW_PATCH: send %d fragment", iIndexRx);
 
         ret = hw_h5_download_patch_cmd(iIndexRx,
                             hw_cfg_cb.total_buf + (hw_cfg_cb.patch_frag_idx * PATCH_DATA_FIELD_MAX_SIZE),
@@ -830,9 +843,6 @@ void hw_config_start(hci_driver_send_cmd_t send_cmd)
 {
     g_send_cmd = send_cmd;
 
-    HCI_LOGD(TAG,"RTKBT_RELEASE_NAME: %s", RTKBT_RELEASE_NAME);
-    HCI_LOGD(TAG,"\nRealtek libbt-vendor_uart Version %s \n", RTK_VERSION);
-
     HCI_LOGD(TAG,"hw_config_start\n");
 
     hw_h5_init();
@@ -841,7 +851,15 @@ void hw_config_start(hci_driver_send_cmd_t send_cmd)
     hw_h5_read_chip_type();
     hw_h5_pre_download_patch();
     hw_h5_config_set_controller_baudrate(hw_cfg_cb.baudrate);
+    // wait for controller baudrate ready
+    aos_msleep(10);
     hw_h5_change_uart_baudrate();
+
+    if (hw_cfg_cb.hw_flow_cntrl & 0x01) {
+        userial_vendor_set_hw_fctrl(1);
+    } else {
+        userial_vendor_set_hw_fctrl(0);
+    }
 
     hw_h5_download_patch();
 }

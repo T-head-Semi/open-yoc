@@ -158,5 +158,17 @@ int HAL_Awss_Get_Encrypt_Type()
 
 int HAL_Awss_Get_Conn_Encrypt_Type(void)
 {
-    return 3;
+    char invalid_ds[DEVICE_SECRET_LEN + 1] = {0};
+    char ds[DEVICE_SECRET_LEN + 1] = {0};
+
+    HAL_GetDeviceSecret(ds);
+
+    if (memcmp(invalid_ds, ds, sizeof(ds)) == 0)
+        return 3;
+
+    memset(invalid_ds, 0xff, sizeof(invalid_ds));
+    if (memcmp(invalid_ds, ds, sizeof(ds)) == 0)
+        return 3;
+
+    return 4;
 }

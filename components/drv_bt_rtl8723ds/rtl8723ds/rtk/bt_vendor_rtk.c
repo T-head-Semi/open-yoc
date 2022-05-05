@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 
+#include <ulog/ulog.h>
 #include <aos/kernel.h>
 
 #include "userial_vendor.h"

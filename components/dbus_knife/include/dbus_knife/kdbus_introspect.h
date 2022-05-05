@@ -14,7 +14,9 @@
 #include <dbus/dbus.h>
 #include "dbus_knife/kdbus_new_helpers.h"
 
-__BEGIN_DECLS__
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * kdbus_introspect - Responds for Introspect calls on object
@@ -27,7 +29,9 @@ __BEGIN_DECLS__
  */
 int kdbus_introspect(DBusConnection *conn, DBusMessage *msg, struct kdbus_object_desc *obj_dsc);
 
-__END_DECLS__
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __KDBUS_INTROSPECT_H__ */
 

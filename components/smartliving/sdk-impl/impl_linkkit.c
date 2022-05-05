@@ -4,6 +4,7 @@
 
 #include "sl_config.h"
 
+
 #if defined(DEVICE_MODEL_ENABLED)
 
 #include "iot_export_linkkit.h"
@@ -40,6 +41,7 @@
 
 
 #define IOTX_LINKKIT_SYNC_DEFAULT_TIMEOUT_MS 10000
+#define IOTX_LINKKIT_ASYNC_DEFAULT_TIMEOUT_MS 60000 //Change max timeout to 60S
 
 typedef struct {
     int msgid;
@@ -201,6 +203,9 @@ static void _iotx_linkkit_upstream_sync_callback_list_destroy(void)
     }
 }
 
+#ifdef DEVICE_MODEL_GATEWAY
+static int subdev_cloud_response_code = 200;
+#endif
 
 static void _iotx_linkkit_upstream_callback_remove(int msgid, int code)
 {
@@ -297,6 +302,7 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
             if (callback) {
                 ((int (*)(void))callback)();
             }
+            iotx_event_post(IOTX_CONN_CLOUD_SUC);
         }
         break;
         case IOTX_DM_EVENT_CLOUD_DISCONNECT: {
@@ -304,6 +310,7 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
             if (callback) {
                 ((int (*)(void))callback)();
             }
+            iotx_event_post(IOTX_CONN_CLOUD_FAIL);
         }
         break;
         case IOTX_DM_EVENT_INITIALIZED: {
@@ -477,6 +484,7 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
         }
         break;
         case IOTX_DM_EVENT_THING_EVENT_NOTIFY: {
+            char is_need_notify_user = 1;
             char *property_payload = NULL;
             lite_cjson_t lite_identifier, lite_iden_val;
 
@@ -509,8 +517,9 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
             memcpy(property_payload, lite_item_payload.value, lite_item_payload.value_length);
 #ifdef ALCS_GROUP_COMM_ENABLE
             #ifdef DM_UNIFIED_SERVICE_POST
+	    extern int iotx_alcs_localgroup_rsp(const char *payload, int payload_len, int msg_from);
             if ( NULL != strstr(property_payload, "_LivingLink.alcs.localgroup") ){
-                iotx_alcs_localgroup_rsp(property_payload, lite_item_payload.value, 2);
+                iotx_alcs_localgroup_rsp(property_payload, lite_item_payload.value_length, 2);
                 IMPL_LINKKIT_FREE(property_payload);
                 return;
             }
@@ -555,17 +564,75 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
             }
 #endif
 
+#ifdef DEVICE_MODEL_GATEWAY //Handle subdev connect async
+            if (!strncmp(lite_identifier.value, SUBDEV_CONNECT_IDENTIFIER, strlen(SUBDEV_CONNECT_IDENTIFIER)))
+            {
+                int mesg_id = 0, res = SUCCESS_RETURN;
+                char *device_list = NULL;
+                lite_cjson_t lite_DeviceList;
+                lite_cjson_t lite_msg_id;
+
+                is_need_notify_user = 0;
+                sdk_info("recv subdev async mesg");
+                dm_utils_json_object_item(&lite_iden_val, "DeviceList", strlen("DeviceList"), cJSON_Array,
+                                          &lite_DeviceList);
+
+                dm_utils_json_object_item(&lite_iden_val, "requestId", strlen("requestId"), cJSON_Number,
+                                          &lite_msg_id);
+
+                if (!lite_cjson_is_array(&lite_DeviceList) || !lite_cjson_is_number(&lite_msg_id))
+                {
+                    sdk_err("content error");
+                    IMPL_LINKKIT_FREE(property_payload);
+                    return;
+                }
+
+                device_list = IMPL_LINKKIT_MALLOC(lite_DeviceList.value_length + 1);
+                if (device_list == NULL)
+                {
+                    sdk_err("No mem");
+                    IMPL_LINKKIT_FREE(property_payload);
+                    return;
+                }
+                mesg_id = lite_msg_id.value_int;
+
+                memset(device_list, 0, lite_DeviceList.value_length + 1);
+                memcpy(device_list, lite_DeviceList.value, lite_DeviceList.value_length);
+
+                res = iotx_dm_subdev_connect_reply(lite_item_id.value_int, device_list, lite_DeviceList.value_length);
+                IMPL_LINKKIT_FREE(device_list);
+
+                if (res != SUCCESS_RETURN)
+                {
+                    subdev_cloud_response_code = 400; //just let subdev connect fail
+                }
+                else
+                {
+                    subdev_cloud_response_code = 200;
+                }
+
+                _iotx_linkkit_upstream_mutex_lock();
+                _iotx_linkkit_upstream_callback_remove(mesg_id, subdev_cloud_response_code);
+                _iotx_linkkit_upstream_mutex_unlock();
+            }
+#endif
+
             if (!strncmp(lite_identifier.value, "_LivingLink.thing.reset.reply", strlen("_LivingLink.thing.reset.reply")))
             {
                 sdk_info("got cloud reset done");
                 awss_handle_reset_cloud_reply();
             }
 
-            callback = iotx_event_callback(ITE_EVENT_NOTIFY);
-            if (callback) {
-                ((int (*)(const int, const char *, const int))callback)(lite_item_devid.value_int, property_payload,
-                        lite_item_payload.value_length);
+            if (is_need_notify_user == 1)
+            {
+                callback = iotx_event_callback(ITE_EVENT_NOTIFY);
+                if (callback)
+                {
+                    ((int (*)(const int, const char *, const int))callback)(lite_item_devid.value_int, property_payload,
+                                                                            lite_item_payload.value_length);
+                }
             }
+
 #ifdef LOG_REPORT_TO_CLOUD
             if (1 == report_sample) {
                 send_permance_info(NULL, 0, "5", 2);
@@ -747,12 +814,14 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
         }
         break;
 #ifdef DM_UNIFIED_SERVICE_POST
-        case IOTX_DM_UNIFIED_SERVICE_POST_REPLY:{
+        case IOTX_DM_UNIFIED_SERVICE_POST_REPLY:
+        {
             char *user_payload = NULL;
             char is_need_callback = 1;
 
             if (payload == NULL || lite_item_id.type != cJSON_Number || lite_item_code.type != cJSON_Number ||
-                lite_item_devid.type != cJSON_Number || lite_item_payload.type != cJSON_Object) {
+                lite_item_devid.type != cJSON_Number || lite_item_payload.type != cJSON_Object)
+            {
                 return;
             }
 
@@ -762,66 +831,100 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
             sdk_debug("Current Message: %.*s", lite_item_payload.value_length, lite_item_payload.value);
 
             user_payload = IMPL_LINKKIT_MALLOC(lite_item_payload.value_length + 1);
-            if (user_payload == NULL) {
+            if (user_payload == NULL)
+            {
                 sdk_err("No mem");
                 return;
             }
             memset(user_payload, 0, lite_item_payload.value_length + 1);
             memcpy(user_payload, lite_item_payload.value, lite_item_payload.value_length);
 
-
-            if (lite_item_code.value_int == 200) {
+            if (lite_item_code.value_int == 200)
+            {
                 lite_cjson_t lite_identifier;
                 dm_utils_json_object_item(&lite_item_payload, "identifier", strlen("identifier"), cJSON_String,
-                                    &lite_identifier);
+                                          &lite_identifier);
 #ifdef DEVICE_MODEL_GATEWAY
                 if ((lite_identifier.type == cJSON_String) &&
-                     !strncmp(lite_identifier.value, "_LivingLink.activation.subdevice.connect", strlen("_LivingLink.activation.subdevice.connect")))
+                    !strncmp(lite_identifier.value, SUBDEV_CONNECT_IDENTIFIER, strlen(SUBDEV_CONNECT_IDENTIFIER)))
                 {
+                    int biz_code = 0;
+                    lite_cjson_t lite_bizCode;
                     lite_cjson_t lite_serviceResult;
                     lite_cjson_t lite_DeviceList;
+
                     dm_utils_json_object_item(&lite_item_payload, "serviceResult", strlen("serviceResult"), cJSON_Object,
-                                        &lite_serviceResult);
+                                              &lite_serviceResult);
 
-                    dm_utils_json_object_item(&lite_serviceResult, "DeviceList", strlen("DeviceList"), cJSON_Array,
-                                        &lite_DeviceList);
+                    dm_utils_json_object_item(&lite_serviceResult, "bizCode", strlen("bizCode"), cJSON_Number, &lite_bizCode);
 
-                    char *device_list = IMPL_LINKKIT_MALLOC(lite_DeviceList.value_length + 1);
-                    if (device_list == NULL) {
-                        sdk_err("No mem");
-                        IMPL_LINKKIT_FREE(user_payload);
-                        return;
+                    biz_code = lite_bizCode.value_int;
+
+                    if (biz_code == SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_NOT_READY)
+                    {
+                        sdk_info("cloud subdev not ready wait async download");
                     }
-                    memset(device_list, 0, lite_DeviceList.value_length + 1);
-                    memcpy(device_list, lite_DeviceList.value, lite_DeviceList.value_length);
-                    iotx_dm_subdev_connect_reply(lite_item_id.value_int, device_list, lite_DeviceList.value_length);
-                    IMPL_LINKKIT_FREE(device_list);
+                    else if (biz_code == SUBDEV_CONNECT_RESPONSE_CODE_INVALI_REQUEST ||
+                             biz_code == SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_ERROR ||
+                             biz_code == SUBDEV_CONNECT_RESPONSE_CODE_TOTAL_OVERLIMIT)
+                    {
+                        sdk_err("subdev connect error code:%d", biz_code);
 
-                    _iotx_linkkit_upstream_mutex_lock();
-                    _iotx_linkkit_upstream_callback_remove(lite_item_id.value_int, lite_item_code.value_int);
-                    _iotx_linkkit_upstream_mutex_unlock();
+                        subdev_cloud_response_code = biz_code;
+                        _iotx_linkkit_upstream_mutex_lock();
+                        _iotx_linkkit_upstream_callback_remove(lite_item_id.value_int, 200); //200 for return errcode to user
+                        _iotx_linkkit_upstream_mutex_unlock();
+                    }
+                    else
+                    {
+                        sdk_err("unknow biz_code:%d", biz_code);
+                        dm_utils_json_object_item(&lite_serviceResult, "DeviceList", strlen("DeviceList"), cJSON_Array,
+                                                  &lite_DeviceList);
+
+                        char *device_list = IMPL_LINKKIT_MALLOC(lite_DeviceList.value_length + 1);
+                        if (device_list == NULL)
+                        {
+                            sdk_err("No mem");
+                            IMPL_LINKKIT_FREE(user_payload);
+                            return;
+                        }
+                        memset(device_list, 0, lite_DeviceList.value_length + 1);
+                        memcpy(device_list, lite_DeviceList.value, lite_DeviceList.value_length);
+                        iotx_dm_subdev_connect_reply(lite_item_id.value_int, device_list, lite_DeviceList.value_length);
+                        IMPL_LINKKIT_FREE(device_list);
+
+                        subdev_cloud_response_code = 200;
+                        _iotx_linkkit_upstream_mutex_lock();
+                        _iotx_linkkit_upstream_callback_remove(lite_item_id.value_int, lite_item_code.value_int);
+                        _iotx_linkkit_upstream_mutex_unlock();
+                    }
                 }
 
                 is_need_callback = 0;
 #endif
             }
 
-            #ifdef ALCS_GROUP_COMM_ENABLE
-            if ( NULL != strstr(user_payload, "_LivingLink.alcs.localgroup") ){
-                iotx_alcs_localgroup_rsp(user_payload, lite_item_payload.value, 1);
+#ifdef ALCS_GROUP_COMM_ENABLE
+	    extern int iotx_alcs_localgroup_rsp(const char *payload, int payload_len, int msg_from);
+            if (NULL != strstr(user_payload, "_LivingLink.alcs.localgroup"))
+            {
+                iotx_alcs_localgroup_rsp(user_payload, lite_item_payload.value_length, 1);
                 is_need_callback = 0;
             }
-            #endif
-            if (is_need_callback) {
+#endif
+            if (is_need_callback)
+            {
                 callback = iotx_event_callback(ITE_UNIFIED_SERVICE_POST);
-                if (callback) {
+                if (callback)
+                {
                     ((int (*)(const int, const int, const int, const char *, const int))callback)(lite_item_devid.value_int,
-                    lite_item_id.value_int, lite_item_code.value_int, user_payload, lite_item_payload.value_length);
+                                                                                                  lite_item_id.value_int, lite_item_code.value_int, user_payload, lite_item_payload.value_length);
                 }
             }
 
             IMPL_LINKKIT_FREE(user_payload);
-        }break;
+        }
+        break;
 #endif
         case IOTX_DM_EVENT_NTP_RESPONSE: {
             char *utc_payload = NULL;
@@ -1078,7 +1181,9 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
         case IOTX_DM_EVENT_TOPO_ADD_REPLY:
         case IOTX_DM_EVENT_SUBDEV_REGISTER_REPLY:
         case IOTX_DM_EVENT_COMBINE_LOGIN_REPLY:
-        case IOTX_DM_EVENT_COMBINE_LOGOUT_REPLY: {
+        case IOTX_DM_EVENT_COMBINE_LOGOUT_REPLY:
+        case IOTX_DM_EVENT_COMBINE_BATCH_LOGIN_REPLY:
+        case IOTX_DM_EVENT_COMBINE_BATCH_LOGOUT_REPLY: {
             int itm_event = -1;
 
             if (payload == NULL || lite_item_id.type != cJSON_Number || lite_item_devid.type != cJSON_Number ||
@@ -1121,7 +1226,16 @@ static void _iotx_linkkit_event_callback(iotx_dm_event_types_t type, char *paylo
                     itm_event = ITM_EVENT_COMBINE_LOGOUT_REPLY;
                 }
                 break;
-
+                case IOTX_DM_EVENT_COMBINE_BATCH_LOGIN_REPLY:
+                {
+                    itm_event = ITM_EVENT_COMBINE_BATCH_LOGIN_REPLY;
+                }
+                break;
+                case IOTX_DM_EVENT_COMBINE_BATCH_LOGOUT_REPLY:
+                {
+                    itm_event = ITM_EVENT_COMBINE_BATCH_LOGOUT_REPLY;
+                }
+                break;
                 default:break;
             }
 
@@ -1373,25 +1487,30 @@ static int _iotx_linkkit_subdev_connect(int devid, dm_subdev_connect_cb connect_
     iotx_linkkit_upstream_sync_callback_node_t *node = NULL;
     void *semaphore = NULL;
 
-    if (ctx->is_connected == 0) {
+    if (ctx->is_connected == 0)
+    {
         sdk_err("master isn't start");
         return FAIL_RETURN;
     }
 
-    if (devid <= 0 || !connect_cb) {
+    if (devid <= 0 || !connect_cb)
+    {
         sdk_err("param err");
         return FAIL_RETURN;
     }
 
     /* Subdev connect */
     res = connect_cb(devid, subdev_list, subdev_total);
-    if (res < SUCCESS_RETURN) {
+    if (res < SUCCESS_RETURN)
+    {
         return FAIL_RETURN;
     }
 
-    if (res > SUCCESS_RETURN) {
+    if (res > SUCCESS_RETURN)
+    {
         semaphore = HAL_SemaphoreCreate();
-        if (semaphore == NULL) {
+        if (semaphore == NULL)
+        {
             return FAIL_RETURN;
         }
 
@@ -1399,15 +1518,17 @@ static int _iotx_linkkit_subdev_connect(int devid, dm_subdev_connect_cb connect_
 
         _iotx_linkkit_upstream_mutex_lock();
         res = _iotx_linkkit_upstream_sync_callback_list_insert(msgid, semaphore, &node);
-        if (res != SUCCESS_RETURN) {
+        if (res != SUCCESS_RETURN)
+        {
             HAL_SemaphoreDestroy(semaphore);
             _iotx_linkkit_upstream_mutex_unlock();
             return FAIL_RETURN;
         }
         _iotx_linkkit_upstream_mutex_unlock();
 
-        res = HAL_SemaphoreWait(semaphore, IOTX_LINKKIT_SYNC_DEFAULT_TIMEOUT_MS);
-        if (res < SUCCESS_RETURN) {
+        res = HAL_SemaphoreWait(semaphore, IOTX_LINKKIT_ASYNC_DEFAULT_TIMEOUT_MS);
+        if (res < SUCCESS_RETURN)
+        {
             _iotx_linkkit_upstream_mutex_lock();
             _iotx_linkkit_upstream_sync_callback_list_remove(msgid);
             _iotx_linkkit_upstream_mutex_unlock();
@@ -1417,14 +1538,43 @@ static int _iotx_linkkit_subdev_connect(int devid, dm_subdev_connect_cb connect_
         _iotx_linkkit_upstream_mutex_lock();
         code = node->code;
         _iotx_linkkit_upstream_sync_callback_list_remove(msgid);
-        if (code != SUCCESS_RETURN) {
+        if (code != SUCCESS_RETURN)
+        {
             _iotx_linkkit_upstream_mutex_unlock();
             return FAIL_RETURN;
         }
         _iotx_linkkit_upstream_mutex_unlock();
     }
 
-    return SUCCESS_RETURN;
+    if (subdev_cloud_response_code == 200)
+    {
+        res = SUCCESS_RETURN;
+    }
+    else
+    {
+        switch (subdev_cloud_response_code)
+        {
+        case SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_ERROR:
+        {
+            res = ERROR_SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_ERR;
+        }
+        break;
+        case SUBDEV_CONNECT_RESPONSE_CODE_INVALI_REQUEST:
+        {
+            res = ERROR_SUBDEV_CONNECT_RESPONSE_CODE_INVALI_REQUEST;
+        }
+        break;
+        case SUBDEV_CONNECT_RESPONSE_CODE_TOTAL_OVERLIMIT:
+        {
+            res = ERROR_SUBDEV_CONNECT_RESPONSE_CODE_TOTAL_OVERLIMIT;
+        }
+        default:
+            res = FAIL_RETURN;
+            break;
+        }
+    }
+
+    return res;
 }
 
 static int _iotx_linkkit_slave_connect(int devid)
@@ -1778,7 +1928,6 @@ int IOT_Linkkit_Connect(int devid)
         res = FAIL_RETURN;
 #endif
     }
-    
     _iotx_linkkit_mutex_unlock();
 
     return res;
@@ -1800,6 +1949,7 @@ void IOT_Linkkit_Yield(int timeout_ms)
 
     // NOTICE: Do Not remove the following codes!
     if (ctx->cloud_redirect == 1){
+        ctx->is_connected = 0;
         user_handle_redirect();
         ctx->cloud_redirect = 0;
     }
@@ -1839,13 +1989,22 @@ int IOT_Linkkit_Close(int devid)
 }
 
 #ifdef DEVICE_MODEL_GATEWAY
-static int _iotx_linkkit_subdev_login(int devid)
+static int _iotx_linkkit_subdev_batch_login(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total)
 {
     int res = 0, msgid = 0, code = 0;
+    int index = 0;
+    int subdev_id = -1;
+    iotx_linkkit_dev_meta_info_t *p_subdev = NULL;
     iotx_linkkit_upstream_sync_callback_node_t *node = NULL;
     void *semaphore = NULL;
+    
+    if (subdev_list == NULL || subdev_total < 1)
+    {
+        sdk_err("param err");
+        return FAIL_RETURN;
+    }
 
-    res = iotx_dm_subdev_login(devid);
+    res = iotx_dm_subdev_batch_login(subdev_list, subdev_total);
     if (res < SUCCESS_RETURN) {
         return FAIL_RETURN;
     }
@@ -1882,27 +2041,39 @@ static int _iotx_linkkit_subdev_login(int devid)
     }
     _iotx_linkkit_upstream_mutex_unlock();
 
-    res = iotx_dm_subscribe(devid);
-    if (res != SUCCESS_RETURN) {
-        return FAIL_RETURN;
-    }
+    for (index = 0; index < subdev_total; index++) {
+        p_subdev = subdev_list + index;
 
-    void *callback = iotx_event_callback(ITE_INITIALIZE_COMPLETED);
-    if (callback) {
-        ((int (*)(const int))callback)(devid);
-    }
+        if (SUCCESS_RETURN == iotx_dm_subdev_query(p_subdev->product_key, p_subdev->device_name, &subdev_id) && subdev_id > 0)
+        {
+            res = iotx_dm_subscribe(subdev_id);
+            if (res != SUCCESS_RETURN) {
+                return FAIL_RETURN;
+            }
 
+            void *callback = iotx_event_callback(ITE_INITIALIZE_COMPLETED);
+            if (callback) {
+                ((int (*)(const int))callback)(subdev_id);
+            }
+        }
+    }
 
     return res;
 }
 
-static int _iotx_linkkit_subdev_logout(int devid)
+static int _iotx_linkkit_subdev_batch_logout(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total)
 {
     int res = 0, msgid = 0, code = 0;
     iotx_linkkit_upstream_sync_callback_node_t *node = NULL;
     void *semaphore = NULL;
 
-    res = iotx_dm_subdev_logout(devid);
+    if (subdev_list == NULL || subdev_total < 1)
+    {
+        sdk_err("param err");
+        return FAIL_RETURN;
+    }
+
+    res = iotx_dm_subdev_batch_logout(subdev_list, subdev_total);
     if (res < SUCCESS_RETURN) {
         return FAIL_RETURN;
     }
@@ -2050,6 +2221,7 @@ int IOT_Linkkit_Report(int devid, iotx_linkkit_msg_type_t msg_type, unsigned cha
                 if (p_subdev_valid_list == NULL)
                 {
                     sdk_err("no mem");
+                    _iotx_linkkit_mutex_unlock();
                     return ERROR_NO_ENOUGH_MEM;
                 }
 
@@ -2121,24 +2293,144 @@ int IOT_Linkkit_Report(int devid, iotx_linkkit_msg_type_t msg_type, unsigned cha
             res = iotx_dm_post_rawdata(devid, (char *)payload, payload_len);
         }
         break;
-        case ITM_MSG_LOGIN: {
 #ifdef DEVICE_MODEL_GATEWAY
-        res = _iotx_linkkit_subdev_login(devid);
-        if (res != SUCCESS_RETURN) {
-            _iotx_linkkit_mutex_unlock();
-            return FAIL_RETURN;
-        }
-#else
-            res = FAIL_RETURN;
-#endif
-        }
-        break;
-#ifdef DEVICE_MODEL_GATEWAY
-        case ITM_MSG_LOGOUT: {
-            res = _iotx_linkkit_subdev_logout(devid);
-            if (res != SUCCESS_RETURN) {
+        case ITM_MSG_LOGIN:
+        {
+            iotx_linkkit_dev_meta_info_t subdev;
+
+            memset(&subdev, 0, sizeof(iotx_linkkit_dev_meta_info_t));
+
+            if (SUCCESS_RETURN != iotx_dm_get_subdev_triples_by_devid(devid, &subdev))
+            {
+                sdk_err("login no subdev:%d", devid);
                 _iotx_linkkit_mutex_unlock();
                 return FAIL_RETURN;
+            }
+
+            res = _iotx_linkkit_subdev_batch_login(&subdev, 1);
+            if (res != SUCCESS_RETURN)
+            {
+                _iotx_linkkit_mutex_unlock();
+                return FAIL_RETURN;
+            }
+        }
+        break;
+        case ITM_MSG_LOGOUT:
+        {
+            iotx_linkkit_dev_meta_info_t subdev;
+
+            memset(&subdev, 0, sizeof(iotx_linkkit_dev_meta_info_t));
+
+            if (SUCCESS_RETURN != iotx_dm_get_subdev_triples_by_devid(devid, &subdev))
+            {
+                sdk_err("logout no subdev:%d", devid);
+                _iotx_linkkit_mutex_unlock();
+                return FAIL_RETURN;
+            }
+
+            res = _iotx_linkkit_subdev_batch_logout(&subdev, 1);
+            if (res != SUCCESS_RETURN)
+            {
+                _iotx_linkkit_mutex_unlock();
+                return FAIL_RETURN;
+            }
+        }
+        break;
+        case ITM_MSG_BATCH_LOGIN:
+        {
+            if (payload && payload_len > 0)
+            {
+                int subdev_id = -1;
+                int subdev_total = 0;
+                int subdev_valid_num = 0;
+                int index = 0;
+                iotx_linkkit_dev_meta_info_t *p_subdev_list = (iotx_linkkit_dev_meta_info_t *)payload;
+                iotx_linkkit_dev_meta_info_t *p_subdev_valid_list = NULL;
+
+                subdev_total = payload_len / sizeof(iotx_linkkit_dev_meta_info_t);
+
+                p_subdev_valid_list = IMPL_LINKKIT_MALLOC(payload_len);
+                if (p_subdev_valid_list == NULL)
+                {
+                    sdk_err("no mem");
+                    _iotx_linkkit_mutex_unlock();
+                    return ERROR_NO_ENOUGH_MEM;
+                }
+
+                for (index = 0; index < subdev_total; index++)
+                {
+                    iotx_linkkit_dev_meta_info_t *p_subdev = p_subdev_list + index;
+                    subdev_id = _iotx_linkkit_slave_open(p_subdev);
+                    if (subdev_id > 0)
+                    {
+                        memcpy(p_subdev_valid_list + subdev_valid_num, p_subdev, sizeof(iotx_linkkit_dev_meta_info_t));
+                        subdev_valid_num++;
+                    }
+                    else
+                    {
+                        sdk_err("batch login open dn(%s) fail", p_subdev->device_name);
+                    }
+                }
+                res = _iotx_linkkit_subdev_batch_login(p_subdev_valid_list, subdev_valid_num);
+
+                if (p_subdev_valid_list)
+                    IMPL_LINKKIT_FREE(p_subdev_valid_list);
+
+#ifdef LOG_REPORT_TO_CLOUD
+                if (1 == report_sample)
+                {
+                    send_permance_info(NULL, 0, "4", 1);
+                }
+#endif
+            }
+        }
+        break;
+        case ITM_MSG_BATCH_LOGOUT:
+        {
+            if (payload && payload_len > 0)
+            {
+                int subdev_id = -1;
+                int subdev_total = 0;
+                int subdev_valid_num = 0;
+                int index = 0;
+                iotx_linkkit_dev_meta_info_t *p_subdev_list = (iotx_linkkit_dev_meta_info_t *)payload;
+                iotx_linkkit_dev_meta_info_t *p_subdev_valid_list = NULL;
+
+                subdev_total = payload_len / sizeof(iotx_linkkit_dev_meta_info_t);
+
+                p_subdev_valid_list = IMPL_LINKKIT_MALLOC(payload_len);
+                if (p_subdev_valid_list == NULL)
+                {
+                    sdk_err("no mem");
+                    _iotx_linkkit_mutex_unlock();
+                    return ERROR_NO_ENOUGH_MEM;
+                }
+
+                for (index = 0; index < subdev_total; index++)
+                {
+                    iotx_linkkit_dev_meta_info_t *p_subdev = p_subdev_list + index;
+                    subdev_id = _iotx_linkkit_slave_open(p_subdev);
+                    if (subdev_id > 0)
+                    {
+                        memcpy(p_subdev_valid_list + subdev_valid_num, p_subdev, sizeof(iotx_linkkit_dev_meta_info_t));
+                        subdev_valid_num++;
+                    }
+                    else
+                    {
+                        sdk_err("batch logout open dn(%s) fail", p_subdev->device_name);
+                    }
+                }
+                res = _iotx_linkkit_subdev_batch_logout(p_subdev_valid_list, subdev_valid_num);
+
+                if (p_subdev_valid_list)
+                    IMPL_LINKKIT_FREE(p_subdev_valid_list);
+
+#ifdef LOG_REPORT_TO_CLOUD
+                if (1 == report_sample)
+                {
+                    send_permance_info(NULL, 0, "4", 1);
+                }
+#endif
             }
         }
         break;

@@ -9,7 +9,9 @@
 extern "C" {
 #endif
 
+#ifdef __linux__
 #include "aos_port/common.h"
+#endif
 
 #ifdef __cplusplus
 }

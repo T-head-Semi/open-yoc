@@ -650,6 +650,20 @@ static int32_t lfs_vfs_utime(vfs_file_t *fp, const char *path, const vfs_utimbuf
     return lfs_ret_value_convert(LFS_ERR_OK);
 }
 
+static int32_t lfs_vfs_truncate(vfs_file_t *fp, int64_t size)
+{
+    int32_t ret;
+
+    lfs_file_t *file = (lfs_file_t *)(fp->f_arg);
+
+    lfs_lock(g_lfs_manager.lock);
+    ret = lfs_file_truncate(g_lfs_manager.lfs, file, size);
+    lfs_unlock(g_lfs_manager.lock);
+
+    return lfs_ret_value_convert(ret);
+}
+
+
 static vfs_filesystem_ops_t littlefs_ops = {
     .open       = &lfs_vfs_open,
     .close      = &lfs_vfs_close,
@@ -674,6 +688,7 @@ static vfs_filesystem_ops_t littlefs_ops = {
     .seekdir    = &lfs_vfs_seekdir,
     .ioctl      = NULL,
     .utime      = &lfs_vfs_utime,
+    .truncate   = &lfs_vfs_truncate,
 };
 
 int lfs_vfs_mount(void)

@@ -207,7 +207,7 @@ static char* _get_real_url(const char *hls_url, const char *seg_url)
             CHECK_RET_TAG_WITH_GOTO(p, err);
         }
         strncpy(url, hls_url, p - hls_url + 1);
-        strncpy(url + strlen(url), seg_url, strlen(seg_url));
+        strlcpy(url + strlen(url), seg_url, strlen(seg_url));
     }
 
     return url;

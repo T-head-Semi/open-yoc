@@ -44,6 +44,10 @@
 #define H5_VDRSPEC_PKT          0x0E
 #define H5_LINK_CTL_PKT         0x0F
 
+#ifdef CONFIG_BTSOOP
+extern int btsnoop_write(uint8_t type, const uint8_t *data, uint32_t len, bool is_income);
+#endif
+
 const static h5_t *h5_ctx;
 extern u16_t bt_hci_get_cmd_opcode(struct net_buf *buf);
 static int h5_send(struct net_buf *buf)
@@ -61,10 +65,15 @@ static int h5_send(struct net_buf *buf)
             h5_ctx->h5_send_sync_cmd(opcode, NULL, buf->len);
             break;
         }
-
+#ifdef CONFIG_BTSOOP
+        btsnoop_write(HCI_COMMAND_PKT, buf->data, buf->len, 0);
+#endif
         h5_ctx->h5_send_cmd(HCI_COMMAND_PKT, buf->data, buf->len);
         break;
     case BT_BUF_ACL_OUT:
+#ifdef CONFIG_BTSOOP
+        btsnoop_write(HCI_ACLDATA_PKT, buf->data, buf->len, 0);
+#endif
         h5_ctx->h5_send_acl_data(HCI_ACLDATA_PKT, buf->data, buf->len);
         break;
 
@@ -111,30 +120,29 @@ int hci_h5_event_recv(uint8_t *data, uint16_t data_len)
     if (hdr.evt == BT_HCI_EVT_LE_META_EVENT) {
         sub_event = *pdata++;
 
-        if (sub_event == BT_HCI_EVT_LE_ADVERTISING_REPORT) {
+        if (sub_event == BT_HCI_EVT_LE_ADVERTISING_REPORT
+#if defined(CONFIG_BT_EXT_ADV)
+            || sub_event == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT
+#endif
+        ) {
             discardable = 1;
         }
     }
 
-    if (hdr.evt == BT_HCI_EVT_CMD_COMPLETE ||
-        hdr.evt  == BT_HCI_EVT_CMD_STATUS) {
-        buf = bt_buf_get_cmd_complete(0);
-
-        if (buf == NULL) {
-            // g_hci_debug_counter.event_in_is_null_count++;
-            goto err;
-        }
-    } else {
-        buf = bt_buf_get_rx(BT_BUF_EVT, 0);
-    }
+#if !defined(CONFIG_BT_RECV_IS_RX_THREAD)
+    k_timeout_t timeout = discardable? 0 : K_FOREVER;
+    buf = bt_buf_get_evt(hdr.evt, discardable, timeout);
+#else
+    buf = bt_buf_get_evt(hdr.evt, discardable, 0);
+#endif
 
     if (!buf && discardable) {
-        // g_hci_debug_counter.event_discard_count++;
+        //g_hci_debug_counter.event_discard_count++;
         goto err;
     }
 
     if (!buf) {
-        // g_hci_debug_counter.event_in_is_null_count++;
+        //g_hci_debug_counter.event_in_is_null_count++;
         goto err;
     }
 
@@ -142,7 +150,7 @@ int hci_h5_event_recv(uint8_t *data, uint16_t data_len)
 
     net_buf_add_mem(buf, ((uint8_t *)(data)), hdr.len + sizeof(hdr));
 
-    BT_DBG("event %s", bt_hex(buf->data, buf->len));
+
     // g_hci_debug_counter.event_in_count++;
 
     if (bt_hci_evt_is_prio(hdr.evt)) {
@@ -175,10 +183,13 @@ int hci_h5_acl_recv(uint8_t *data, uint16_t data_len)
         goto err;
     }
 
+#if !defined(CONFIG_BT_RECV_IS_RX_THREAD)
+    buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
+#else
     buf = bt_buf_get_rx(BT_BUF_ACL_IN, 0);
-
+#endif
     if (!buf) {
-        // g_hci_debug_counter.hci_in_is_null_count++;
+        //g_hci_debug_counter.hci_in_is_null_count++;
         goto err;
     }
 
@@ -194,6 +205,10 @@ err:
 
 static void packet_recv_cb(hci_data_type_t type, uint8_t *data, uint32_t len)
 {
+#ifdef CONFIG_BTSOOP
+    extern int btsnoop_write(uint8_t type, const uint8_t *data, uint32_t len, bool is_income);
+    btsnoop_write(type, data, len, 1);
+#endif
     switch (type) {
         case DATA_TYPE_ACL:
             hci_h5_acl_recv(data, len);

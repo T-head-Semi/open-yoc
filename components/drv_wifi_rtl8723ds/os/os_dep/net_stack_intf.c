@@ -23,8 +23,8 @@
 #include <lwip/netif.h>
 #endif
 
-#if !defined(CONFIG_MBED_ENABLED) && !defined(CONFIG_PLATFOMR_CUSTOMER_RTOS)
 #include <lwip_netconf.h>
+#if !defined(CONFIG_MBED_ENABLED) && !defined(CONFIG_PLATFOMR_CUSTOMER_RTOS)
 #include <ethernetif.h>
 #endif
 #include <wifi/wifi_util.h>
@@ -89,13 +89,13 @@ int rltk_wlan_send(int idx, struct eth_drv_sg *sg_list, int sg_len, int total_le
 
 	skb = rltk_wlan_alloc_skb(total_len);
 	if (skb == NULL) {
-		//DBG_ERR("rltk_wlan_alloc_skb() for data len=%d failed!", total_len);
+		DBG_ERR("rltk_wlan_alloc_skb() for data len=%d failed!", total_len);
 		ret = -1;
 		goto exit;
 	}
 
 	for (last_sg = &sg_list[sg_len]; sg_list < last_sg; ++sg_list) {
-		memcpy(skb->tail, (void *)(sg_list->buf), sg_list->len);
+		memcpy(skb->tail, (void*)(size_t)sg_list->buf, sg_list->len);
 		skb_put(skb,  sg_list->len);
 	}
 
@@ -130,7 +130,7 @@ void rltk_wlan_recv(int idx, struct eth_drv_sg *sg_list, int sg_len)
 
 	for (last_sg = &sg_list[sg_len]; sg_list < last_sg; ++sg_list) {
 		if (sg_list->buf != 0) {
-			memcpy((void *)(sg_list->buf), skb->data, sg_list->len);
+			memcpy((void*)(size_t)sg_list->buf, skb->data, sg_list->len);
 			skb_pull(skb, sg_list->len);
 		}
 	}
@@ -259,6 +259,21 @@ extern uint8_t *LwIP_GetIP(struct netif *pnetif);
 unsigned char *rltk_wlan_get_ip(int idx){
 #if (CONFIG_LWIP_LAYER == 1)
 	return LwIP_GetIP(&xnetif[idx]);
+#else
+	return NULL;
+#endif
+}
+unsigned char *rltk_wlan_get_gw(int idx){
+#if (CONFIG_LWIP_LAYER == 1)
+	return LwIP_GetGW(&xnetif[idx]);
+#else
+	return NULL;
+#endif
+}
+
+unsigned char *rltk_wlan_get_gwmask(int idx){
+#if (CONFIG_LWIP_LAYER == 1)
+	return LwIP_GetMASK(&xnetif[idx]);
 #else
 	return NULL;
 #endif

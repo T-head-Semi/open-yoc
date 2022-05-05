@@ -31,8 +31,6 @@ static void network_event(uint32_t event_id, const void *param, void *context)
     app_exception_event(event_id);
 }
 
-char test[20];
-int len = 20;
 int main(void)
 {
     board_yoc_init();

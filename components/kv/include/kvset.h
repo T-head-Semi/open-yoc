@@ -14,24 +14,14 @@ typedef struct kvset kv_t;
 typedef struct flash_ops flash_ops_t;
 typedef struct kvblock kvblock_t;
 typedef struct kvnode kvnode_t;
-#include <block.h>
+#include "block.h"
+#include "kv_cache_typedef.h"
 
 struct flash_ops {
     int (*erase)(kv_t *kv, int pos, int size);
     int (*write)(kv_t *kv, int pos, void *data, int size);
     int (*read)(kv_t *kv, int pos, void *data, int size);
 };
-
-#if CONFIG_KV_ENABLE_CACHE
-#include <aos/hash.h>
-
-#define CACHE_INVALID_VAL (0xFFFF)
-
-typedef struct cache_node {
-    uint16_t block_id;
-    uint16_t offset;
-} cache_node_t;
-#endif
 
 struct kvnode {
     uint8_t    rw;
@@ -50,12 +40,14 @@ struct kvnode {
 struct kvset {
     kvblock_t        *blocks;
     int              num;
-    int              bid; // current block_id
+    int              bid;           ///< current block_id
     int              gc_bid;
     int              handle;
     uint8_t          *mem;
     flash_ops_t      *ops;
-#if CONFIG_KV_ENABLE_CACHE
+    uint8_t          had_conflict;  ///< flag for kv-error
+#if (CONFIG_KV_ENABLE_CACHE || CONFIG_KV_START_OPT)
+    slist_t          head;          ///< for kv verify
     hash_t           map;
     cache_node_t     *nodes;
     size_t           node_nb;

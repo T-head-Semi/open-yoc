@@ -33,10 +33,6 @@
 /* Enlarge this buffer size due to add token params etc */
 #define MQTT_CONNECT_REQUIRED_BUFLEN                 (384)
 
-#define WITH_MQTT_SUB_SHORTCUT     0
-#define WITH_MQTT_ZIP_TOPIC     0
-
-
 /* MQTT send publish packet */
 
 #endif  /* __IOTX_MQTT_INTERNAL_H__ */

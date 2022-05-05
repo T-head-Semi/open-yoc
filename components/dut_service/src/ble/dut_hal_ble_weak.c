@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Alibaba Group Holding Limited
+ * Copyright (C) 2019-2022 Alibaba Group Holding Limited
  */
 #include "stdio.h"
 #include "stdint.h"
@@ -53,6 +53,16 @@ int __attribute__((weak)) dut_hal_xtalcap_get(uint32_t *xtalcap)
 }
 
 int __attribute__((weak)) dut_hal_xtalcap_store(uint32_t xtalcap)
+{
+    return 0;
+}
+
+int __attribute__((weak)) dut_hal_freqoff_get(int32_t *freqoff)
+{
+    return 0;
+}
+
+int __attribute__((weak)) dut_hal_freqoff_store(int32_t freqoff)
 {
     return 0;
 }

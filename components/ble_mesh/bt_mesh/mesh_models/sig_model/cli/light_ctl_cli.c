@@ -22,7 +22,8 @@ static void _light_ctl_status(struct bt_mesh_model *model,
                               struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHT_CTL_STATUS, &message);
@@ -34,7 +35,8 @@ static void _light_ctl_temp_status(struct bt_mesh_model *model,
                                    struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHT_CTL_TEMP_STATUS, &message);
@@ -46,7 +48,8 @@ static void _light_ctl_default_status(struct bt_mesh_model *model,
                                       struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHT_CTL_DEF_STATUS, &message);
@@ -58,7 +61,8 @@ static void _light_ctl_range_status(struct bt_mesh_model *model,
                                     struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHT_CTL_TEMP_RANGE_STATUS, &message);

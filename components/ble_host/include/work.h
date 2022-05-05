@@ -12,7 +12,7 @@ extern "C"
 
 #include "ble_os.h"
 
-#ifndef CONFIG_BT_WORK_INDEPENDENCE
+#if !(defined(CONFIG_BT_WORK_INDEPENDENCE) && CONFIG_BT_WORK_INDEPENDENCE)
 
 struct k_work_q {
     struct k_queue queue;
@@ -54,6 +54,9 @@ struct k_delayed_work {
 #else
 
 struct k_work_q {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+    struct k_sem sem;
+#endif
     struct kfifo fifo;
 };
 
@@ -78,7 +81,9 @@ struct k_work {
 struct k_delayed_work {
     struct k_work work;
     struct k_work_q *work_q;
-    k_timer_t timer;
+    uint32_t start_ms;
+    uint32_t timeout;
+    _timer_t timer;
     uint64_t tick_end;
 };
 

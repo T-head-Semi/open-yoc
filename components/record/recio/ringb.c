@@ -26,7 +26,7 @@ static int ringb_open(recio_t *io, const char *path)
     }
 
     if (uri_get_item_value_int(path, "handle", &value) == 0) {
-        priv->handle = (dev_ringbuf_t *)value;
+        priv->handle = (dev_ringbuf_t *)((long)value);
     } else {
         goto err;
     }

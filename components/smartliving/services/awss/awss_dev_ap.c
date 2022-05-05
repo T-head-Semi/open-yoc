@@ -14,7 +14,8 @@
 #include "awss_notify.h"
 #include "awss_info.h"
 #include "awss_dev_ap.h"
-#include "json_parser.h"
+//#include "json_parser.h"
+#include "cJSON.h"
 #include "awss_packet.h"
 #include "awss_crypt.h"
 #include "awss_statis.h"
@@ -172,13 +173,18 @@ static int awss_dev_ap_setup()
     do {  // reduce stack used
         char pk[OS_PRODUCT_KEY_LEN + 1] = {0};
         char mac_str[OS_MAC_LEN + 1] = {0};
+        char mac_suffix[7] = {0};
 
         os_product_get_key(pk);
         os_wifi_get_mac_str(mac_str);
-        memcpy(mac_str + 11, mac_str + 12, 2);
-        memcpy(mac_str + 13, mac_str + 15, 2);
-        mac_str[15] = '\0';
-        snprintf(ssid, PLATFORM_MAX_SSID_LEN, "adh_%s_%s", pk, &mac_str[9]);
+        // get mac suffix
+        memcpy(mac_suffix, mac_str + 9, 2);
+        memcpy(mac_suffix + 2, mac_str + 12, 2);
+        memcpy(mac_suffix + 4, mac_str + 15, 2);
+        mac_suffix[6] = '\0';
+
+        // assemble soft-ap ssid
+        snprintf(ssid, PLATFORM_MAX_SSID_LEN, "adh_%s_%s", pk, mac_suffix);
     } while (0);
 
     awss_trace("ssid:%s\n", ssid);
@@ -366,7 +372,7 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
 {
 #define AWSS_DEV_AP_SWITCHA_RSP_LEN (512)
     char ssid[PLATFORM_MAX_SSID_LEN * 2 + 1] = {0}, passwd[PLATFORM_MAX_PASSWD_LEN + 1] = {0};
-    int str_len = 0, success = 1, len = 0;
+    int success = 1, len = 0;
     char req_msg_id[MSG_REQ_ID_LEN] = {0};
     char random[RANDOM_MAX_LEN + 1] = {0};
     char *msg = NULL, *p_switch_rsp_info = NULL;
@@ -378,8 +384,11 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
     bind_token_type_t token_type = TOKEN_TYPE_NOT_CLOUD;
     char token_found = 0;
     uint8_t isRandomKey = 0;
-    const char *p_ranodm_str = NULL;
+    const char *p_random_str = NULL;
     int ret = -1;
+    cJSON *switchap_JSON = NULL;
+    cJSON *params_JSON = NULL;
+    cJSON *item_JSON = NULL;
 
     static char dev_ap_switchap_parsed = 0;
 
@@ -417,45 +426,62 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
     }
 
     buf = awss_cmp_get_coap_payload(request, &len);
-    str = json_get_value_by_name(buf, len, "id", &str_len, 0);
-    memcpy(req_msg_id, str, str_len > MSG_REQ_ID_LEN - 1 ? MSG_REQ_ID_LEN - 1 : str_len);
-
     awss_trace("dev ap, len:%u, %s\r\n", len, buf);
-    buf = json_get_value_by_name(buf, len, "params", &len, 0);
-    if (buf == NULL) {
+
+    switchap_JSON = cJSON_Parse((const char *)buf);
+    if ((switchap_JSON == NULL) || (!cJSON_IsObject(switchap_JSON))){
+        dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "switchap req json parse fail");
+        goto DEV_AP_SWITCHAP_END;
+    }
+
+    item_JSON = cJSON_GetObjectItem(switchap_JSON, "id");
+    str = cJSON_GetStringValue(item_JSON);
+    if (str == NULL) {
+        dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "switchap req param fail");
+        goto DEV_AP_SWITCHAP_END;
+    }
+    //str = json_get_value_by_name(buf, len, "id", &str_len, 0);
+    memcpy(req_msg_id, str, strlen(str) > MSG_REQ_ID_LEN - 1 ? MSG_REQ_ID_LEN - 1 : strlen(str));
+
+    params_JSON = cJSON_GetObjectItem(switchap_JSON, "params");
+    //buf = json_get_value_by_name(buf, len, "params", &len, 0);
+    if ((params_JSON == NULL) || (!cJSON_IsObject(params_JSON))) {
         dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "switchap req param fail");
         goto DEV_AP_SWITCHAP_END;
     }
 
     do {
         /* get security version */
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "security", &str_len, 0);
-        if (str && str_len == 3 && !memcmp("2.0", str, str_len)) {
-            awss_trace("security ver = %.*s\r\n", str_len, str);
+        //str = json_get_value_by_name(buf, len, "security", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "security");
+        str = cJSON_GetStringValue(item_JSON);
+        if (str && strlen(str) == 3 && !memcmp("2.0", str, strlen(str))) {
+            awss_trace("security ver = %.*s\r\n", strlen(str), str);
             isRandomKey = 1;
         }
 
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "ssid", &str_len, 0);
-        awss_trace("ssid, len:%u, %s\r\n", str_len, str != NULL ? str : "NULL");
-        if (str && (str_len < PLATFORM_MAX_SSID_LEN)) {
-            memcpy(ssid, str, str_len);
+        //str = json_get_value_by_name(buf, len, "ssid", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "ssid");
+        str = cJSON_GetStringValue(item_JSON);
+        awss_trace("ssid, len:%u, %s\r\n", strlen(str), str != NULL ? str : "NULL");
+        if (str && (strlen(str) < PLATFORM_MAX_SSID_LEN)) {
+            memcpy(ssid, str, strlen(str));
             ssid_found = 1;
         }
 
         if (!ssid_found) {
-            str_len = 0;
-            str = json_get_value_by_name(buf, len, "xssid", &str_len, 0);
-            if (str && (str_len < PLATFORM_MAX_SSID_LEN * 2 - 1)) {
+            //str = json_get_value_by_name(buf, len, "xssid", &str_len, 0);
+            item_JSON = cJSON_GetObjectItem(params_JSON, "xssid");
+            str = cJSON_GetStringValue(item_JSON);
+            if (str && (strlen(str) < PLATFORM_MAX_SSID_LEN * 2 - 1)) {
                 uint8_t decoded[OS_MAX_SSID_LEN] = {0};
-                int len = str_len / 2;
-                memcpy(ssid, str, str_len);
-                utils_str_to_hex(ssid, str_len, decoded, OS_MAX_SSID_LEN);
+                int len = strlen(str) / 2;
+                memcpy(ssid, str, strlen(str));
+                utils_str_to_hex(ssid, strlen(str), decoded, OS_MAX_SSID_LEN);
                 memcpy(ssid, (const char *)decoded, len);
                 ssid[len] = '\0';
             } else {
-                dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "witchap req ssid err");
+                dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "switchap req ssid err");
                 snprintf(msg, AWSS_DEV_AP_SWITCHA_RSP_LEN, AWSS_ACK_FMT, req_msg_id, -1, "\"ssid error\"");
                 awss_event_post(IOTX_AWSS_CS_ERR);
                 success = 0;
@@ -463,11 +489,12 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
             }
         }
 
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "random", &str_len, 0);
-        if (str && str_len ==  RANDOM_MAX_LEN * 2) {
-            utils_str_to_hex(str, str_len, (unsigned char *)random, RANDOM_MAX_LEN);
-            p_ranodm_str = str;
+        //str = json_get_value_by_name(buf, len, "random", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "random");
+        str = cJSON_GetStringValue(item_JSON);
+        if (str && strlen(str) ==  RANDOM_MAX_LEN * 2) {
+            utils_str_to_hex(str, strlen(str), (unsigned char *)random, RANDOM_MAX_LEN);
+            p_random_str = str;
         } else {
             dump_awss_status(STATE_WIFI_DEV_AP_RECV_PKT_INVALID, "switchap req random len err");
             snprintf(msg, AWSS_DEV_AP_SWITCHA_RSP_LEN, AWSS_ACK_FMT, req_msg_id, -4, "\"random len error\"");
@@ -476,41 +503,44 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
             break;
         }
 
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "token", &str_len, 0);
-        if (str && str_len ==  RANDOM_MAX_LEN * 2) {  /* token len equal to random len */
-            utils_str_to_hex(str, str_len, (unsigned char *)token, RANDOM_MAX_LEN);
+        //str = json_get_value_by_name(buf, len, "token", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "token");
+        str = cJSON_GetStringValue(item_JSON);
+        if (str && strlen(str) ==  RANDOM_MAX_LEN * 2) {  /* token len equal to random len */
+            utils_str_to_hex(str, strlen(str), (unsigned char *)token, RANDOM_MAX_LEN);
             token_found = 1;
         }
         
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "tokenType", &str_len, 0);
+        //str = json_get_value_by_name(buf, len, "tokenType", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "tokenType");
+        str = cJSON_GetStringValue(item_JSON);
         if (str) {
             token_type = strtol(str, NULL, 10);
         }
 
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "bssid", &str_len, 0);
+        //str = json_get_value_by_name(buf, len, "bssid", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "bssid");
+        str = cJSON_GetStringValue(item_JSON);
         if (str) {
             os_wifi_str2mac(str, (char *)bssid);
         }
 
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "passwd", &str_len, 0);
-
-        if (str_len < (PLATFORM_MAX_PASSWD_LEN * 2) - 1) {
+        //str = json_get_value_by_name(buf, len, "passwd", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "passwd");
+        str = cJSON_GetStringValue(item_JSON);
+        if (strlen(str) < (PLATFORM_MAX_PASSWD_LEN * 2) - 1) {
             char encoded[PLATFORM_MAX_PASSWD_LEN * 2 + 1] = {0};
-            memcpy(encoded, str, str_len);
+            memcpy(encoded, str, strlen(str));
 			// decrypt the password(two ways by security version)
             if (isRandomKey) {
-                if (softap_decrypt_password(encoded, (const uint8_t*)p_ranodm_str, passwd) < 0) {
+                if (softap_decrypt_password(encoded, (const uint8_t*)p_random_str, passwd) < 0) {
                     success = 0;
                     dump_awss_status(STATE_WIFI_DEV_AP_PASSWD_DECODE_FAILED, "randomkey passwd decode fail");
                     awss_event_post(IOTX_AWSS_PASSWD_ERR);
                 }
             }
             else {
-                if (aes_decrypt_string(encoded, passwd, str_len, 0, os_get_encrypt_type(), 1, random) < 0) {
+                if (aes_decrypt_string(encoded, passwd, strlen(str), 0, os_get_encrypt_type(), 1, random) < 0) {
                     /* 64bytes=2x32bytes */
                     success = 0;
                     dump_awss_status(STATE_WIFI_DEV_AP_PASSWD_DECODE_FAILED, "non-random passwd decode");
@@ -534,38 +564,34 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
         }
 
         // get region information
-        str_len = 0;
-        str = json_get_value_by_name(buf, len, "regionType", &str_len, 0);
-        
-        if (str) {
+        //str = json_get_value_by_name(buf, len, "regionType", &str_len, 0);
+        item_JSON = cJSON_GetObjectItem(params_JSON, "regionType");
+        str = cJSON_GetStringValue(item_JSON);
+        if (str && (strlen(str) > 0)) {
             // str format is like 0","xxx":"xxx", strtol only parse the integer
             uint8_t region_type = strtol(str, NULL, 10);
             //awss_debug("regionType, %d", region_type);
-            
             if (region_type == REGION_TYPE_ID) {
-                str_len = 0;
-                str = json_get_value_by_name(buf, len, "regionContent", &str_len, 0);
-            
-                if (str) {
+                //str = json_get_value_by_name(buf, len, "regionContent", &str_len, 0);
+                item_JSON = cJSON_GetObjectItem(params_JSON, "regionContent");
+                str = cJSON_GetStringValue(item_JSON);
+                if (str && (strlen(str) > 0)) {
                     int region_id = strtol(str, NULL, 10);
-                    awss_debug("regionID, %d", region_id);
-                    printf("%s, %d, url %p\r\n", __FUNCTION__, __LINE__, region_url);
+                    //awss_debug("regionID, %d", region_id);
                     iotx_guider_set_dynamic_region(region_id);
-                    printf("%s, %d, url %p\r\n", __FUNCTION__, __LINE__, region_url);
                 }
                 else
                 {
                     iotx_guider_set_dynamic_region(IOTX_CLOUD_REGION_INVALID);
                 }
             } else if (region_type == REGION_TYPE_MQTTURL) {
-                str_len = 0;
-                str = json_get_value_by_name(buf, len, "regionContent", &str_len, 0);
-                
-                if (str) {
+                //str = json_get_value_by_name(buf, len, "regionContent", &str_len, 0);
+                item_JSON = cJSON_GetObjectItem(params_JSON, "regionContent");
+                str = cJSON_GetStringValue(item_JSON);
+                if (str && (strlen(str) > 0)) {
                     memset(region_url, 0, GUIDER_URL_LEN);
-                    memcpy(region_url, str, str_len);
+                    memcpy(region_url, str, strlen(str));
                     awss_debug("mqtturl, %s", region_url);
-                    
                     iotx_guider_set_dynamic_mqtt_url(region_url);
                 }
             } else {
@@ -573,7 +599,6 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
             }
         }
     } while (0);
-    printf("%s, %d, url %p\r\n", __FUNCTION__, __LINE__, region_url);
 
 	if (success == 1) {
 		if (token_found == 0) {
@@ -612,11 +637,12 @@ int wifimgr_process_dev_ap_switchap_request(void *ctx, void *resource, void *rem
 	        awss_trace("ready connect ap '%s'\r\n", ssid);
 	    }
 	}
-printf("%s, %d, url %p, msg %p\r\n", __FUNCTION__, __LINE__, region_url, msg);
-
 
 DEV_AP_SWITCHAP_END:
     dev_ap_switchap_parsed = 0;
+    if (switchap_JSON) {
+        cJSON_Delete(switchap_JSON);
+    }
     if (p_switch_rsp_info) {
         os_free(p_switch_rsp_info);
     }
@@ -624,8 +650,7 @@ DEV_AP_SWITCHAP_END:
         os_free(msg);
     }
     if (region_url) {
-        printf("%s, %d, url %p\r\n", __FUNCTION__, __LINE__, region_url);
-     //   os_free(region_url);
+        os_free(region_url);
     }
     return ret;
 }
@@ -794,6 +819,7 @@ static void do_connect_ap(void)
                                             (uint8_t *)alibaba_oui, NULL);
         }
 #endif
+        apscan_send_unusable_beacon();
 
         awss_event_post(IOTX_AWSS_CONNECT_ROUTER);
         #ifdef DEV_STATEMACHINE_ENABLE

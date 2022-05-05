@@ -56,7 +56,7 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param)
         return -1;
     }
 
-    kpolicy = sched_policy_posix2rhino(policy);
+    kpolicy = sched_policy_posix2aos(policy);
     if (kpolicy == -1) {
         errno = EINVAL;
         return -1;
@@ -74,11 +74,11 @@ int sched_setscheduler(pid_t pid, int policy, const struct sched_param *param)
     if (ret != 0) {
         return -1;
     }
-    old_policy = sched_policy_rhino2posix(old_policy);
+    old_policy = sched_policy_aos2posix(old_policy);
 
     /* Change the policy and priority of the thread */
     ret = aos_task_sched_policy_set(&(ptcb->task), kpolicy, priority);
-    if ((ret == 0) && (kpolicy == KSCHED_RR)) {
+    if ((ret == 0) && (kpolicy == AOS_KSCHED_RR)) {
         ret = aos_task_time_slice_set(&(ptcb->task), param->slice);
     }
     if (ret != 0) {
@@ -109,7 +109,7 @@ int sched_getscheduler(pid_t pid)
         return -1;
     }
 
-    return sched_policy_rhino2posix(policy);
+    return sched_policy_aos2posix(policy);
 }
 
 int sched_setparam(pid_t pid, const struct sched_param *param)
@@ -146,7 +146,7 @@ int sched_setparam(pid_t pid, const struct sched_param *param)
     }
     ptcb->attr.sched_priority = param->sched_priority;
 
-    if (kpolicy == KSCHED_RR) {
+    if (kpolicy == AOS_KSCHED_RR) {
         /* Change the time slice of the thread. */
         ret = aos_task_time_slice_set(&(ptcb->task), param->slice);
         if (ret != 0) {
@@ -199,7 +199,7 @@ int sched_get_priority_max(int policy)
 {
     int ret = 0;
 
-    ret = sched_policy_posix2rhino(policy);
+    ret = sched_policy_posix2aos(policy);
     if (ret == -1) {
         errno = EINVAL;
         return -1;
@@ -218,7 +218,7 @@ int sched_get_priority_min(int policy)
 {
     int ret = 0;
 
-    ret = sched_policy_posix2rhino(policy);
+    ret = sched_policy_posix2aos(policy);
     if (ret == -1) {
         errno = EINVAL;
         return -1;
@@ -252,7 +252,7 @@ int sched_rr_get_interval(pid_t pid, struct timespec *interval)
     }
 
     ret = aos_task_sched_policy_get(&(ptcb->task), &policy);
-    if ((ret != 0) || (policy != KSCHED_RR)) {
+    if ((ret != 0) || (policy != AOS_KSCHED_RR)) {
         errno = EINVAL;
         return -1;
     }

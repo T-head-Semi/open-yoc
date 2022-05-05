@@ -52,6 +52,10 @@ typedef struct {
     int mqtt_port_num;
     int env;
     int dynamic_register;
+#ifdef REPORT_UUID_ENABLE
+    int uuid_enabled;
+#endif
+    int is_wifi_reconnected;
 } sdk_impl_ctx_t;
 
 typedef enum {
@@ -61,6 +65,16 @@ typedef enum {
     IMPL_LINKKIT_IOCTL_SWITCH_EVENT_NOTIFY_REPLY,            /* only for master device, choose whether you need send event notify reply message */
     IMPL_LINKKIT_IOCTL_MAX
 } impl_linkkit_ioctl_cmd_t;
+
+#ifdef DEVICE_MODEL_GATEWAY
+#define SUBDEV_CONNECT_IDENTIFIER "_LivingLink.activation.subdevice.connect"
+typedef enum {
+    SUBDEV_CONNECT_RESPONSE_CODE_INVALI_REQUEST = 460,
+    SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_ERROR = 500,
+    SUBDEV_CONNECT_RESPONSE_CODE_CLOUD_NOT_READY = 29000,
+    SUBDEV_CONNECT_RESPONSE_CODE_TOTAL_OVERLIMIT = 29001
+}subdev_connect_response_code;
+#endif
 
 sdk_impl_ctx_t *sdk_impl_get_ctx(void);
 

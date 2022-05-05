@@ -15,6 +15,7 @@ extern "C" {
 #include <stdarg.h>
 
 #include "iotx_log_config.h"
+#include <ulog/ulog.h>
 
 extern char *lvl_color[];
 #define LOG_NONE_LEVEL                  (0)     /* no log printed at all */
@@ -57,42 +58,42 @@ void    LITE_syslog(char *m, const char *f, const int l, const int level, const 
 #define log_flow(mod, ...) 
 #else
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_FLOW_LEVEL)
-#define log_flow(mod, ...)          LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_FLOW_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_FLOW_LEVEL)
+#define log_flow(mod, ...)          ulog(LOG_INFO, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_flow(mod, ...)          do {LITE_printf("[flw] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_flow(mod, ...)
 #endif
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_DEBUG_LEVEL)
-#define log_debug(mod, ...)         LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_DEBUG_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_DEBUG_LEVEL)
+#define log_debug(mod, ...)         ulog(LOG_DEBUG, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_debug(mod, ...)         do {LITE_printf("[dbg] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_debug(mod, ...)
 #endif
 
 #endif  /* CONFIG_BLDTIME_MUTE_DBGLOG */
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_INFO_LEVEL)
-#define log_info(mod, ...)          LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_INFO_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_INFO_LEVEL)
+#define log_info(mod, ...)          ulog(LOG_INFO, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_info(mod, ...)          do {LITE_printf("[inf] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_info(mod, ...)
 #endif
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_WARNING_LEVEL)
-#define log_warning(mod, ...)       LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_WARNING_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_WARNING_LEVEL)
+#define log_warning(mod, ...)       ulog(LOG_WARNING, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_warning(mod, ...)       do {LITE_printf("[wrn] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_warning(mod, ...)
 #endif
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_ERR_LEVEL)
-#define log_err(mod, ...)           LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_ERR_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_ERR_LEVEL)
+#define log_err(mod, ...)           ulog(LOG_ERR, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_err(mod, ...)           do {LITE_printf("[err] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_err(mod, ...)
 #endif
 
-#if (CONFIG_RUNTIME_LOG_LEVEL <= LOG_CRIT_LEVEL)
-#define log_crit(mod, ...)          LITE_syslog(mod, __FUNCTION__, __LINE__, LOG_CRIT_LEVEL, __VA_ARGS__)
+#if (CONFIG_RUNTIME_LOG_LEVEL >= LOG_CRIT_LEVEL)
+#define log_crit(mod, ...)          ulog(LOG_CRIT, NULL, ULOG_TAG, __VA_ARGS__)
 #else
-#define log_crit(mod, ...)          do {LITE_printf("[crt] "); LITE_printf(__VA_ARGS__); LITE_printf("\r\n");} while(0)
+#define log_crit(mod, ...)
 #endif
 
 int     log_multi_line_internal(const char *f, const int l,

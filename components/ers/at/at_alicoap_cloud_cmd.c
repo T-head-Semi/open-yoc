@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #include <yoc/udata.h>
 #include <yoc/iot.h>
 #include <yoc/atserver.h>
@@ -213,3 +213,4 @@ void at_cmd_alicoap_pub(char *cmd, int type, char *data)
         channel_unlock();
     }
 }
+#endif

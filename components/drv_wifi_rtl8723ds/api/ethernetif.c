@@ -129,7 +129,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
     }
 
     for (q = p; q != NULL && sg_len < MAX_ETH_DRV_SG; q = q->next) {
-        sg_list[sg_len].buf = (unsigned int) q->payload;
+        sg_list[sg_len].buf = (size_t)q->payload;
         sg_list[sg_len++].len = q->len;
     }
 
@@ -190,7 +190,7 @@ void ethernetif_recv(struct netif *netif, int total_len)
 
     // Create scatter list
     for (q = p; q != NULL && sg_len < MAX_ETH_DRV_SG; q = q->next) {
-        sg_list[sg_len].buf = (unsigned int) q->payload;
+        sg_list[sg_len].buf = (size_t)q->payload;
         sg_list[sg_len++].len = q->len;
     }
 

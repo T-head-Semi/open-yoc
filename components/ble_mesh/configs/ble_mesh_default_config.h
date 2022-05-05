@@ -98,11 +98,11 @@
 #endif
 
 #ifndef CONFIG_BT_MESH_APP_KEY_COUNT
-#define CONFIG_BT_MESH_APP_KEY_COUNT 1
+#define CONFIG_BT_MESH_APP_KEY_COUNT 2
 #endif
 
 #ifndef CONFIG_BT_MESH_MODEL_KEY_COUNT
-#define CONFIG_BT_MESH_MODEL_KEY_COUNT 1
+#define CONFIG_BT_MESH_MODEL_KEY_COUNT 2
 #endif
 
 #ifndef CONFIG_BT_MESH_MODEL_GROUP_COUNT
@@ -118,12 +118,40 @@
 #endif
 
 #ifndef CONFIG_BT_MESH_MSG_CACHE_SIZE
-#define CONFIG_BT_MESH_MSG_CACHE_SIZE 10
+/*[Genie begin] add by wenbing.cwb at 2021-08-04*/
+#ifdef CONFIG_BT_MESH_NPS_OPT
+#define CONFIG_BT_MESH_MSG_CACHE_SIZE 20
+#else
+#define CONFIG_BT_MESH_MSG_CACHE_SIZE 20
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-08-04*/
 #endif
 
 #ifndef CONFIG_BT_MESH_ADV_BUF_COUNT
+/*[Genie begin] add by wenbing.cwb at 2021-08-04*/
+#ifdef CONFIG_BT_MESH_NPS_OPT
+#define CONFIG_BT_MESH_ADV_BUF_COUNT 20
+#else
+#if  defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+#define CONFIG_BT_MESH_ADV_BUF_COUNT 6
+#else
 #define CONFIG_BT_MESH_ADV_BUF_COUNT 9
 #endif
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-08-04*/
+#endif
+
+
+
+#ifndef CONFIG_BT_MESH_RELAY_ADV_BUF_COUNT
+#if  defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+#define CONFIG_BT_MESH_RELAY_ADV_BUF_COUNT 2
+#else
+#define CONFIG_BT_MESH_RELAY_ADV_BUF_COUNT 0
+#endif
+#endif
+
+
 
 #ifndef CONFIG_BT_MESH_IVU_DIVIDER
 #define CONFIG_BT_MESH_IVU_DIVIDER 4
@@ -137,12 +165,23 @@
 #define CONFIG_BT_MESH_RX_SEG_MSG_COUNT 1
 #endif
 
+
 #ifndef CONFIG_BT_MESH_RX_SDU_MAX
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+#define CONFIG_BT_MESH_RX_SDU_MAX 362
+#else
 #define CONFIG_BT_MESH_RX_SDU_MAX 72
+#endif
 #endif
 
 #ifndef CONFIG_BT_MESH_TX_SEG_MAX
 #define CONFIG_BT_MESH_TX_SEG_MAX (CONFIG_BT_MESH_ADV_BUF_COUNT - 3)
+#endif
+
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+#ifndef CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH
+#define CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH         209 //222 for complete AUX
+#endif
 #endif
 
 #ifndef CONFIG_BT_MESH_RELAY

@@ -100,10 +100,11 @@ extern const char DM_URI_DEV_CORE_SERVICE_DEV[]              DM_READ_ONLY;
     extern const char DM_URI_THING_TOPO_CHANGE[]                 DM_READ_ONLY;
     extern const char DM_URI_THING_LIST_FOUND[]                  DM_READ_ONLY;
     extern const char DM_URI_THING_LIST_FOUND_REPLY[]            DM_READ_ONLY;
-    extern const char DM_URI_COMBINE_LOGIN[]                     DM_READ_ONLY;
-    extern const char DM_URI_COMBINE_LOGIN_REPLY[]               DM_READ_ONLY;
-    extern const char DM_URI_COMBINE_LOGOUT[]                    DM_READ_ONLY;
-    extern const char DM_URI_COMBINE_LOGOUT_REPLY[]              DM_READ_ONLY;
+
+    extern const char DM_URI_COMBINE_BATCH_LOGIN[]               DM_READ_ONLY;
+    extern const char DM_URI_COMBINE_BATCH_LOGIN_REPLY[]         DM_READ_ONLY;
+    extern const char DM_URI_COMBINE_BATCH_LOGOUT[]              DM_READ_ONLY;
+    extern const char DM_URI_COMBINE_BATCH_LOGOUT_REPLY[]        DM_READ_ONLY;
 #endif
 
 int dm_disp_uri_prefix_split(_IN_ const char *prefix, _IN_ char *uri, _IN_ int uri_len, _OU_ int *start, _OU_ int *end);
@@ -164,8 +165,9 @@ int dm_msg_proc_thing_topo_get_reply(_IN_ dm_msg_source_t *source);
 int dm_msg_proc_thing_topo_change(_IN_ dm_msg_source_t *source, _IN_ dm_msg_dest_t *dest,
                                      _OU_ dm_msg_request_payload_t *request, _OU_ dm_msg_response_t *response);
 int dm_msg_proc_thing_list_found_reply(_IN_ dm_msg_source_t *source);
-int dm_msg_proc_combine_login_reply(_IN_ dm_msg_source_t *source);
-int dm_msg_proc_combine_logout_reply(_IN_ dm_msg_source_t *source);
+
+int dm_msg_proc_combine_batch_login_reply(_IN_ dm_msg_source_t *source);
+int dm_msg_proc_combine_batch_logout_reply(_IN_ dm_msg_source_t *source);
 #endif
 
 #ifdef ALCS_ENABLED

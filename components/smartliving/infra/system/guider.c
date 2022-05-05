@@ -92,7 +92,7 @@ const char *domain_mqtt_direct[] = {
     "iot-as-mqtt.ap-southeast-1.aliyuncs.com", /* Singapore */
     "iot-as-mqtt.ap-northeast-1.aliyuncs.com", /* Japan */
     "iot-as-mqtt.us-east-1.aliyuncs.com",      /* America East*/
-    "iot-as-mqtt.eu-central-1.aliyuncs.com",    /* Germany */
+    "iot-as-mqtt.eu-central-1.aliyuncs.com",   /* Germany */
     "iot-as-mqtt.us-west-1.aliyuncs.com",      /* America West*/
 };
 
@@ -132,6 +132,13 @@ static int guider_get_dynamic_mqtt_url(char *p_mqtt_url, int mqtt_url_buff_len)
     int len = mqtt_url_buff_len;
 
     return HAL_Kv_Get(KV_MQTT_URL_KEY, p_mqtt_url, &len);
+}
+
+int guider_set_direct_connect_count(unsigned char count)
+{
+    direct_connect_count = count;
+
+    return 0;
 }
 
 int iotx_guider_get_kv_env(void)
@@ -285,7 +292,7 @@ int iotx_guider_set_dynamic_region(int region)
 {
     int ret = 0;
     char *p_dynamic_mqtt_url = NULL;
-    char product_key[PRODUCT_KEY_LEN];
+    char product_key[PRODUCT_KEY_LEN + 1];
 
     if (region == IOTX_CLOUD_REGION_INVALID)
     {
@@ -626,6 +633,11 @@ static connect_method_e get_connect_method(char *p_mqtt_url)
 {
     connect_method_e connect_method = CONNECT_PREAUTH;
 
+    if (GUIDER_ENV_DAILY == iotx_guider_get_env())
+    {
+        return CONNECT_DIRECT;
+    }
+
     if (p_mqtt_url && strlen(p_mqtt_url) > 0)
     {
         connect_method = CONNECT_DIRECT;
@@ -938,6 +950,37 @@ static int get_non_itls_host_and_port(sdk_impl_ctx_t *ctx, char *product_key, io
 }
 #endif
 
+#ifdef REPORT_UUID_ENABLE
+#define UUID_STRLEN_MAX (256)
+void _ident_uuid(char *buf, int len, sdk_impl_ctx_t *ctx)
+{
+    uint8_t sign_source[UUID_STRLEN_MAX] = {0};
+    unsigned char sign[64] = {0};
+    char out_sign[64] = {0};
+
+    int source_len = 0;
+
+    if (NULL == ctx || 1 != ctx->uuid_enabled)
+    {
+        return;
+    }
+    sys_info("uuid enabled\n");
+
+    source_len = HAL_GetUUID(sign_source, UUID_STRLEN_MAX);
+    if (source_len <= 0 || source_len > UUID_STRLEN_MAX)
+    {
+        sys_info("uuid return len %d, skip\n", source_len);
+        return;
+    }
+
+    utils_md5((unsigned char *)sign_source, source_len, sign);
+    LITE_hexbuf_convert(sign, out_sign, 16, 1);
+    snprintf(buf, UUID_STRLEN_MAX, ",_uuid=%s", out_sign);
+    sys_info("add uuid into clientId:%s", buf);
+    return;
+}
+#endif
+
 static int direct_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_dev,
                                 char *p_pid, char *p_mid, char *p_guider_url,
                                 char *p_guider_sign, secure_mode_e secure_mode, char *p_dynamic_mqtt_url)
@@ -947,7 +990,9 @@ static int direct_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_de
 
     char *authtype = "";
     char timestamp_str[GUIDER_TS_LEN] = {0};
-
+#ifdef REPORT_UUID_ENABLE
+    char uuid[UUID_STRLEN_MAX] = {0};
+#endif
     unsigned char token_str[RANDOM_STR_MAX_LEN] = {0};
     bind_token_type_t token_type;
 
@@ -1013,14 +1058,7 @@ static int direct_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_de
 #ifdef SUPPORT_ITLS
     authtype = ",authtype=id2";
 #else
-    if (p_dynamic_mqtt_url && strlen(p_dynamic_mqtt_url) > 0)
-    {
-        //if not on daily env
-        if (GUIDER_ENV_DAILY != iotx_guider_get_env())
-        {
-            authtype = ",authtype=custom-ilop";
-        }
-    }
+    authtype = ",authtype=custom-ilop";
 #endif
 
     awss_check_reset(&reset_type);
@@ -1028,13 +1066,26 @@ static int direct_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_de
 
     if ((reset_type != IOTX_VENDOR_DEV_RESET_TYPE_INVALID))
     {
-        HAL_Snprintf(reset_and_token, GUIDER_RESET_AND_TOKEN_LEN, ",reset=%d,tokenType=%d,token=%s", reset_type, token_type, token_str);
+        if (TOKEN_TYPE_NOT_CLOUD == token_type || TOKEN_TYPE_CLOUD == token_type)
+        {
+            HAL_Snprintf(reset_and_token, GUIDER_RESET_AND_TOKEN_LEN, ",reset=%d,tokenType=%d,token=%s", reset_type, token_type, token_str);
+        }
+        else
+        {
+            HAL_Snprintf(reset_and_token, GUIDER_RESET_AND_TOKEN_LEN, ",reset=%d", reset_type);
+        }
     }
     else
     {
-        HAL_Snprintf(reset_and_token, GUIDER_RESET_AND_TOKEN_LEN, ",tokenType=%d,token=%s", token_type, token_str);
+        if (TOKEN_TYPE_NOT_CLOUD == token_type || TOKEN_TYPE_CLOUD == token_type)
+        {
+            HAL_Snprintf(reset_and_token, GUIDER_RESET_AND_TOKEN_LEN, ",tokenType=%d,token=%s", token_type, token_str);
+        }
     }
 
+#ifdef REPORT_UUID_ENABLE
+    _ident_uuid(uuid, sizeof(uuid), ctx);
+#endif
     iotx_guider_fill_conn_string(conn->client_id, CLIENT_ID_LEN,
                                  "%s"
                                  "|securemode=%d"
@@ -1049,8 +1100,22 @@ static int direct_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_de
 #ifdef MQTT_AUTO_SUBSCRIBE
                                  ",_ss=1"
 #endif
+#ifdef REPORT_UUID_ENABLE
+                                 "%s"
+#endif
                                  "|",
-                                 p_dev->device_id, secure_mode, reset_and_token, timestamp_str, p_pid, p_mid, authtype, LIVING_SDK_VERSION);
+                                 p_dev->device_id, secure_mode, reset_and_token, timestamp_str, p_pid,
+#if (defined(TG7100CEVB)) // report chip info, dont change please!!!
+                                 "TG7100CEVB",
+#else
+                                 p_mid,
+#endif
+                                 authtype, LIVING_SDK_VERSION
+#ifdef REPORT_UUID_ENABLE
+                                 ,
+                                 uuid
+#endif
+    );
 
     guider_print_conn_info(conn);
 
@@ -1175,7 +1240,14 @@ static int guider_get_conn_info(iotx_conn_info_t *conn, iotx_device_info_t *p_de
         SYS_GUIDER_FREE(p_mqtt_url);
     }
 
-    return GUIDER_BOOTSTRAP_DONE; //Here return a minus number then will do mqtt connect immediately
+    if (bootup_connect_method == CONNECT_DIRECT)
+    {
+        return GUIDER_BOOTSTRAP_DONE; //Will do mqtt connect immediately
+    }
+    else
+    {
+        return -1;
+    }
 
 EXIT:
     if (p_request_buf)
@@ -1194,7 +1266,7 @@ EXIT:
     return -1;
 }
 
-int iotx_guider_authenticate(iotx_conn_info_t *conn_info)
+int iotx_guider_authenticate(iotx_conn_info_t *conn_info, void (*cb)(void *), void *client)
 {
     int ret = -1;
     char *p_pid = NULL;
@@ -1337,7 +1409,17 @@ EXIT:
         SYS_GUIDER_FREE(p_dynamic_mqtt_url);
     }
 
-    if (ret < 0 && ret != GUIDER_BOOTSTRAP_DONE)
+    if (ret == GUIDER_BOOTSTRAP_DONE)
+    {
+        // ret = iotx_guider_authenticate(conn_info);
+        if ( cb != NULL)
+        {
+            cb(client);
+        }
+        return ret;
+    }
+
+    if (ret < 0)
     {
         sys_err("guider auth fail");
     }

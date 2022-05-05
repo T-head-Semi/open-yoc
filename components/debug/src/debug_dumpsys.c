@@ -152,7 +152,8 @@ uint32_t dumpsys_task_func(char *buf, uint32_t len, int32_t detail)
             memcpy(name_cut, task->task_name, 18);
             task_name = name_cut;
 
-            strncpy(taskinfoeach->task_name, task_name, strlen(task_name));
+            strncpy(taskinfoeach->task_name, task_name, sizeof(taskinfoeach->task_name) - 1);
+            taskinfoeach->task_name[sizeof(taskinfoeach->task_name) - 1] = '\0';
         }
     }
 
@@ -260,6 +261,7 @@ static void task_btn(char *buf, int32_t len, int32_t argc, char **argv)
 }
 
 #if (RHINO_CONFIG_MM_DEBUG > 0)
+extern uint32_t dumpsys_mm_leakcheck(uint32_t call_cnt, int32_t query_index);
 static void mem_leak(char *buf, int32_t len, int32_t argc, char **argv)
 {
     static int call_cnt = 0;

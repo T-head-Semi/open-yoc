@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#define _GNU_SOURCE
 #include <aos/aos.h>
 #include <yoc/atserver.h>
 #include "yoc/at_port.h"

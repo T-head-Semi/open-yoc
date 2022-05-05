@@ -378,6 +378,7 @@ uint8_t hci_skb_get_pkt_type(sk_buff *skb);
 void hci_skb_set_pkt_type(sk_buff *skb, uint8_t pkt_type);
 void hci_skb_pull(OUT  sk_buff *skb, IN uint32_t len);
 sk_buff *hci_skb_alloc_and_init(IN uint8_t PktType, IN uint8_t *Data, IN uint32_t  DataLen);
+sk_buff *hci_skb_alloc_and_init_with_header(IN uint8_t PktType, IN uint8_t* header,IN uint8_t header_len, IN uint8_t *Data, IN uint32_t  DataLen);
 void hci_skb_queue_head(IN RTB_QUEUE_HEAD *skb_head, IN RTK_BUFFER *skb);
 void hci_skb_queue_tail(IN RTB_QUEUE_HEAD *skb_head, IN RTK_BUFFER *skb);
 RTK_BUFFER *hci_skb_dequeue_head(IN RTB_QUEUE_HEAD *skb_head);

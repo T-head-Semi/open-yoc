@@ -1,0 +1,120 @@
+/*
+ * Copyright (C) 2017 C-SKY Microsystems Co., Ltd. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "ringbuffer.h"
+
+#define MIN(a, b) (a) < (b) ? (a) : (b)
+#define aos_check_param(x)                                                                         \
+    if (!(x)) {                                                                                    \
+        return -1;                                                                                 \
+    }
+
+int ringbuffer_create(dev_ringbuf_t *ringbuffer, char *buffer, int length)
+{
+    aos_check_param(ringbuffer && buffer);
+
+    memset(buffer, 0, length);
+
+    ringbuffer->length = length - 1;
+    ringbuffer->ridx   = 0;
+    ringbuffer->widx   = 0;
+    ringbuffer->buffer = (uint8_t *)buffer;
+
+    return 0;
+}
+
+int ringbuffer_destroy(dev_ringbuf_t *ringbuffer)
+{
+    aos_check_param(ringbuffer);
+
+    ringbuffer->length = ringbuffer->ridx = ringbuffer->widx = 0;
+
+    return 0;
+}
+
+int ringbuffer_available_read_space(dev_ringbuf_t *ringbuffer)
+{
+    aos_check_param(ringbuffer);
+
+    uint32_t ridx = ringbuffer->ridx;
+    uint32_t widx = ringbuffer->widx;
+
+    if (ridx == widx) {
+        return 0;
+    } else if (ridx < widx) {
+        return widx - ridx;
+    } else {
+        return ringbuffer->length - (ridx - widx - 1);
+    }
+}
+
+int ringbuffer_write(dev_ringbuf_t *ringbuffer, uint8_t *data, uint32_t length)
+{
+    aos_check_param(ringbuffer && data);
+
+    int buffer_size = ringbuffer_available_write_space(ringbuffer);
+    int copy_sz     = MIN(length, buffer_size);
+
+    if (ringbuffer->widx < ringbuffer->ridx) {
+        memcpy(&ringbuffer->buffer[ringbuffer->widx], data, copy_sz);
+    } else {
+        int tmplen = ringbuffer->length - ringbuffer->widx + 1;
+        if (copy_sz <= tmplen) {
+            memcpy(&ringbuffer->buffer[ringbuffer->widx], data, copy_sz);
+        } else {
+            memcpy(&ringbuffer->buffer[ringbuffer->widx], data, tmplen);
+            memcpy(ringbuffer->buffer, data + tmplen, copy_sz - tmplen);
+        }
+    }
+
+    ringbuffer->widx = (ringbuffer->widx + copy_sz) % (ringbuffer->length + 1);
+
+    return copy_sz;
+}
+
+int ringbuffer_read(dev_ringbuf_t *ringbuffer, uint8_t *target, uint32_t amount)
+{
+    aos_check_param(ringbuffer && target);
+
+    if (amount == 0) {
+        return -1;
+    }
+
+    if (ringbuffer_empty(ringbuffer)) {
+        return 0;
+    }
+
+    /* get real read size */
+    int buffer_size = ringbuffer_available_read_space(ringbuffer);
+    int copy_sz     = MIN(amount, buffer_size);
+
+    int tmplen = ringbuffer->length - ringbuffer->ridx + 1;
+
+    if (copy_sz <= tmplen) {
+        memcpy(target, &ringbuffer->buffer[ringbuffer->ridx], copy_sz);
+    } else {
+        memcpy(target, &ringbuffer->buffer[ringbuffer->ridx], tmplen);
+        memcpy(target + tmplen, ringbuffer->buffer, copy_sz - tmplen);
+    }
+
+    ringbuffer->ridx = (ringbuffer->ridx + copy_sz) % (ringbuffer->length + 1);
+
+    return copy_sz;
+}

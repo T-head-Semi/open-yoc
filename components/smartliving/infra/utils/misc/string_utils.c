@@ -13,7 +13,9 @@ char *LITE_strdup(const char *src, ...)
 {
     int             len = 0;
     char           *dst = NULL;
-    
+    int             magic = 0;
+    char           *module_name = NULL;
+
     if (!src) {
         return NULL;
     }
@@ -24,8 +26,6 @@ char *LITE_strdup(const char *src, ...)
     }
 
 #if WITH_MEM_STATS_PER_MODULE
-    int             magic = 0;
-    char           *module_name = NULL;
     va_list         ap;
     va_start(ap, src);
     magic = va_arg(ap, int);
@@ -35,11 +35,7 @@ char *LITE_strdup(const char *src, ...)
     va_end(ap);
 #endif
 
-#if WITH_MEM_STATS_PER_MODULE
     dst = (char *)LITE_malloc(sizeof(char) * len, magic, module_name);
-#else
-    dst = (char *)LITE_malloc(sizeof(char) * len);
-#endif
 
     if (!dst) {
         return NULL;

@@ -23,7 +23,7 @@
 #include <string.h>
 #include <aos/debug.h>
 
-#include <devices/rtl8723ds.h>
+#include <devices/rtl8723ds_bt.h>
 #include <devices/uart.h>
 #include <devices/hal/hci_impl.h>
 #include <devices/device.h>
@@ -31,7 +31,6 @@
 #include <drv/gpio.h>
 #ifdef CONFIG_CSI_V2
 #include <soc.h>
-#include <drv/pin.h>
 #include <drv/gpio_pin.h>
 #else
 #include <pin_name.h>
@@ -44,8 +43,8 @@
 
 #define TAG "HCI"
 
-aos_dev_t* uart_dev;
-uart_config_t g_uart_config;
+// static aos_dev_t* uart_dev;
+//static uart_config_t g_uart_config;
 static void *g_priv;
 static hci_event_cb_t  g_event;
 static aos_event_t g_uart_event;
@@ -65,12 +64,12 @@ void hci_uart_entry(void *arg)
     }
 }
 
-static void uart_event(aos_dev_t *dev, int event_id, void *priv)
+static void uart_event(void *args)
 {
-    if (event_id == USART_EVENT_READ || event_id == USART_OVERFLOW) {
+    //if (event_id == USART_EVENT_READ || event_id == USART_OVERFLOW) {
         // printf("%s\n", __func__);
         aos_event_set(&g_uart_event, 0x1, AOS_EVENT_OR);
-    }
+    //}
 }
 
 static int h5_hal_open(aos_dev_t *dev)
@@ -84,7 +83,6 @@ static int h5_hal_open(aos_dev_t *dev)
 #ifdef CONFIG_CSI_V2
     csi_gpio_pin_t gpio;
 
-    csi_pin_set_mux(g_bt_dis_pin,   PIN_FUNC_GPIO);
     csi_gpio_pin_init(&gpio, g_bt_dis_pin);
     // aos_check(&gpio, EIO);
     csi_gpio_pin_dir(&gpio, GPIO_DIRECTION_OUTPUT);
@@ -97,7 +95,8 @@ static int h5_hal_open(aos_dev_t *dev)
     drv_pinmux_config(g_bt_dis_pin, PIN_FUNC_GPIO);
     gpio = csi_gpio_pin_initialize(g_bt_dis_pin, NULL);
     aos_check(gpio, EIO);
-    csi_gpio_pin_config(gpio, GPIO_MODE_PUSH_PULL, GPIO_DIRECTION_OUTPUT);
+    csi_gpio_pin_config_mode(gpio, GPIO_MODE_PULLNONE);
+    csi_gpio_pin_config_direction(gpio, GPIO_DIRECTION_OUTPUT);
 
     csi_gpio_pin_write(gpio, 0);
     aos_msleep(200);
@@ -108,7 +107,7 @@ static int h5_hal_open(aos_dev_t *dev)
     aos_check(!aos_event_new(&g_uart_event, 0), EIO);
 
     aos_task_t task_handle;
-    aos_check(!aos_task_new_ext(&task_handle, "hci_uart", hci_uart_entry, NULL, 2048, 26), EIO);
+    aos_check(!aos_task_new_ext(&task_handle, "hci_uart", hci_uart_entry, NULL, 2048 * 2, 26), EIO);
 
     userial_vendor_open(&userial_init_cfg, uart_event);
     return 0;

@@ -16,9 +16,14 @@
 #define HTTPCLIENT_MAX(x,y) (((x)>(y))?(x):(y))
 
 #define HTTPCLIENT_AUTHB_SIZE     128
-
+#ifdef LINK_VISUAL_ENABLE
+#define HTTPCLIENT_CHUNK_SIZE     200*1024      /* read payload */
+#define HTTPCLIENT_RAED_HEAD_SIZE 320           /* read header */
+#define HTTPCLIENT_DEFAULT_TIMEOUT 100
+#else
 #define HTTPCLIENT_CHUNK_SIZE     1024          /* read payload */
 #define HTTPCLIENT_RAED_HEAD_SIZE 32            /* read header */
+#endif
 #define HTTPCLIENT_SEND_BUF_SIZE  1024          /* send */
 
 #define HTTPCLIENT_MAX_HOST_LEN   128
@@ -725,8 +730,12 @@ int httpclient_response_parse(httpclient_t *client, char *data, int len, uint32_
             return ERROR_HTTP_PARSE;
         }
         max_remain_len = max_remain_len > HTTPCLIENT_RAED_HEAD_SIZE ? HTTPCLIENT_RAED_HEAD_SIZE : max_remain_len;
+#ifndef LINK_VISUAL_ENABLE
         ret = httpclient_recv(client, data + len, 1, max_remain_len, &new_trf_len, iotx_time_left(&timer));
-
+#else
+        ret = httpclient_recv(client, data + len, 1, max_remain_len, &new_trf_len,
+                              iotx_time_left(&timer) > HTTPCLIENT_DEFAULT_TIMEOUT ? HTTPCLIENT_DEFAULT_TIMEOUT : iotx_time_left(&timer));
+#endif
         if (ret == ERROR_HTTP_CONN) {
             return ret;
         }
@@ -863,7 +872,7 @@ int httpclient_common(httpclient_t *client, const char *url, int port, const cha
     char host[HTTPCLIENT_MAX_HOST_LEN] = { 0 };
 
     httpclient_parse_host(url, host, sizeof(host));
-    utils_info("host: '%s', port: %d", host, port);
+    //utils_info("host: '%s', port: %d", host, port);
 
     if (0 == client->net.handle) {
         /* Establish connection if no. */

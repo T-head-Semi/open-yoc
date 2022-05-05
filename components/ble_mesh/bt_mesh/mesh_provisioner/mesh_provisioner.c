@@ -9,10 +9,31 @@
 #include "provisioner_prov.h"
 #include "provisioner_main.h"
 #include "provisioner_proxy.h"
-
 #include "mesh_provisioner.h"
+#include "aos/kernel.h"
+#include "mesh_model/mesh_model.h"
 
 #ifdef CONFIG_BT_MESH_PROVISIONER
+
+
+typedef struct {
+    mesh_node_t node;
+    long long time_found;
+} report_node;
+
+typedef struct {
+    uint8_t front;
+    uint8_t rear;
+    uint8_t length;
+    report_node dev[DEF_REPORT_QUEUE_LENGTH];
+} node_data_queue;
+
+
+
+#ifndef MAX_MAC_FILTER_NUM
+#define MAX_MAC_FILTER_NUM 20
+#endif
+
 
 typedef struct _mesh_provisoner {
     provisioner_cb prov_cb;
@@ -21,12 +42,17 @@ typedef struct _mesh_provisoner {
     uint8_t uuid_filter[16];
     uint8_t uuid_filter_start;
     uint8_t uuid_filter_length;
-
+    klist_t mac_filter_head;
     k_timer_t found_dev_timer;
     uint32_t found_dev_timeout;//
 
+    k_timer_t node_report_timer;
+    node_data_queue dev_queue;
+
     uint8_t init_flag: 1;
     uint8_t filter_flag: 1;
+    uint8_t filter_mac_flag: 1;
+    uint8_t filter_mac_add_dev_flag: 1;
     uint8_t found_dev_succeed: 1;
     uint8_t prov_dev_succeed: 1;
     uint8_t prov_show_dev: 1;
@@ -44,8 +70,8 @@ typedef struct _mesh_provisoner {
 #define STATIC_OOB_MAX_LENGTH 16
 #define LOCAL_USER_TERM_CONN 0x16
 extern struct k_sem prov_input_sem;
-u8_t   prov_input[8];
-u8_t   prov_input_size;
+extern u8_t   prov_input[8];
+extern u8_t   prov_input_size;
 static uint8_t g_static_oob_data[STATIC_OOB_MAX_LENGTH + 1];
 static int provisioner_input_static_oob();
 static int provisioner_input_num(bt_mesh_output_action_t act, u8_t size);
@@ -78,10 +104,202 @@ mesh_provisoner g_mesh_prov = {
     .comp = {.provisioner = &g_provisioner,},
 };
 
+
+
+
+static bool is_node_data_queue_empty(node_data_queue *queue)
+{
+    return queue->front == queue->rear;
+}
+
+static bool is_node_data_queue_full(node_data_queue *queue)
+{
+    if ((queue->rear + 1) % DEF_REPORT_QUEUE_LENGTH == queue->front) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static report_node *get_node_data(node_data_queue *queue)
+{
+    if (is_node_data_queue_empty(queue)) {
+        return NULL;
+    } else {
+        report_node *data = &queue->dev[queue->front];
+        queue->front = (queue->front + 1) % DEF_REPORT_QUEUE_LENGTH;
+        return data;
+    }
+}
+
+#if 0
+static mesh_node_t *found_node(node_data_queue *queue, mesh_node_t *node)
+{
+    if (is_node_data_queue_empty(queue)) {
+        return NULL;
+    } else {
+
+        for (uint8_t i = queue->front; i < queue->rear ; i++) {
+            if (!memcmp(queue->dev[i].node.uuid, node->uuid, 16) && !memcmp(queue->dev[i].node.dev_addr, node->dev_addr, 6) &&  \
+                queue->dev[i].node.addr_type == node->addr_type && queue->dev[i].node.bearer == node->bearer && queue->dev[i].node.oob_info == node->oob_info) {
+                return &queue->dev[i].node;
+            }
+        }
+
+        return NULL;
+    }
+}
+#endif
+
+static int put_node_data(node_data_queue *queue, mesh_node_t *node)
+{
+
+    if (!queue || !node) {
+        return -1;
+    }
+
+    if (is_node_data_queue_full(queue)) {
+        return -1;
+    }
+
+    for (int i = queue->front; i < queue->rear ; i++) {
+        if (!memcmp(queue->dev[i].node.uuid, node->uuid, 16) && !memcmp(queue->dev[i].node.dev_addr, node->dev_addr, 6) &&  \
+            queue->dev[i].node.addr_type == node->addr_type && queue->dev[i].node.bearer == node->bearer && queue->dev[i].node.oob_info == node->oob_info) {
+            return 0;
+        }
+    }
+
+    memcpy(queue->dev[queue->rear].node.uuid, node->uuid, 16);
+    memcpy(queue->dev[queue->rear].node.dev_addr, node->dev_addr, 6);
+    queue->dev[queue->rear].node.addr_type = node->addr_type;
+    queue->dev[queue->rear].node.bearer = node->bearer;
+    queue->dev[queue->rear].node.oob_info = node->oob_info;
+    queue->dev[queue->rear].time_found = aos_now_ms();
+    queue->rear = (queue->rear + 1) % DEF_REPORT_QUEUE_LENGTH;
+    return 0;
+}
+
+
+static void clear_node_data()
+{
+    g_mesh_prov.dev_queue.front = 0;
+    g_mesh_prov.dev_queue.rear  = 0;
+    g_mesh_prov.dev_queue.length = DEF_REPORT_QUEUE_LENGTH;
+}
+
+void node_report_timeout(void *timer, void *args)
+{
+    if (!g_mesh_prov.enable) {
+        return;
+    }
+
+    report_node *report_node = NULL;
+    int index = 0;
+    int16_t ret;
+    bt_addr_le_t addr = {0};
+    k_timer_start(&g_mesh_prov.node_report_timer, DEF_DEV_REPORT_TIMEOUT);
+    long long time_now = aos_now_ms();
+    report_node = get_node_data(&g_mesh_prov.dev_queue);
+
+    if (!report_node) {
+        return;
+    }
+
+    if (report_node->time_found > time_now || time_now - report_node->time_found > DEF_REPORT_DEV_SURVIVE_TIME) {
+        LOGD(TAG, "drop the node survive %d ms", time_now - report_node->time_found);
+        return;
+    }
+
+    if (0 != report_node->node.prim_unicast) {
+        LOGD(TAG, "drop the node %04x has ben proved", report_node->node.prim_unicast);
+        return;
+    }
+
+    memcpy(addr.a.val, report_node->node.dev_addr, sizeof(addr.a.val));
+    addr.type = report_node->node.addr_type;
+    extern int provisioner_dev_find(const bt_addr_le_t *addr, const u8_t uuid [ 16 ], int *index);
+    ret = provisioner_dev_find(&addr, report_node->node.uuid, &index);
+
+    if (!ret) {
+        LOGD(TAG, "drop the node %04x has been added", report_node->node.prim_unicast);
+        return;
+    }
+
+    if (g_mesh_prov.prov_cb) {
+        g_mesh_prov.prov_cb(BT_MESH_EVENT_RECV_UNPROV_DEV_ADV, &report_node->node);
+    }
+}
+
+
+void mac_filter_list_init(klist_t *list)
+{
+    klist_init(list);
+}
+
+mac_filters_dev* mac_filter_dev_search(klist_t *list,dev_addr_t dev_info)
+{
+    klist_t    *q;
+    klist_t    *start;
+    klist_t    *end;
+    mac_filters_dev   *device_iter_temp = NULL;
+
+    start = list;
+    end   = list;
+
+    for (q = start->next; q != end; q = q->next) {
+        device_iter_temp = krhino_list_entry(q, mac_filters_dev, list);
+        if (!memcmp(&device_iter_temp->addr,&dev_info,sizeof(dev_addr_t))) {
+            return device_iter_temp;
+        }
+    }
+    return NULL;
+}
+
+mac_filters_dev* mac_filter_dev_get(klist_t *list)
+{
+    klist_t    *q;
+    klist_t    *start;
+    klist_t    *end;
+    //mac_filters_dev   *device_iter_temp = NULL;
+
+    start = list;
+    end   = list;
+
+    for (q = start->next; q != end; q = q->next) {
+        return krhino_list_entry(q, mac_filters_dev, list);
+    }
+    return NULL;
+}
+
+
+int mac_filter_add_dev(klist_t *list,mac_filters_dev *dev)
+{
+    if(mac_filter_dev_search(list,dev->addr)) {
+        LOGE(TAG,"device already exist");
+        return -1;
+    }
+    klist_insert(list, &dev->list);
+    return 0;
+}
+
+
+int mac_filter_rm_dev(klist_t *list,dev_addr_t dev_info)
+{
+    mac_filters_dev* dev = mac_filter_dev_search(list,dev_info);
+    if(!dev) {
+        LOGE(TAG,"no dev found");
+        return -1;
+    }
+    klist_rm(&dev->list);
+    return 0;
+}
+
+
 static void provisioner_unprovisioned_dev_found(const u8_t addr[6], const u8_t addr_type,
         const u8_t adv_type, const u8_t dev_uuid[16],
         u16_t oob_info, bt_mesh_prov_bearer_t bearer)
 {
+
     if (!g_mesh_prov.prov_show_dev) {
         return;
     }
@@ -92,15 +310,24 @@ static void provisioner_unprovisioned_dev_found(const u8_t addr[6], const u8_t a
         }
     }
 
-    if (g_mesh_prov.prov_cb) {
-        mesh_node_t node;
-        node.bearer = bearer;
-        node.addr_type = addr_type;
-        memcpy(node.dev_addr, addr, sizeof(node.dev_addr));
-        node.oob_info = oob_info;
-        memcpy(node.uuid, dev_uuid, sizeof(node.uuid));
-        g_mesh_prov.prov_cb(BT_MESH_EVENT_RECV_UNPROV_DEV_ADV, &node);
+    if(g_mesh_prov.filter_mac_flag && g_mesh_prov.filter_mac_add_dev_flag) {
+        dev_addr_t addr_temp = {0};
+        memcpy(&addr_temp.val,addr,6);
+        addr_temp.type   =  addr_type;
+        if(!mac_filter_dev_search(&g_mesh_prov.mac_filter_head, addr_temp)) {
+            return;
+        }
     }
+
+
+
+    mesh_node_t node;
+    node.bearer = bearer;
+    node.addr_type = addr_type;
+    memcpy(node.dev_addr, addr, sizeof(node.dev_addr));
+    node.oob_info = oob_info;
+    memcpy(node.uuid, dev_uuid, sizeof(node.uuid));
+    put_node_data(&g_mesh_prov.dev_queue, &node);
 
     g_mesh_prov.found_dev_succeed = 1;
 }
@@ -222,12 +449,13 @@ static int provisioner_output_num(bt_mesh_input_action_t act, u8_t size)
 static void provisioner_link_open(bt_mesh_prov_bearer_t bearer, uint8_t addr_val[6], uint8_t addr_type, uint8_t uuid[16], uint8_t prov_count)
 {
     LOGD(TAG, "Provisioner link opened on %d\n", bearer);
-
+#if 0
     if (addr_val && uuid) {
         memcpy(g_mesh_prov.del_dev.uuid, uuid, sizeof(g_mesh_prov.del_dev.uuid));
         memcpy(g_mesh_prov.del_dev.addr, addr_val, sizeof(g_mesh_prov.del_dev.addr));
         g_mesh_prov.del_dev.addr_type = addr_type;
     }
+#endif
 }
 
 
@@ -244,7 +472,11 @@ static void provisioner_link_close(bt_mesh_prov_bearer_t bearer, u8_t reason, ui
     }
 
     if (DEF_MAX_PROV_RETRY < prov_count) {
-        ret = ble_mesh_provisioner_dev_del(g_mesh_prov.del_dev.addr, g_mesh_prov.del_dev.addr_type, g_mesh_prov.del_dev.uuid);
+        bt_addr_le_t addr;
+        int i = 0;
+        memcpy(addr.a.val,addr_val,6);
+        addr.type = addr_type;
+        ret = provisioner_dev_remove(&addr,uuid,&i);
         if (ret) {
             LOGE(TAG, "del the faild prov dev faild");
         } else {
@@ -287,15 +519,25 @@ static void found_dev_time_out(void *timer, void *arg)
 
 int ble_mesh_provisioner_init(provisioner_config_t *param)
 {
-
-    if (!param || param->unicast_addr_local >= param->unicast_addr_start) {
+    if (!param) {
         return -1;
     }
 
-    k_timer_init(&g_mesh_prov.found_dev_timer, found_dev_time_out, NULL);
+	if(g_mesh_prov.init_flag) {
+        return -EALREADY;
+	}
 
-    g_provisioner.prov_unicast_addr = param->unicast_addr_local;
-    g_provisioner.prov_start_address = param->unicast_addr_start;
+    const struct bt_mesh_comp *mesh_comp = ble_mesh_model_get_comp_data();
+    if(!mesh_comp) {
+        return -1;
+    }
+
+	k_timer_init(&g_mesh_prov.found_dev_timer, found_dev_time_out, NULL);
+    k_timer_init(&g_mesh_prov.node_report_timer, node_report_timeout, NULL);
+
+    g_provisioner.prov_unicast_addr = param->unicast_addr_start;
+    g_provisioner.prov_start_address = param->unicast_addr_start + mesh_comp->elem_count;
+    g_provisioner.prov_end_address   = param->unicast_addr_end;
     g_provisioner.prov_attention = param->attention_time;
     g_mesh_prov.prov_cb = param->cb;
     g_mesh_prov.comp.provisioner = &g_provisioner;
@@ -306,12 +548,9 @@ int ble_mesh_provisioner_init(provisioner_config_t *param)
 
 const ble_mesh_provisioner_t *ble_mesh_provisioner_get_provisioner_data()
 {
-    if (!g_mesh_prov.init_flag) {
-        return NULL;
-    }
-
     return &g_mesh_prov.comp;
 }
+
 
 int ble_mesh_provisioner_enable()
 {
@@ -364,6 +603,7 @@ int ble_mesh_provisioner_disable()
 }
 
 
+
 int ble_mesh_provisioner_dev_filter(uint8_t enable, uuid_filter_t *filter)
 {
     if (!g_mesh_prov.init_flag || !g_mesh_prov.enable) {
@@ -391,11 +631,152 @@ int ble_mesh_provisioner_dev_filter(uint8_t enable, uuid_filter_t *filter)
     return 0;
 }
 
+
+int ble_mesh_provisioner_mac_filter_enable()
+{
+    static int mac_filter_init_flag = 0;
+    if (!g_mesh_prov.init_flag || !g_mesh_prov.enable) {
+        return -1;
+    }
+    if(g_mesh_prov.filter_mac_flag) {
+        return -EALREADY;
+    } else {
+        if(!mac_filter_init_flag) {
+            mac_filter_list_init(&g_mesh_prov.mac_filter_head);
+            g_mesh_prov.filter_mac_add_dev_flag = 0;
+            mac_filter_init_flag = 1;
+        } else {
+            if(g_mesh_prov.filter_mac_add_dev_flag) {
+                clear_node_data();
+            }
+        }
+        g_mesh_prov.filter_mac_flag  = 1;
+
+    }
+    return 0;
+
+}
+
+
+int ble_mesh_provisioner_mac_filter_disable()
+{
+    if (!g_mesh_prov.init_flag || !g_mesh_prov.enable) {
+        return -1;
+    }
+
+    if(!g_mesh_prov.filter_mac_flag) {
+        return -EALREADY;
+    }
+
+    g_mesh_prov.filter_mac_flag  = 0;
+    return 0;
+
+}
+
+
+int ble_mesh_provisioner_mac_filter_clear()
+{
+    if (!g_mesh_prov.init_flag) {
+        return -1;
+    }
+
+    mac_filters_dev * dev = NULL;
+    dev = mac_filter_dev_get(&g_mesh_prov.mac_filter_head);
+    while(dev) {
+        klist_rm(&dev->list);
+        aos_free(dev);
+        dev = mac_filter_dev_get(&g_mesh_prov.mac_filter_head);
+    }
+    mac_filter_list_init(&g_mesh_prov.mac_filter_head);
+    g_mesh_prov.filter_mac_add_dev_flag = 0;
+
+    return 0;
+
+}
+
+
+int ble_mesh_provisioner_mac_filter_dev_add(uint8_t             mac_size,dev_addr_t *mac)
+{
+    if(!g_mesh_prov.filter_mac_flag) {
+        return -1;
+    }
+
+    if(!mac_size || !mac) {
+        return -1;
+    }
+
+    mac_filters_dev* mac_list  = NULL;
+    mac_list = (mac_filters_dev* )aos_malloc(mac_size * sizeof(mac_filters_dev));
+    if(!mac_list) {
+        return -1;
+    }
+
+    for(int i = 0; i< mac_size; i++) {
+        if(mac_filter_dev_search(&g_mesh_prov.mac_filter_head, mac[i])) {
+            aos_free(&mac_list[i]);
+        } else {
+            memcpy(&mac_list[i].addr,&mac[i],sizeof(dev_addr_t));
+            if(mac_filter_add_dev(&g_mesh_prov.mac_filter_head, &mac_list[i])) {
+                aos_free(&mac_list[i]);
+                return -1;
+            }
+        }
+    }
+
+    clear_node_data();
+
+    g_mesh_prov.filter_mac_add_dev_flag = 1;
+    return 0;
+
+}
+
+
+int ble_mesh_provisioner_mac_filter_dev_rm(uint8_t            mac_size,dev_addr_t *mac)
+{
+    if(!g_mesh_prov.filter_mac_flag) {
+        return -1;
+    }
+
+    if(!mac_size || !mac) {
+        return -1;
+    }
+
+    uint8_t found_dev_flag = 0;
+    mac_filters_dev* dev= NULL;
+
+    for(int i = 0; i < mac_size; i++) {
+        dev = mac_filter_dev_search(&g_mesh_prov.mac_filter_head,mac[i]);
+        if(dev) {
+            klist_rm(&dev->list);
+            aos_free(dev);
+            found_dev_flag = 1;
+        }
+    }
+
+    if(is_klist_empty(&g_mesh_prov.mac_filter_head)) {
+        g_mesh_prov.filter_mac_add_dev_flag = 0;
+    }
+
+    if(found_dev_flag) {
+        return 0;
+    } else {
+        return -1;
+    }
+
+}
+
+
+
+
 int ble_mesh_provisioner_show_dev(uint8_t enable, uint32_t timeout)
 {
     if (!g_mesh_prov.init_flag || !g_mesh_prov.enable) {
         return -1;
     }
+
+    g_mesh_prov.dev_queue.front = 0;
+    g_mesh_prov.dev_queue.rear = 0;
+    g_mesh_prov.dev_queue.length = DEF_REPORT_QUEUE_LENGTH;
 
     if (enable) {
         g_mesh_prov.prov_show_dev = 1;
@@ -404,8 +785,10 @@ int ble_mesh_provisioner_show_dev(uint8_t enable, uint32_t timeout)
             k_timer_start(&g_mesh_prov.found_dev_timer, timeout * 1000);
             g_mesh_prov.found_dev_succeed = 0;
         }
+        k_timer_start(&g_mesh_prov.node_report_timer,DEF_DEV_REPORT_TIMEOUT);
     } else {
         k_timer_stop(&g_mesh_prov.found_dev_timer);
+        k_timer_stop(&g_mesh_prov.node_report_timer);
         g_mesh_prov.prov_show_dev = 0;
     }
 
@@ -452,8 +835,8 @@ int ble_mesh_provisioner_get_add_appkey_flag(u16_t unicast_addr)
     if (!g_mesh_prov.init_flag || !g_mesh_prov.enable) {
         return -1;
     }
-  extern uint8_t get_node_auto_add_appkey_flag(u16_t unicast_addr);
-  return get_node_auto_add_appkey_flag(unicast_addr);
+    extern uint8_t get_node_auto_add_appkey_flag(u16_t unicast_addr);
+    return get_node_auto_add_appkey_flag(unicast_addr);
 }
 
 
@@ -518,7 +901,7 @@ int ble_mesh_provisioner_OOB_input_num(uint32_t num)
 
 int ble_mesh_provisioner_static_OOB_set(const uint8_t *oob, uint16_t oob_size)
 {
-    if (!g_mesh_prov.init_flag || !g_mesh_prov.enable || !oob || 16 != oob_size) {
+    if (!g_mesh_prov.init_flag || !g_mesh_prov.enable || !oob || !oob_size) {
         return -1;
     }
 

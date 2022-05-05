@@ -1,14 +1,17 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
+#include <errno.h>
 #include <string.h>
-#include <yoc/partition.h>
 #include "yoc/fota.h"
-#include <verify.h>
-#include <verify_wrapper.h>
 #include <ulog/ulog.h>
 
 #define TAG "fotav"
+
+#ifndef __linux__
+#include <yoc/partition.h>
+#include <verify.h>
+#include <verify_wrapper.h>
 
 #define DUMP_DATA_EN 0
 
@@ -41,7 +44,18 @@ static void dump_data(uint8_t *data, int32_t len)
 }
 #endif
 
-int fota_data_verify(void)
+#if defined(CONFIG_FOTA_DATA_IN_RAM) && CONFIG_FOTA_DATA_IN_RAM > 0
+/**
+ * @brief  获取存储fota数据的ram地址
+ * @return address
+ */
+__attribute__((weak)) unsigned long fota_data_address_get(void)
+{
+    return 0;
+}
+#endif
+
+__attribute__((weak)) int fota_data_verify(void)
 {
 #define FOTA_DATA_MAGIC 0x45474d49
 #define BUF_SIZE 512
@@ -56,11 +70,26 @@ int fota_data_verify(void)
     signature_sch_e sign_type;
     partition_t partition;
     partition_info_t *partition_info;
+    fota_head_info_t *head;
+    unsigned long data_address_start;
 
     LOGD(TAG, "start fota verify...");
     ret = 0;
     buffer = NULL;
     hash_out = NULL;
+#if CONFIG_FOTA_DATA_IN_RAM > 0
+    (void)partition;
+    (void)partition_info;
+    data_address_start = fota_data_address_get();
+    if (data_address_start == 0) {
+        LOGE(TAG, "fota data address[0x%x] error.", data_address_start);
+        return -1;
+    }
+    head = (fota_head_info_t *)data_address_start;
+    fota_data_offset = 0;
+    buffer = aos_malloc(BUF_SIZE);
+#else
+    (void)data_address_start;
     partition = partition_open("misc");
     if (partition < 0) {
         LOGE(TAG, "flash open e.");
@@ -81,7 +110,8 @@ int fota_data_verify(void)
         ret = -EIO;
         goto out;
     }
-    fota_head_info_t *head = (fota_head_info_t *)buffer;
+    head = (fota_head_info_t *)buffer;
+#endif
     if (head->magic != FOTA_DATA_MAGIC) {
         LOGE(TAG, "app fota data magic e");
         ret = -1;
@@ -108,7 +138,15 @@ int fota_data_verify(void)
         ret = -ENOMEM;
         goto out;
     }
-    ret = hash_calc_start(digest_type, (const uint8_t *)fota_data_offset + partition_info->base_addr + partition_info->start_addr, image_size, hash_out, &olen, 0);
+#if CONFIG_FOTA_DATA_IN_RAM > 0
+    ret = hash_calc_start(digest_type, (const uint8_t *)(fota_data_offset + data_address_start), image_size, hash_out, &olen, 1);
+    if (ret != 0) {
+        LOGE(TAG, "hash calc failed.");
+        goto out;
+    }
+    memcpy(buffer, (void *)(hash_offset + data_address_start), hash_len);
+#else
+    ret = hash_calc_start(digest_type, (const uint8_t *)((long)(fota_data_offset + partition_info->base_addr + partition_info->start_addr)), image_size, hash_out, &olen, 0);
     if (ret != 0) {
         LOGE(TAG, "hash calc failed.");
         goto out;
@@ -117,6 +155,7 @@ int fota_data_verify(void)
         ret = -EIO;
         goto out;
     }
+#endif
 
 #if CONFIG_FOTA_IMG_AUTHENTICITY_NOT_CHECK == 0
     // TODO: not support yet
@@ -155,6 +194,17 @@ out:
         aos_free(buffer);
     if (hash_out)
         aos_free(hash_out);
+#if CONFIG_FOTA_DATA_IN_RAM == 0
     partition_close(partition);
+#endif
     return ret;
 }
+
+#else
+
+__attribute__((weak)) int fota_data_verify(void)
+{
+    return 0;
+}
+
+#endif /*__linux__*/

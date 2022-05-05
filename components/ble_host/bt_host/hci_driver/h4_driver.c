@@ -40,11 +40,14 @@
 static int h4_open(void);
 static int h4_send(struct net_buf *buf);
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
 #ifndef CONFIG_BT_HCI_RX_STACK_SIZE
 #define CONFIG_BT_HCI_RX_STACK_SIZE CONFIG_BT_RX_STACK_SIZE
 #endif
 
 static cpu_stack_t hci_rx_task_stack[CONFIG_BT_HCI_RX_STACK_SIZE / 4];
+#endif
 
 static const struct bt_hci_driver drv = {
     .name       = "H4",
@@ -92,10 +95,10 @@ static int h4_send(struct net_buf *buf)
         net_buf_unref(buf);
     }
 
-    if (ret == -BT_HCI_ERR_MEM_CAPACITY_EXCEEDED)
-    {
+    if (ret == -BT_HCI_ERR_MEM_CAPACITY_EXCEEDED) {
         ret = -ENOMEM;
     }
+
     return ret;
 }
 
@@ -136,12 +139,21 @@ int hci_event_recv(uint8_t *data, uint16_t data_len)
     if (hdr.evt == BT_HCI_EVT_LE_META_EVENT) {
         sub_event = *pdata++;
 
-        if (sub_event == BT_HCI_EVT_LE_ADVERTISING_REPORT) {
+        if (sub_event == BT_HCI_EVT_LE_ADVERTISING_REPORT
+#if defined(CONFIG_BT_EXT_ADV)
+            || sub_event == BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT
+#endif
+           ) {
             discardable = 1;
         }
     }
 
+#if !defined(CONFIG_BT_RECV_IS_RX_THREAD)
+    k_timeout_t timeout = discardable ? 0 : K_FOREVER;
+    buf = bt_buf_get_evt(hdr.evt, discardable, timeout);
+#else
     buf = bt_buf_get_evt(hdr.evt, discardable, 0);
+#endif
 
     if (!buf && discardable) {
         //g_hci_debug_counter.event_discard_count++;
@@ -159,6 +171,9 @@ int hci_event_recv(uint8_t *data, uint16_t data_len)
 
     BT_DBG("event %s", bt_hex(buf->data, buf->len));
     //g_hci_debug_counter.event_in_count++;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+    bt_recv(buf);
+#else
 
     if (bt_hci_evt_is_prio(hdr.evt)) {
         bt_recv_prio(buf);
@@ -166,6 +181,7 @@ int hci_event_recv(uint8_t *data, uint16_t data_len)
         bt_recv(buf);
     }
 
+#endif
     return 0;
 
 err:
@@ -203,7 +219,11 @@ int hci_acl_recv(uint8_t *data, uint16_t data_len)
         goto err;
     }
 
+#if !defined(CONFIG_BT_RECV_IS_RX_THREAD)
+    buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
+#else
     buf = bt_buf_get_rx(BT_BUF_ACL_IN, 0);
+#endif
 
     if (!buf) {
         //g_hci_debug_counter.hci_in_is_null_count++;
@@ -225,9 +245,35 @@ err:
 
 static void _hci_recv_event(hci_event_t event, uint32_t size, void *priv)
 {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+    extern void hci_rx_signal();
+    hci_rx_signal();
+#else
     krhino_sem_give(&hci_h4.sem);
+#endif
 }
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+void hci_drvier_rx_process()
+{
+    static uint8_t recv_data[260];
+    int size = 0;
+
+    if (!hci_h4.dev) {
+        return;
+    }
+
+    size = hci_recv(hci_h4.dev, recv_data, sizeof(recv_data));
+
+    if (size > 0) {
+        if (recv_data[0] == H4_EVT) {
+            hci_event_recv(recv_data, size);
+        } else if (recv_data[0] == H4_ACL) {
+            hci_acl_recv(recv_data, size);
+        }
+    }
+}
+#else
 static void hci_rx_task(void *arg)
 {
     static uint8_t recv_data[256];
@@ -251,6 +297,7 @@ static void hci_rx_task(void *arg)
         aos_task_yield();
     }
 }
+#endif
 
 static int h4_open(void)
 {
@@ -265,9 +312,12 @@ static int h4_open(void)
 
     hci_set_event(hci_h4.dev, _hci_recv_event, NULL);
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+#else
     krhino_task_create(&hci_h4.task, "hci_rx_task", NULL,
                        CONFIG_BT_RX_PRIO, 1, hci_rx_task_stack,
                        CONFIG_BT_HCI_RX_STACK_SIZE / 4, (task_entry_t)hci_rx_task, 1);
+#endif
 
     return 0;
 }

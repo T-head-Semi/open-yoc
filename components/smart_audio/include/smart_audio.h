@@ -1,33 +1,166 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-#ifndef _YOC_smart_audio_H_
-#define _YOC_smart_audio_H_
+#ifndef _YOC_SMART_AUDIO_H_
+#define _YOC_SMART_AUDIO_H_
 
 #include <media.h>
+#include <media_typedef.h>
+#include <aos/list.h>
 
-// SYSTEM状态变化不会改变SMTAUDIO_STATE，只有MUSIC状态会改变
+#define VOLUME_SAVE_KV_NAME "volume"
+#define INTERRUPT_REASON_BY_USER 255
+
 typedef enum {
-    SMTAUDIO_STATE_PLAYING,      // 正在播放状态
-    SMTAUDIO_STATE_PAUSE,        // 暂停状态
-    SMTAUDIO_STATE_ZERO_VOLUME,  // 零音量状态
-    SMTAUDIO_STATE_MUTE,         // 静音禁麦状态，除了禁麦键外，其他按键和语音指令都不响应
-    SMTAUDIO_STATE_STOP,         // 停止状态
+    SMTAUDIO_ONLINE_MUSIC = MEDIA_MUSIC, /*音乐播放*/
+    SMTAUDIO_LOCAL_PLAY   = MEDIA_SYSTEM, /*通知播放*/
+    SMTAUDIO_BT_A2DP     = 102, /*蓝牙a2dp*/
+    SMTAUDIO_BT_HFP      = 103, /*蓝牙hfp*/
+    SMTAUDIO_PLAY_TYPE_NUM = 4, /*类型总数*/
+    SMTAUDIO_TYPE_ALL     = 255,
+} smtaudio_player_type_t;
+
+#define DEFAULT_PLAY_TYPE SMTAUDIO_LOCAL_PLAY
+
+typedef enum {
+    SMTAUDIO_STATE_PLAYING,
+    SMTAUDIO_STATE_PAUSE,
+    SMTAUDIO_STATE_STOP,
+    SMTAUDIO_STATE_MUTE,
     SMTAUDIO_STATE_NUM
 } smtaudio_state_t;
 
+typedef enum {
+    SMTAUDIO_SUBSTATE_ONLINE_PLAYING,
+    SMTAUDIO_SUBSTATE_ONLINE_PAUSE,
+    SMTAUDIO_SUBSTATE_ONLINE_STOP,
+
+    SMTAUDIO_SUBSTATE_LOCAL_PLAYING,
+    SMTAUDIO_SUBSTATE_LOCAL_PAUSE,
+    SMTAUDIO_SUBSTATE_LOCAL_STOP,
+
+    SMTAUDIO_SUBSTATE_BT_A2DP_PLAYING,
+    SMTAUDIO_SUBSTATE_BT_A2DP_PAUSE,
+    SMTAUDIO_SUBSTATE_BT_A2DP_STOP,
+
+    SMTAUDIO_SUBSTATE_BT_HFP_PLAYING,
+    SMTAUDIO_SUBSTATE_BT_HFP_PAUSE,
+    SMTAUDIO_SUBSTATE_BT_HFP_STOP,
+
+    SMTAUDIO_SUBSTATE_MUTE,
+
+    SMTAUDIO_SUBSTATE_NUM
+} smtaudio_sub_state_t;
+
+typedef enum {
+    SMTAUDIO_PLAYER_EVENT_ERROR = AUI_PLAYER_EVENT_ERROR,
+    SMTAUDIO_PLAYER_EVENT_START = AUI_PLAYER_EVENT_START,
+    SMTAUDIO_PLAYER_EVENT_STOP = AUI_PLAYER_EVENT_FINISH,
+    SMTAUDIO_PLAYER_EVENT_RESUME = AUI_PLAYER_EVENT_RESUME,
+    SMTAUDIO_PLAYER_EVENT_UNDER_RUN = AUI_PLAYER_EVENT_UNDER_RUN,
+    SMTAUDIO_PLAYER_EVENT_OVER_RUN = AUI_PLAYER_EVENT_OVER_RUN,
+    SMTAUDIO_PLAYER_EVENT_PAUSE = AUI_PLAYER_EVENT_PAUSE,
+} smtaudio_player_evtid_t;
+
+typedef struct smtaudio_ops_node {
+    const char *name;
+    int         prio;
+    int         id;
+    dlist_t     node;
+    int         status;
+    int (*init)(void);
+    int (*deinit)(void);
+    int (*start)(const char *url, uint64_t seek_time, int resume);
+    int (*pause)(void);
+    int (*stop)(void);
+    int (*resume)(void);
+    int (*vol_get)(void);
+    int (*vol_set)(int vol);
+    int (*vol_up)(int vol);
+    int (*vol_down)(int vol);
+    void (*callback)(int type, smtaudio_player_evtid_t evt_id);
+} smtaudio_ops_node_t;
+
+typedef struct smtaudio_delay_list_node {
+    dlist_t     node;
+    int         prio;
+    int         id;
+    char *      url;
+    int         seek_time;
+    int         delay_reason;
+    int         valid;
+} smtaudio_delay_list_node_t;
+
+typedef struct smtaudio_broken_list_node {
+    dlist_t     node;
+    int         prio;
+    int         id;
+    int         interrupt_reason;
+    int         valid;
+} smtaudio_resume_list_node_t;
+
+typedef struct audio_result {
+    int type;
+    int evt_id;
+} audio_result_t;
+
 /**
- * @brief  init smart audio
- * @param  [in] stack_size     : stack size of media task
- * @param  [in] media_evt      : callback function to handle media event
+ * @brief  audio control ops register
+ * @return audio control reg_id
+ */
+uint32_t smtaudio_ops_register(smtaudio_ops_node_t *ops);
+
+/**
+ * @brief  audio control register for system play
  * @param  [in] min_vol        : minimum volume, if current system vol is 0, TTS will be set to min_vol
  * @param  [in] aef_conf       : audio effect config data buffer point, disable aef set NULL
  * @param  [in] aef_conf_size  : audio effect config data buffer size
  * @param  [in] speed          : audio play init speed, >=0.5 && <=2
  * @param  [in] resample       : resample rate, 16000, 44100, 48000
+ * @return audio control reg_id
+ */
+typedef void (*audio_evt_t)(int type, smtaudio_player_evtid_t evt_id);
+uint32_t smtaudio_register_local_play(uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);
+
+/**
+ * @brief  audio control register for bt music
+ * @param  [in] min_vol        : minimum volume, if current system vol is 0, TTS will be set to min_vol
+ * @param  [in] aef_conf       : audio effect config data buffer point, disable aef set NULL
+ * @param  [in] aef_conf_size  : audio effect config data buffer size
+ * @param  [in] speed          : audio play init speed, >=0.5 && <=2
+ * @param  [in] resample       : resample rate, 16000, 44100, 48000
+ * @return audio control reg_id
+ */
+uint32_t smtaudio_register_bt_a2dp(uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);
+
+/**
+ * @brief  audio control register for bt call
+ * @param  [in] min_vol        : minimum volume, if current system vol is 0, TTS will be set to min_vol
+ * @param  [in] aef_conf       : audio effect config data buffer point, disable aef set NULL
+ * @param  [in] aef_conf_size  : audio effect config data buffer size
+ * @param  [in] speed          : audio play init speed, >=0.5 && <=2
+ * @param  [in] resample       : resample rate, 16000, 44100, 48000
+ * @return audio control reg_id
+ */
+uint32_t smtaudio_register_bt_hfp(uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);
+
+/**
+ * @brief  audio control register for online music
+ * @param  [in] min_vol        : minimum volume, if current system vol is 0, TTS will be set to min_vol
+ * @param  [in] aef_conf       : audio effect config data buffer point, disable aef set NULL
+ * @param  [in] aef_conf_size  : audio effect config data buffer size
+ * @param  [in] speed          : audio play init speed, >=0.5 && <=2
+ * @param  [in] resample       : resample rate, 16000, 44100, 48000
+ * @return audio control reg_id
+ */
+uint32_t smtaudio_register_online_music(uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);
+
+/**
+ * @brief  init smart audio
+ * @param  [in] audio_evt_cb   : callback function to handle audio event
  * @return 0 on success, negative value on failed
  */
-int8_t smtaudio_init(size_t stack_size, media_evt_t media_evt, uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);
+int8_t smtaudio_init(audio_evt_t audio_evt_cb);
 
 /**
  * @brief  increase volume
@@ -76,7 +209,7 @@ int8_t smtaudio_resume(void);
 
 /**
  * @brief  start playing new stream
- * @param  [in] type            : can be system or music
+ * @param  [in] type
  * @param  [in] url             : stream url
  * @param  [in] seek_time       : 0 - play from beginning
  *                                >0 - play from seek position
@@ -87,31 +220,17 @@ int8_t smtaudio_start(int type, char *url, uint64_t seek_time, uint8_t resume);
 
 /**
  * @brief  stop playing current stream
- * @param  [in] type            : can be system or music
+ * @param  [in] type
  * @return 0 on success, negative value on failed
  */
 int8_t smtaudio_stop(int type);
 
-/**
- * @brief  get player configuration
- * @param  [in] config            : player configuration
- * @return 0 on success, negative value on failed
- */
-int8_t smtaudio_get_config(aui_player_config_t *config);
-
-/**
- * @brief  set player configuration
- * @param  [in] config            : player configuration
- * @return 0 on success, negative value on failed
- */
-int8_t smtaudio_set_config(aui_player_config_t *config);
-
 #define smtaudio_set_speed(speed) aui_player_set_speed(MEDIA_MUSIC, speed)
-
+#define smtaudio_get_speed(speed) aui_player_get_speed(MEDIA_MUSIC, speed)
 
 /**
  * @brief  set smart audio to lpm mode
- * @param  [in] state          : 1 - enter lpm, 0 - leave lpm
+ * @param  [in] state          : 0 - enter lpm, 1 - leave lpm
  * @return 0 on success, negative value on failed
  */
 int8_t smtaudio_lpm(uint8_t state);
@@ -123,9 +242,31 @@ int8_t smtaudio_lpm(uint8_t state);
 smtaudio_state_t smtaudio_get_state(void);
 
 /**
+ * @brief  get current smart audio state
+ * @return smart audio play type
+ */
+smtaudio_player_type_t smtaudio_get_play_type(void);
+
+/**
+ * @brief  clear resume/delay_play node
+ */
+void smtaudio_clear_ready_list(void);
+
+/**
+ * @brief  enable/disable current node in resume/delay_play
+ */
+void smtaudio_enable_ready_list(int enable);
+
+/**
  * @brief  deinit smart audio
  * @return 0 on success, negative value on failed
  */
 int8_t smtaudio_deinit(void);
 
-#endif //_YOC_smart_audio_H_
+/**
+ * @brief  smart audio check state for lpm 
+ * @return 0 forbid, 1 allow
+ */
+int smtaudio_enter_lpm_check(void);
+
+#endif //_YOC_SMART_AUDIO_H_

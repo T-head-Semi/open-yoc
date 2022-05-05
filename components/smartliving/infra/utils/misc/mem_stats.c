@@ -508,9 +508,11 @@ void LITE_free_internal(void *ptr)
 
 void *LITE_malloc_routine(int size, ...)
 {
-#if WITH_MEM_STATS_PER_MODULE
     int magic = 0;
     char *module_name = NULL;
+
+#if WITH_MEM_STATS_PER_MODULE
+
     va_list ap;
     va_start(ap, size);
     magic = va_arg(ap, int);
@@ -520,18 +522,16 @@ void *LITE_malloc_routine(int size, ...)
     va_end(ap);
 #endif
 
-#if WITH_MEM_STATS_PER_MODULE
     return LITE_malloc(size, magic, module_name);
-#else
-    return LITE_malloc(size);
-#endif
 }
 
 void *LITE_calloc_routine(size_t n, size_t s, ...)
 {
-#if WITH_MEM_STATS_PER_MODULE
     int magic = 0;
     char *module_name = NULL;
+
+#if WITH_MEM_STATS_PER_MODULE
+
     va_list ap;
     va_start(ap, s);
     magic = va_arg(ap, int);
@@ -541,11 +541,7 @@ void *LITE_calloc_routine(size_t n, size_t s, ...)
     va_end(ap);
 #endif
 
-#if WITH_MEM_STATS_PER_MODULE
-    return LITE_malloc(n * s, magic, module_name);
-#else
-    return LITE_malloc(n * s);
-#endif
+    return LITE_malloc(n * s, magic, module_name);;
 }
 
 void LITE_free_routine(void *ptr)

@@ -1,10 +1,11 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #include <errno.h>
 #include <aos/debug.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "../at_internal.h"
 #include "at_socket.h"
@@ -49,13 +50,14 @@ static at_parse_func_t g_at_parse_func[] = {
     {TYPE_UDP_UNICAST,5,5,{{1, at_parse_id},{1, at_parse_type},{1, at_parse_ip},{1, at_parse_rport},{1, at_parse_lport}}},
 };
 
+extern int strsplit(char **array, size_t count, char *data, const char *delim);
 /**
   \brief       parse id in start cmd
   \return      char num with comma if success or -1 if fail
 */
 static int at_parse_id(at_conn_t *conn, char *data)
 {
-    if(strlen(data) != 1 || isdigit(*data) == 0) {
+    if(strlen(data) != 1 || isdigit((int)(*data)) == 0) {
         LOGW(TAG, "id:%s",data);
         return -1;
     }
@@ -178,3 +180,4 @@ void at_dump_conn_arg(at_conn_t *conn)
     AT_LOGD(TAG, "           rport=%d, lport=%d", conn->rport, conn->lport);
     AT_LOGD(TAG, "           type=%d, status=%d", conn->type, conn->status);
 }
+#endif

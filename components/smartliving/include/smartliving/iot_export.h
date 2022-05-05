@@ -27,8 +27,18 @@ extern "C" {
 
 #include <stdint.h>
 
-#ifndef LINK_VISUAL_ENABLE
-#define LINK_VISUAL_ENABLE  //only for LV
+// #ifndef LINK_VISUAL_ENABLE
+// #define LINK_VISUAL_ENABLE  //only for LV
+// #endif
+
+#ifdef LINK_VISUAL_ENABLE
+#define REPORT_UUID_ENABLE
+#endif
+
+#ifndef RDA5981A
+#ifndef AIOT_AUTHORIZE_ENABLE
+    // #define AIOT_AUTHORIZE_ENABLE
+#endif
 #endif
 
 extern unsigned int g_report_id;
@@ -39,12 +49,8 @@ extern unsigned int g_report_id;
 #define DEVICE_SECRET_LEN   (64)
 #define PRODUCT_SECRET_LEN  (64)
 
-#define LIVING_SDK_VERSION  "1.6.0"
-#ifdef LIVING_SDK_VERSION
+#define LIVING_SDK_VERSION  "1.6.6-8"
 #define LINKKIT_VERSION     "2.3.0" "_FY_" LIVING_SDK_VERSION
-#else
-#define LINKKIT_VERSION     "2.3.0"
-#endif
 
 #define MODULE_VENDOR_ID    (32)    /* Partner ID */
 
@@ -142,7 +148,11 @@ typedef enum {
     IOTX_IOCTL_SET_SUBDEV_SIGN,         /* value(const char*): only for slave device, set signature of subdevice */
     IOTX_IOCTL_GET_SUBDEV_LOGIN,        /* value(int*): 0 - SubDev is logout; 1 - SubDev is login */
     IOTX_IOCTL_QUERY_DEVID,             /* value(iotx_linkkit_dev_meta_info_t*): device meta info, only productKey and deviceName is required, ret value is subdev_id or -1 */
-    IOTX_IOCTL_SEND_EVENT_NOTIFY_REPLY  /* value(int*): 0 - Disable send post set reply by devid; 1 - Enable event notify reply by devid */
+#ifdef REPORT_UUID_ENABLE
+    IOTX_IOCTL_SET_UUID_ENABLED,        /* value(int*): 1 - anti duplicated uuid capability is enabled; 0 - anti duplicated uuid capability is disabled. */
+#endif
+    IOTX_IOCTL_SEND_EVENT_NOTIFY_REPLY, /* value(int*): 0 - Disable send post set reply by devid; 1 - Enable event notify reply by devid */
+    IOTX_IOCTL_WIFI_RECONNECTED,
 } iotx_ioctl_option_t;
 
 typedef enum {

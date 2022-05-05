@@ -142,11 +142,19 @@ static void write_data_task(void *arg)
 
 static void data_ready(void *arg)
 {
-    unsigned flags;
+    unsigned int flags;
     rec_mgr_t *rec_mgr = (rec_mgr_t *)arg;
 
     // LOGD(TAG, "read wait...");
     aos_event_get(&rec_mgr->wait_evt, 0x01, AOS_EVENT_OR_CLEAR, &flags, AOS_WAIT_FOREVER);
+}
+
+static void data_release(void *arg)
+{
+    if (arg) {
+        rec_mgr_t *rec_mgr = (rec_mgr_t *)arg;
+        aos_event_set(&rec_mgr->wait_evt, 0x01, AOS_EVENT_OR);
+    }
 }
 
 void app_ws_rec_start(const char *url, const char *save_name)
@@ -174,6 +182,7 @@ void app_ws_rec_start(const char *url, const char *save_name)
         }
         rec_hdl_t hdl = record_register(buf, buf2);
         record_set_data_ready_cb(hdl, data_ready, (void *)rec_mgr);
+        record_set_data_release_cb(hdl, data_release, (void *)rec_mgr);
         record_set_chunk_size(hdl, rec_mgr->piece_size);
         record_start(hdl);
         rec_mgr->hdl = hdl;
@@ -190,7 +199,6 @@ void app_ws_rec_stop()
             continue;
         }
         rec_mgr->quit = 1;
-        aos_event_set(&rec_mgr->wait_evt, 0x01, AOS_EVENT_OR);
         record_stop(rec_mgr->hdl);
         aos_event_free(&rec_mgr->wait_evt);
         aos_free(rec_mgr->rbuffer);

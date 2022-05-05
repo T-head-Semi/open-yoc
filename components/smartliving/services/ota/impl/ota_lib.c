@@ -144,8 +144,8 @@ int otalib_GetFirmwareVarlenPara(const char *json_doc,
     return 0;
 }
 
-int otalib_GetParams(const char *json_doc, uint32_t json_len, char **url, char **version, char *md5,
-                     uint32_t *file_size)
+int otalib_GetParams(const char *json_doc, uint32_t json_len, char **url, char **version, char **sign,
+                     char **signMethod, uint32_t *file_size)
 {
 #define OTA_FILESIZE_STR_LEN    (16)
     char file_size_str[OTA_FILESIZE_STR_LEN + 1] = {0};
@@ -162,9 +162,17 @@ int otalib_GetParams(const char *json_doc, uint32_t json_len, char **url, char *
         return -1;
     }
 
-    /* get md5 */
-    if (0 != otalib_GetFirmwareFixlenPara(json_doc, json_len, "md5", md5, 32)) {
-        OTA_LOG_ERROR("get value of md5 key failed");
+    /* get sign */
+    if (0 != otalib_GetFirmwareVarlenPara(json_doc, json_len, "sign", sign))
+    {
+        OTA_LOG_ERROR("get value of sign key failed");
+        return -1;
+    }
+
+    /* get signMethod */
+    if (0 != otalib_GetFirmwareVarlenPara(json_doc, json_len, "signMethod", signMethod))
+    {
+        OTA_LOG_ERROR("get value of signMethod key failed");
         return -1;
     }
 

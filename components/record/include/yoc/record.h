@@ -5,10 +5,15 @@
 #ifndef __RECORD_H__
 #define __RECORD_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <aos/aos.h>
 
 typedef int * rec_hdl_t;
 typedef void (*data_ready_func)(void *arg);
+typedef void (*data_release_func)(void *arg);
 
 /**
  * @brief      register a record session
@@ -39,6 +44,21 @@ rec_hdl_t record_register(const char *from, const char *to);
  * @return None
  */
 void record_set_data_ready_cb(rec_hdl_t hdl, data_ready_func cb, void *arg);
+
+/**
+ * @brief      set data release event callback, the callback whill be called in `record_stop`
+ *
+ * @note       must call before `record_start`
+ *
+ * @param[in]  hdl  see `rec_hdl_t`
+ *
+ * @param[in]  cb   data_release_func callback
+ *
+ * @param[in]  arg  the argument for callback
+ *
+ * @return None
+ */
+void record_set_data_release_cb(rec_hdl_t hdl, data_release_func cb, void *arg);
 
 /**
  * @brief      set data chunk size to read
@@ -99,5 +119,8 @@ int record_stop(rec_hdl_t hdl);
  */
 int record_unregister(rec_hdl_t hdl);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

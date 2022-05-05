@@ -18,7 +18,7 @@ int is_digit_str(const char *str)
         str++;
     }
 
-    while (isdigit(*str)) {
+    while (isdigit((int)(*str))) {
         str++, digit_len++;
     }
 
@@ -65,7 +65,7 @@ int string2bytes(const char *src, int src_len, unsigned char *dst, int dst_size)
 
 static uint8_t is_print_str(const char *str)
 {
-    while (isprint(*str)) {
+    while (isprint((int)(*str))) {
         str++;
     }
 
@@ -278,7 +278,7 @@ int at_parse_param_safe(char *fmt, char *buf, void **pval)
         }
 
         for (; param_size_index < sizeof(str_param_size) - 1; fmt++, param_size_index++) {
-            if (!isdigit(*fmt)) {
+            if (!isdigit((int)(*fmt))) {
                 break;
             }
 

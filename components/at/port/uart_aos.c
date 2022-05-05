@@ -32,11 +32,11 @@ void *at_uart_init(const char *name, void *config)
     idx = name[len-1] - 0x30;
     uart->dev.port                = idx;
     uart->dev.config.baud_rate    = uart_config->baud_rate;
-    uart->dev.config.mode         = MODE_TX_RX;
-    uart->dev.config.flow_control = FLOW_CONTROL_DISABLED;
-    uart->dev.config.stop_bits    = STOP_BITS_1;
-    uart->dev.config.parity       = NO_PARITY;
-    uart->dev.config.data_width   = DATA_WIDTH_8BIT;
+    uart->dev.config.mode         = uart_config->mode;
+    uart->dev.config.flow_control = uart_config->flow_control;
+    uart->dev.config.stop_bits    = uart_config->stop_bits;
+    uart->dev.config.parity       = uart_config->parity;
+    uart->dev.config.data_width   = uart_config->data_width;
 
     int ret = hal_uart_init(&uart->dev);
     

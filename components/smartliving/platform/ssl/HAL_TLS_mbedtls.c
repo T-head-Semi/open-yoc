@@ -55,11 +55,15 @@ static void _net_init( mbedtls_net_context *ctx )
     ctx->fd = -1;
 }
 
+static int g_timeout_ms = 5000;
 static int _net_connect( mbedtls_net_context *ctx, const char *host,
                          const char *port, int proto )
 {
     int ret;
+    int flags = 0;
     struct addrinfo hints, *addr_list, *cur;
+    struct timeval tv;
+    fd_set fds;
 
     /* Do name resolution with both IPv6 and IPv4 */
     memset( &hints, 0, sizeof( hints ) );
@@ -82,16 +86,54 @@ static int _net_connect( mbedtls_net_context *ctx, const char *host,
             continue;
         }
 
-        if( connect( ctx->fd, cur->ai_addr, (socklen_t)cur->ai_addrlen ) == 0 )
+        tv.tv_sec  = g_timeout_ms / 1000;
+        tv.tv_usec = (g_timeout_ms % 1000) * 1000;
+
+        flags = fcntl(ctx->fd, F_GETFL, 0);
+        ret = fcntl(ctx->fd, F_SETFL, O_NONBLOCK);
+        if( ret < 0 )
         {
+            close( ctx->fd );
+            ctx->fd = -1;
+            ret = MBEDTLS_ERR_NET_SOCKET_FAILED;
+            continue;
+        }
+
+        if(connect(ctx->fd, cur->ai_addr, (socklen_t)cur->ai_addrlen ) != 0) {
+            if((errno == EAGAIN) || (errno == EINPROGRESS)) {
+                /* select here */
+                FD_ZERO(&fds);
+                FD_SET(ctx->fd, &fds);
+                ret = select(ctx->fd + 1, NULL, &fds, NULL, &tv);
+                if ((ret == -1) || (ret == 0)) {
+                    SSL_LOGE("select failed. errno = %d", -errno);
+                } else{
+                    // select tell us that sock is ready, test it
+                    int so_error = 0;
+                    unsigned so_len = sizeof(so_error);
+                    getsockopt (ctx->fd, SOL_SOCKET, SO_ERROR, &so_error, &so_len);
+                    if (so_error == 0) {
+                        SSL_LOGD("socket connect success!");
+                        ret = 0;
+                        break;
+                    }
+                }
+            }
+        } else {
             ret = 0;
             break;
         }
 
+        SSL_LOGD("socket connect failed %d, try another one!", errno);
+        fcntl(ctx->fd, F_SETFL, flags);
         close( ctx->fd );
+        ctx->fd = -1;
         ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
     }
 
+    if(ctx->fd >= 0) {
+        fcntl(ctx->fd, F_SETFL, flags);
+    }
     freeaddrinfo( addr_list );
 
     return( ret );

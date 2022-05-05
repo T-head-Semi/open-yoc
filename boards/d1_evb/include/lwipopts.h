@@ -75,8 +75,8 @@ MEM_SIZE and MEMP_NUM_XXX will be invalid */
 //no meaning if MEMP_MEM_MALLOC = 1
 #define MEMP_NUM_PBUF                   32
 #define MEMP_NUM_RAW_PCB                2
-#define MEMP_NUM_UDP_PCB                14
-#define MEMP_NUM_TCP_PCB                12
+#define MEMP_NUM_UDP_PCB                32
+#define MEMP_NUM_TCP_PCB                48
 #define MEMP_NUM_TCP_PCB_LISTEN         8
 #define MEMP_NUM_TCP_SEG                200
 #define MEMP_NUM_REASSDATA              5
@@ -84,7 +84,7 @@ MEM_SIZE and MEMP_NUM_XXX will be invalid */
 #define MEMP_NUM_NETBUF                 32
 #define MEMP_NUM_TCPIP_MSG_INPKT        160
 #define MEMP_NUM_FRAG_PBUF              32
-#define MEMP_NUM_NETCONN                32
+#define MEMP_NUM_NETCONN                96
 #define MEMP_NUM_TCPIP_MSG_API          24
 #define MEMP_NUM_NETIFDRV_MSG           4
 #define MEMP_NUM_NETDB                  4

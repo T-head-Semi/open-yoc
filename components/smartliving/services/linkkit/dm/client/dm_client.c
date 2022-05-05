@@ -7,14 +7,14 @@
 static dm_client_uri_map_t g_dm_client_uri_map[] = {
 #if !defined(DEVICE_MODEL_RAWDATA_SOLO)
     {DM_URI_THING_EVENT_POST_REPLY_WILDCARD,  DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_event_post_reply             },
-    {DM_URI_THING_SERVICE_PROPERTY_SET,       DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_service_property_set         },
-    {DM_URI_THING_SERVICE_REQUEST_WILDCARD,   DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_service_request              },
-#ifdef LINK_VISUAL_ENABLE
+#ifdef LINK_VISUAL_ENABLE /* caution:  index 1~n must be LV topic */
     {DM_URI_LINK_VISUAL_WILDCARD_DOWNSTREAM,  DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL,     (void *)dm_client_link_visual_downstream             },
     {DM_URI_LINK_VISUAL_WILDCARD_INVOKE,      DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL,     (void *)dm_client_link_visual_downstream             },
     {DM_URI_LINK_VISUAL_WILDCARD_DOWNSTREAM_2,DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL,     (void *)dm_client_link_visual_downstream             },
     {DM_URI_LINK_VISUAL_WILDCARD_INVOKE_2,    DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL,     (void *)dm_client_link_visual_downstream             },
 #endif
+    {DM_URI_THING_SERVICE_PROPERTY_SET,       DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_service_property_set         },
+    {DM_URI_THING_SERVICE_REQUEST_WILDCARD,   DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_service_request              },
     {DM_URI_THING_DEVICEINFO_UPDATE_REPLY,    DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_deviceinfo_update_reply      },
     {DM_URI_THING_DEVICEINFO_DELETE_REPLY,    DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_ALL, (void *)dm_client_thing_deviceinfo_delete_reply      },
 #endif
@@ -42,8 +42,10 @@ static dm_client_uri_map_t g_dm_client_uri_map[] = {
     {DM_URI_THING_TOPO_GET_REPLY,             DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_topo_get_reply               },
     //{DM_URI_THING_TOPO_CHANGE,                DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_topo_change               },
     {DM_URI_THING_LIST_FOUND_REPLY,           DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_list_found_reply             },
-    {DM_URI_COMBINE_LOGIN_REPLY,              DM_URI_EXT_SESSION_PREFIX, IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_combine_login_reply                },
-    {DM_URI_COMBINE_LOGOUT_REPLY,             DM_URI_EXT_SESSION_PREFIX, IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_combine_logout_reply               },
+
+    {DM_URI_COMBINE_BATCH_LOGIN_REPLY,        DM_URI_EXT_SESSION_PREFIX, IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_combine_batch_login_reply          },
+    {DM_URI_COMBINE_BATCH_LOGOUT_REPLY,       DM_URI_EXT_SESSION_PREFIX, IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_combine_batch_logout_reply         },
+
     {DM_URI_THING_DISABLE,                    DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_disable                      },
     {DM_URI_THING_ENABLE,                     DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_enable                       },
     {DM_URI_THING_DELETE,                     DM_URI_SYS_PREFIX,         IOTX_DM_DEVICE_GATEWAY, (void *)dm_client_thing_delete                       },
@@ -86,14 +88,16 @@ int dm_client_subscribe_all(int devid, char product_key[IOTX_PRODUCT_KEY_LEN + 1
     uint8_t local_sub = 0;
 
 #if !defined(DEVICE_MODEL_RAWDATA_SOLO)
-    /* index 0 must be DM_URI_THING_EVENT_POST_REPLY_WILDCARD */
-    res = dm_utils_service_name((char *)g_dm_client_uri_map[0].uri_prefix, (char *)g_dm_client_uri_map[0].uri_name,
-                    product_key, device_name, &uri);
-    if (res == SUCCESS_RETURN) {
-        _dm_client_subscribe_filter(uri, (iotx_cm_data_handle_cb)g_dm_client_uri_map[0].callback);
-        DM_free(uri);
-    }
-    index = 1;
+    #ifndef LINK_VISUAL_ENABLE
+        /* index 0 must be DM_URI_THING_EVENT_POST_REPLY_WILDCARD */
+        res = dm_utils_service_name((char *)g_dm_client_uri_map[0].uri_prefix, (char *)g_dm_client_uri_map[0].uri_name,
+                        product_key, device_name, &uri);
+        if (res == SUCCESS_RETURN) {
+            _dm_client_subscribe_filter(uri, (iotx_cm_data_handle_cb)g_dm_client_uri_map[0].callback);
+            DM_free(uri);
+        }
+        index = 1;
+    #endif
 #else
     index = 0;
 #endif
@@ -137,6 +141,10 @@ int dm_client_subscribe_all(int devid, char product_key[IOTX_PRODUCT_KEY_LEN + 1
 static void _dm_client_event_cloud_connected_handle(void)
 {
 #ifdef MQTT_SHADOW
+    dm_shadow_connect();
+#ifdef CLOUD_OFFLINE_RESET
+    offline_reset_init();
+#endif
     //do first time update in iotx_dm_connect as no ctx init there.
     dm_shadow_update();
 #endif
@@ -734,7 +742,7 @@ void dm_client_thing_list_found_reply(int fd, const char *topic, const char *pay
     dm_msg_proc_thing_list_found_reply(&source);
 }
 
-void dm_client_combine_login_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
+void dm_client_combine_batch_login_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
                                    void *context)
 {
     dm_msg_source_t source;
@@ -746,10 +754,10 @@ void dm_client_combine_login_reply(int fd, const char *topic, const char *payloa
     source.payload_len = payload_len;
     source.context = NULL;
 
-    dm_msg_proc_combine_login_reply(&source);
+    dm_msg_proc_combine_batch_login_reply(&source);
 }
 
-void dm_client_combine_logout_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
+void dm_client_combine_batch_logout_reply(int fd, const char *topic, const char *payload, unsigned int payload_len,
                                     void *context)
 {
     dm_msg_source_t source;
@@ -761,6 +769,6 @@ void dm_client_combine_logout_reply(int fd, const char *topic, const char *paylo
     source.payload_len = payload_len;
     source.context = NULL;
 
-    dm_msg_proc_combine_logout_reply(&source);
+    dm_msg_proc_combine_batch_logout_reply(&source);
 }
 #endif

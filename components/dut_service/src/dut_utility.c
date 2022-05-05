@@ -1,10 +1,23 @@
 /*
- * Copyright (C) 2019-2020 Alibaba Group Holding Limited
+ * Copyright (C) 2019-2022 Alibaba Group Holding Limited
  */
 #include <aos/aos.h>
-#include "misc/util.h"
 
-//extern int char2hex(char c, u8_t *x);
+static int char2hex(char c, unsigned char *x)
+{
+	if (c >= '0' && c <= '9') {
+		*x = c - '0';
+	} else if (c >= 'a' && c <= 'f') {
+		*x = c - 'a' + 10;
+	} else if (c >= 'A' && c <= 'F') {
+		*x = c - 'A' + 10;
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 int str2_char(const char *str, uint8_t *addr)
 {
     int i, j;

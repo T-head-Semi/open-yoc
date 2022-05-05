@@ -241,9 +241,7 @@ typedef	    __kernel_ssize_t	SSIZE_T;
 #define _LONG_CALL_ROM_  
 #define _WEAK          __weak
 #else
-#ifndef SECTION
-#define SECTION(_name) __attribute__ ((__section__(_name)))
-#endif
+
 #define ALIGNMTO(_bound) __attribute__ ((aligned (_bound)))
 #define _PACKED_       __attribute__ ((packed))
 #ifdef CONFIG_RELEASE_BUILD_LIBRARIES
@@ -680,7 +678,7 @@ void cli(void);
 #define netif_queue_stopped(dev)	(0)
 #define netif_wake_queue(dev)		do { } while (0)
 int rtw_printf(const char *format, ...);
-#define printk				rtw_printf
+// #define printk				rtw_printf
 
 #define DBG_ERR(fmt, args...)		rtw_printf("\n\r[%s] " fmt, __FUNCTION__, ## args)
 #if WLAN_INTF_DBG

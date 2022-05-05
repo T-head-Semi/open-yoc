@@ -21,17 +21,6 @@ ifeq (zephyr, $(btstack))
 $(NAME)_COMPONENTS += framework.bluetooth.breeze.hal.ble
 endif
 
-secure_adv ?= 0
-ifeq ($(secure_adv), 1)
-GLOBAL_DEFINES += CONFIG_AIS_SECURE_ADV
-endif
-
-model_sec ?= 0
-ifeq ($(model_sec), 1)
-GLOBAL_DEFINES += CONFIG_SEC_PER_PK_TO_DN
-endif
-
-
 $(NAME)_SOURCES += api/breeze_export.c
 
 bz_en_auth ?= 1

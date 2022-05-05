@@ -1,8 +1,9 @@
 ## 第一部分： 基础信息
-name: wifi_demo
-version: v7.4.3
-description: YoC helloworld SDK
-type: solution
+name: wifi_demo                                     # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
+version: v7.5.1                                     # <必选项> 组件版本号
+description: the wifi connect demo                  # <必选项> 建议至少20字以上
+type: solution                                      # <必选项> 组件类型，为：solution, chip, board, common, sdk
+
 ## 第二部分：依赖信息
 #           指定该组件依赖的组件及版本，版本支持条件比较，支持：>=v1.0, >v1.0, ==v1.0, <=v1.0, <v1.0, v1.0
 #           未指定条件时，默认为 ==，如 v1.0 与 ==v1.0
@@ -12,21 +13,17 @@ type: solution
 # depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
-sdk_chip:
-  - sdk_chip_pangu: v7.4.3
-  - sdk_chip_sc5654: v7.4.3
 depends:
-  - sdk_chip_pangu: v7.4.3
+  - sdk_chip_d1: v7.5.1
+  - lwip: v7.4.7
+  - netmgr: v7.4.7
+  # - littlefs: v7.6.1
+  # - drv_wifi_xr829: v7.5.1
+  - drv_wifi_rtl8723ds: v7.4.7
+
 ## 第三部分：板级信息
 hw_info:
-  cpu_id: cpu0
-  cpu_name: ""
-  vendor_name: ""
-  chip_name: ""
-  board_name: ""
-  ld_script: ""
-  flash_program: ""
-mkflash_script: mkflash.sh
+  board_name: d1_evb
 ## 第四部分：编译连接信息
 # build_config:                            # <可选项> 编译配置项
 #   include:                               # <可选项> 编译时，影响编译器的-I 参数 ,全局有效
@@ -53,8 +50,6 @@ build_config:
   cxxflag: ""
   asmflag: ""
   define: ~
-  libs:
-    - m
   libpath: ~
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
@@ -66,14 +61,8 @@ source_file:
 #   CONFIG_PARAM_NOT_CHECK: y
 #   CONFIG_CLI: y
 def_config:
-  CONFIG_ARCH_INTERRUPTSTACK: 1024
-  CONFIG_CLI: 1
   CONFIG_DEBUG: 1
-  CONFIG_SYSTICK_HZ: 1000
-  CONFIG_INIT_TASK_STACK_SIZE: 2048
-  CONFIG_KV_SMART: 1
-  CONFIG_TCPIP: 1
-  CONFIG_USING_TLS: 1
+
 keywords: ~
 tag: ""
 author:

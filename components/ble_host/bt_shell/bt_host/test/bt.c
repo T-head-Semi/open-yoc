@@ -169,7 +169,7 @@ static struct bt_sdp_record spp_rec = BT_SDP_RECORD(spp_attrs);
 
 static char *addr_le_str(const bt_addr_le_t *addr)
 {
-    static char bufs[2][27];
+    static char bufs[2][30];
     static u8_t cur;
     char *str;
 

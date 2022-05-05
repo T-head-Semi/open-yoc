@@ -5,6 +5,6 @@
 #ifndef _BT_MESH_EVENT_PORT_H_
 #define _BT_MESH_EVENT_PORT_H_
 
-int genie_mesh_port_init(void);
+int genie_sal_event_init(void);
 
 #endif

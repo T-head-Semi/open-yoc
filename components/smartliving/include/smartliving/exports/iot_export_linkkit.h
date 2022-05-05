@@ -23,7 +23,9 @@ typedef enum _gateway_subdev_event_e
     ITM_EVENT_SUBDEV_RESET_REPLY,
     ITM_EVENT_TOPO_ADD_REPLY,
     ITM_EVENT_COMBINE_LOGIN_REPLY,
-    ITM_EVENT_COMBINE_LOGOUT_REPLY
+    ITM_EVENT_COMBINE_LOGOUT_REPLY,
+    ITM_EVENT_COMBINE_BATCH_LOGIN_REPLY,
+    ITM_EVENT_COMBINE_BATCH_LOGOUT_REPLY
 }gateway_subdev_event_e;
 #endif
 
@@ -58,6 +60,12 @@ typedef enum {
 
     /* only for slave device, send logout request to cloud */
     ITM_MSG_LOGOUT,
+
+    /* only for slave device, send login request to cloud */
+    ITM_MSG_BATCH_LOGIN,
+
+    /* only for slave device, send logout request to cloud */
+    ITM_MSG_BATCH_LOGOUT,
 
     /* only for slave device, send delete topo request to cloud */
     ITM_MSG_DELETE_TOPO,

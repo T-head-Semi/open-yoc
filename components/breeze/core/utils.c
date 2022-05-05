@@ -8,7 +8,7 @@
 #include <string.h>
 #include "bzopt.h"
 #include "bz_utils.h"
-#include "breeze_hal_os.h"
+
 uint8_t hex2ascii(uint8_t digit)
 {
     uint8_t val;
@@ -16,7 +16,7 @@ uint8_t hex2ascii(uint8_t digit)
     if (digit <= 9) {
         val = digit - 0x0 + '0';
     } else {
-        val = digit - 0xA + 'A';
+        val = digit - 0xA + 'a';
     }
 
     return val;

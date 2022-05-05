@@ -132,7 +132,6 @@ void zconfig_got_ssid_passwd_callback(uint8_t *ssid, uint8_t *passwd,
                          ssid, channel);
     }
 
-    
     if (token) {
         memcpy(aws_result_token, token, ZC_MAX_TOKEN_LEN);
     }
@@ -184,6 +183,10 @@ static void aws_switch_dst_chan(int channel);
 static int aws_amend_dst_chan = 0;
 void aws_switch_channel(void)
 {
+    if (zconfig_data == NULL) {
+        return;
+    }
+
     os_mutex_lock(zc_mutex);
     if (aws_amend_dst_chan != 0) {
         aws_switch_dst_chan(aws_amend_dst_chan);
@@ -236,6 +239,9 @@ void aws_switch_channel(void)
 
 void aws_set_dst_chan(int channel)
 {
+    if (zconfig_data == NULL) {
+        return;
+    }
     os_mutex_lock(zc_mutex);
     aws_amend_dst_chan = channel;
     os_mutex_unlock(zc_mutex);
@@ -277,7 +283,7 @@ static void aws_switch_dst_chan(int channel)
     }
     os_awss_switch_channel(channel, 0, NULL);
 
-    awss_trace("adjust chan %d\r\n", channel);
+    awss_trace("adjust chan %d", channel);
 }
 
 enum {
@@ -289,7 +295,7 @@ enum {
 int aws_is_chnscan_timeout(void)
 {
     if (aws_stop == AWS_STOPPING) {
-        awss_debug("aws will stop...\r\n");
+        awss_debug("aws will stop...");
         return CHNSCAN_TIMEOUT;
     }
 
@@ -417,7 +423,7 @@ void aws_main_thread_func(void)
     aws_switch_channel();
 
 rescanning:
-    // start scaning channel
+    /****************************** enter awss scaning loop ******************************/
     memset(zc_bssid, 0, ETH_ALEN);
     while (aws_amend_dst_chan != 0 || aws_state == AWS_SCANNING || aws_force_scanning()) {
         switch (aws_is_chnscan_timeout()) {
@@ -426,13 +432,13 @@ rescanning:
             case CHNSCAN_NEXT_CHN:
                 aws_switch_channel();
                 break;
-            case CHNSCAN_TIMEOUT:
+            case CHNSCAN_TIMEOUT:               /* awss scan timeout(typical 10min) */
                 goto timeout_scanning;
             default:
                 break;
         }
 
-        if (aws_stop == AWS_STOPPING) { /* interrupt by user */
+        if (aws_stop == AWS_STOPPING) {         /* awss scan interrupt by user */
             goto timeout_scanning;
         }
 #ifdef AWSS_SUPPORT_SMARTCONFIG_MCAST
@@ -442,7 +448,7 @@ rescanning:
 #endif
 
         if (aws_state != AWS_SCANNING) {
-            break;
+            break;                              /* awss state change, awss success/chan lock */
         }
 #ifdef AWSS_SUPPORT_SMARTCONFIG_NOTIFY
         int interval = (os_awss_get_channelscan_interval_ms() + 2) / 4;
@@ -471,11 +477,11 @@ rescanning:
         aws_send_aha_probe_req();
 #endif
     }
+    /****************************** end of awss scaning loop ******************************/
 
-    // channel lock
-    awss_debug("[channel scanning] %d ms\r\n",
+    // channel locked processing
+    awss_debug("[channel scanning] %d ms",
                time_elapsed_ms_since(aws_start_timestamp));
-
     /*
      * make sure switch to locked channel,
      * in case of inconsistent with aws_cur_chn
@@ -483,8 +489,9 @@ rescanning:
 #ifdef AWSS_SUPPORT_APLIST
     aws_try_adjust_chan();
 #endif
-    awss_debug("final channel %d\r\n", aws_locked_chn);
+    awss_debug("final channel %d", aws_locked_chn);
 
+    /****************************** enter chan lock process loop ******************************/
     while (aws_state != AWS_SUCCESS) {
         /* 80211 frame handled by callback */
         os_msleep(300);
@@ -493,48 +500,48 @@ rescanning:
             goto success;
         }
 #endif
-
         if (aws_stop == AWS_STOPPING) {
-            goto timeout_recving;
+            goto timeout_recving;               /* awss scan interrupt by user */
         }
-
-
 #ifdef AWSS_SUPPORT_APLIST
         aws_try_adjust_chan();
 #endif
         if (aws_is_chnscan_timeout() == CHNSCAN_TIMEOUT) {
-            goto timeout_recving;
+            goto timeout_recving;               /* awss scan timeout(typical 10min) */
         }
-
         if (aws_state == AWS_SCANNING) {
-            awss_debug("channel rescanning...\n");
+            awss_debug("channel rescanning...");
             if (zconfig_data != NULL) {
                 void *temp_mutex = zc_mutex;
                 memset(zconfig_data, 0, sizeof(struct zconfig_data));
                 zc_mutex = temp_mutex;
+            } else {
+                aws_stop = AWS_STOPPING;
+                goto timeout_recving;           /* awss memory exception, interrupt and exit */
             }
-            goto rescanning;
+            goto rescanning;                    /* re-enter awss scaning loop */
         }
     }
+    /****************************** end of chan lock process loop ******************************/
 
-    awss_debug("[channel recving] %d ms\r\n",
-               time_elapsed_ms_since(aws_start_timestamp));
-
+    // awss data recieved success
+    awss_debug("[channel recving] %d ms", time_elapsed_ms_since(aws_start_timestamp));
     goto success;
 
 timeout_scanning:
-    awss_debug("aws timeout scanning!\r\n");
+    awss_debug("aws timeout scanning!");
 timeout_recving:
-    awss_debug("aws timeout recving!\r\n");
+    awss_debug("aws timeout recving!");
 #ifdef AWSS_SUPPORT_SMARTCONFIG_MCAST
     if (delay_p2p()) {
         goto success;
     }
 #endif
 
+    // if one round awss scanning finished(timeout, user intterupt, memory exception)
     do {
         if (aws_stop == AWS_STOPPING) {
-            break;
+            break;                              /* awss scan interrupt by user */
         }
         if (rescan_timer == NULL) {
             rescan_timer = HAL_Timer_Create("rescan", (void(*)(void *))rescan_monitor, NULL);
@@ -544,7 +551,7 @@ timeout_recving:
         os_awss_close_monitor();
         while (rescan_available == 0) {
             if (awss_get_config_press() ||
-                aws_stop == AWS_STOPPING) {  // user interrupt sleep
+                aws_stop == AWS_STOPPING) {     // user interrupt sleep
                 HAL_Timer_Stop(rescan_timer);
                 break;
             }
@@ -553,7 +560,8 @@ timeout_recving:
         rescan_available = 0;
     } while (0);
 
-    if (aws_stop == AWS_STOPPING) {  /* interrupt by user */
+    /* awss scan interrupt by user, or memory exception occured */
+    if (aws_stop == AWS_STOPPING) {
         aws_stop = AWS_STOPPED;
         goto success;
     }
@@ -564,7 +572,6 @@ timeout_recving:
         awss_clear_aplist();
     }
 #endif
-
     aws_start_timestamp = os_get_time_ms();
     os_awss_open_monitor(aws_80211_frame_handler);
     goto rescanning;
@@ -582,12 +589,9 @@ success:
      * zconfig_destroy() after os_awss_monitor_close() beacause
      * zconfig_destroy will release mem/buffer that
      * zconfig_recv_callback will use
-     *
-     * Note: hiflying will reboot after calling this func, so
-     *    aws_get_ssid_passwd() was called in os_awss_monitor_close()
      */
-    if (aws_stop == AWS_STOPPED) {
-        dump_awss_status(STATE_WIFI_DESTROY, "zconfig mem released");
+    if ((aws_info != NULL) && (aws_stop == AWS_STOPPED)) {
+        dump_awss_status(STATE_WIFI_DESTROY, "zconfig mem to release");
         zconfig_force_destroy();
     }
 #if defined(AWSS_SUPPORT_ADHA) || defined(AWSS_SUPPORT_AHA)
@@ -597,6 +601,7 @@ success:
     }
 #endif
     else {
+        dump_awss_status(STATE_WIFI_DESTROY, "zconfig mem force release");
         zconfig_force_destroy();
     }
 }
@@ -638,6 +643,7 @@ void aws_start(char *pk, char *dn, char *ds, char *ps)
     if (!aws_info) {
         return;
     }
+    memset(aws_info, 0, sizeof(struct aws_info));
 
     aws_state = AWS_SCANNING;
 
@@ -700,6 +706,7 @@ void aws_destroy(void)
         os_msleep(100);
     }
 
+    dump_awss_status(STATE_WIFI_DESTROY, "aws_info mem to release");
     os_free(aws_info);
     aws_info = NULL;
 #ifndef AWSS_DISABLE_ENROLLEE
@@ -722,9 +729,15 @@ void aws_release_mutex()
 int aws_get_ssid_passwd(char *ssid, char *passwd, uint8_t *bssid, uint8_t *token,
                         char *auth, char *encry, uint8_t *channel, uint8_t *token_type)
 {
-    if (aws_state != AWS_SUCCESS) {
+    if (!aws_info) {
+        awss_debug("aws_info is null");
         return 0;
+    } else {
+        if ((aws_state != AWS_SUCCESS) || (aws_stop >= AWS_STOPPING)) {
+            return 0;
+        }
     }
+
     if (ssid) {
         strncpy((char *)ssid, (const char *)aws_result_ssid, ZC_MAX_SSID_LEN - 1);
     }

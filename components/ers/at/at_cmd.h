@@ -138,12 +138,19 @@
 #define AT_BT_FIND          {"AT+BTFIND",at_cmd_bt_find}
 #endif
 
+
+
+
 #ifdef CONFIG_BT_MESH
 //MESH
+#define AT_BTMESH_LOG_LEVEL     {"AT+LOGLEVEL",at_cmd_btmesh_log}
 #define AT_BTMESH_REBOOT        {"AT+IREBOOT",at_cmd_btmesh_reboot}
 #define AT_BTMESH_QUERY_STA     {"AT+MESHQUERYSTA",at_cmd_btmesh_query_sta}
 #define AT_BTMESH_RST_DEV      {"AT+RST",at_cmd_btmesh_rst_dev}
 #define AT_BTMESH_CLEAR_RPL     {"AT+MESHCLEARRPL",at_cmd_btmesh_rpl_clear}
+#define AT_BTMESH_AT_EN            {"AT+MESHAT",at_cmd_btmesh_at_enable}
+#define AT_BTMESH_PROV_CONFIG       {"AT+MESHPROVCONFIG",at_cmd_btmesh_prov_config}
+#define AT_BTMESH_PROV_AUTO_PROV    {"AT+MESHPROVAUTOPROV",at_cmd_btmesh_prov_auto_prov}
 #define AT_BTMESH_PROV_EN       {"AT+MESHPROVEN",at_cmd_btmesh_prov_en}
 #define AT_BTMESH_PROV_FILTER_DEV {"AT+MESHPROVFILTERDEV", at_cmd_btmesh_prov_set_uuid_filter}
 #define AT_BTMESH_PROV_SHOW_DEV {"AT+MESHPROVSHOWDEV", at_cmd_btmesh_prov_show_dev}
@@ -151,6 +158,7 @@
 #define AT_BTMESH_ADD_NODE      {"AT+MESHADDNODE",at_cmd_btmesh_prov_add_node}
 #define AT_BTMESH_ADDDEV        {"AT+MESHADDDEV",at_cmd_btmesh_prov_add_dev}
 #define AT_BTMESH_AUTOCONFIG    {"AT+MESHAUTOCONFIG",at_cmd_btmesh_prov_node_auto_config}
+#define AT_BTMESH_GET_NODE_VERSION    {"AT+MESHGETNODEVER",at_cmd_btmesh_get_node_version}
 #define AT_BTMESH_DELDEV        {"AT+MESHDELDEV",at_cmd_btmesh_prov_del_dev}
 #define AT_BTMESH_OOB           {"AT+MESHOOB",at_cmd_btmesh_prov_add_oob}
 #define AT_BTMESH_NETKEY_GET    {"AT+MESHGETNETKEY",at_cmd_btmesh_prov_netkey_get}
@@ -169,6 +177,7 @@
 #define AT_BTMESH_SUB_GET       {"AT+MESHGETSUB",at_cmd_btmesh_sub_get}
 #define AT_BTMESH_PUB_GET       {"AT+MESHGETPUB",at_cmd_btmesh_pub_get}
 #define AT_BTMESH_SUB_DEL       {"AT+MESHDELSUB",at_cmd_btmesh_sub_del}
+#define AT_BTMESH_SUBLIST_OVERWRITE    {"AT+MESHSUBLISTOVERWRITE",at_cmd_btmesh_sub_overwrite}
 #define AT_BTMESH_RST           {"AT+MESHRST",at_cmd_btmesh_rst}
 #define AT_BTMESH_ONOFF         {"AT+MESHONOFF",at_cmd_btmesh_onoff}
 #define AT_BTMESH_LEVEL         {"AT+MESHLEVEL",at_cmd_btmesh_level}
@@ -183,7 +192,19 @@
 #define AT_BTMESH_LIGHT_CTL_RANGE    {"AT+MESHCTLTEMPRANGE",at_cmd_btmesh_light_ctl_range}
 #define AT_BTMESH_LIGHT_CTL_DEF   {"AT+MESHCTLDEF",at_cmd_btmesh_light_ctl_def}
 #define AT_BTMESH_TRS           {"AT+MESHTRS",at_cmd_btmesh_vendor_send}
+#if defined(CONFIG_OTA_SERVER)
+#define AT_BTMESH_ADD_OTA_DEV   {"AT+MESHADDOTADEV",at_cmd_btmesh_add_ota_dev}
 #endif
+#define AT_BTMESH_PROV_FILTER_MAC     {"AT+MESHPROVMACFILTER",at_cmd_btmesh_prov_set_mac_filter}
+#define AT_BTMESH_PROV_FILTER_MAC_ADD {"AT+MESHPROVMACFILTERADD",at_cmd_btmesh_prov_add_mac_filter_dev}
+#define AT_BTMESH_PROV_FILTER_MAC_RM  {"AT+MESHPROVMACFILTERRM",at_cmd_btmesh_prov_rm_mac_filter_dev}
+#define AT_BTMESH_PROV_FILTER_MAC_CLEAR  {"AT+MESHPROVMACFILTERCLR",at_cmd_btmesh_prov_clear_mac_filter}
+#ifdef CONFIG_MESH_LPM
+#define AT_BTMESH_PROV_SET_NODE_LPM_FLAG  {"AT+MESHPROVSETNODELPM",at_cmd_btmesh_prov_set_node_lpm_flag}
+#endif
+
+#endif
+
 
 #define AT_NULL             {NULL,NULL}
 
@@ -231,13 +252,18 @@ void at_cmd_bt_fota(char *cmd, int type, char *data);
 
 #ifdef CONFIG_BT_MESH
 /* mesh cmd */
+void at_cmd_btmesh_log(char *cmd, int type, char *data);
 void at_cmd_btmesh_rst_dev(char * cmd, int type, char * data);
+void at_cmd_btmesh_prov_config(char *cmd, int type, char *data);
+void at_cmd_btmesh_prov_auto_prov(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_en(char *cmd, int type, char *data);
 void at_cmd_btmesh_rpl_clear(char * cmd, int type, char * data);
+void at_cmd_btmesh_at_enable(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_set_uuid_filter(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_show_dev(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_add_dev(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_node_auto_config(char * cmd, int type, char * data);
+void at_cmd_btmesh_get_node_version(char * cmd, int type, char * data);
 void at_cmd_btmesh_prov_del_dev(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_add_oob(char *cmd, int type, char *data);
 void at_cmd_btmesh_prov_netkey_get(char * cmd, int type, char * data);
@@ -256,6 +282,7 @@ void at_cmd_btmesh_sub_get(char * cmd, int type, char * data);
 void at_cmd_btmesh_pub_get(char * cmd, int type, char * data);
 void at_cmd_btmesh_get_comp(char *cmd, int type, char *data);
 void at_cmd_btmesh_sub_del(char *cmd, int type, char *data);
+void at_cmd_btmesh_sub_overwrite(char * cmd, int type, char * data);
 void at_cmd_btmesh_rst(char *cmd, int type, char *data);
 void at_cmd_btmesh_onoff(char *cmd, int type, char *data);
 void at_cmd_btmesh_level(char *cmd, int type, char *data);
@@ -275,6 +302,19 @@ void at_cmd_btmesh_query_sta(char * cmd, int type, char * data);
 void at_cmd_btmesh_relay(char * cmd, int type, char * data);
 void at_cmd_btmesh_proxy(char * cmd, int type, char * data);
 void at_cmd_btmesh_friend(char * cmd, int type, char * data);
+#if defined(CONFIG_OTA_SERVER)
+void at_cmd_btmesh_add_ota_dev(char * cmd, int type, char * data);
+#endif
+void at_cmd_btmesh_prov_set_mac_filter(char *cmd, int type, char *data);
+void at_cmd_btmesh_prov_add_mac_filter_dev(char *cmd, int type, char *data);
+void at_cmd_btmesh_prov_rm_mac_filter_dev(char *cmd, int type, char *data);
+void at_cmd_btmesh_prov_clear_mac_filter(char *cmd, int type, char *data);
+
+
+#ifdef CONFIG_MESH_LPM
+void at_cmd_btmesh_prov_set_node_lpm_flag(char *cmd, int type, char *data);
+#endif
+
 #endif
 
 /* service cmd */

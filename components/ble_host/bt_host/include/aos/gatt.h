@@ -19,6 +19,7 @@
 
 #include <aos/uuid.h>
 #include <ble_config.h>
+#include <ble_os.h>
 
 #define ARRAY_SIZES(array) (sizeof(array)/sizeof(array[0]))
 
@@ -152,8 +153,8 @@ typedef enum {
 #define ATT_ERR_UNSUPPORTED_GROUP_TYPE  0x10
 #define ATT_ERR_INSUFFICIENT_RESOURCES  0x11
 
-typedef int (*char_read_func_t)(uint16_t conn_handle, uint16_t char_handle, void *buf, uint16_t len, uint16_t offset);
-typedef int (*char_write_func_t)(uint16_t conn_handle, uint16_t char_handle, void *buf, uint16_t len, uint16_t offset);
+typedef int (*char_read_func_t)(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+typedef int (*char_write_func_t)(void *conn, const void *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
 typedef void (*char_ccc_change_func_t)(ccc_value_en value);
 
 struct gatt_char_t {
@@ -218,7 +219,7 @@ typedef struct _gatt_attr_t {
     char_write_func_t write;
 
     /** Attribute user data */
-    void            *user_data;
+    const void            *user_data;
     /** Attribute handle */
     uint16_t            handle;
     /** Attribute permissions */
@@ -243,44 +244,62 @@ struct bt_gatt_ccc_cfg_t {
 struct bt_gatt_ccc_t {
     struct bt_gatt_ccc_cfg_t    cfg[CONFIG_BT_MAX_PAIRED + CONFIG_BT_MAX_CONN];
     uint16_t            value;
-    void (*cfg_changed)(const gatt_attr_t *attr,  uint16_t value);
-    int (*cfg_write)(void *conn, gatt_attr_t *attr, uint16_t value);
-	int (*cfg_match)(void *conn, gatt_attr_t *attr);
+    void (*cfg_changed)(const void *attr,  uint16_t value);
+    int (*cfg_write)(void *conn, const void *attr, uint16_t value);
+	int (*cfg_match)(void *conn, const void *attr);
 };
 
+extern int gatt_attr_read_service(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+extern int gatt_attr_read_chrc(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+extern int gatt_read_handle(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+extern int gatt_write_handle(void *conn, const void *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+extern int gatt_cfg_write(void *conn, const void *attr, uint16_t value);
+extern int gatt_cfg_match(void *conn, const void *attr);
+extern void gatt_cfg_changed(const void *attr, uint16_t value);
+extern int gatt_attr_read_ccc(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+extern int gatt_attr_write_ccc(void *conn, const void *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+extern int gatt_attr_read_cep(void *conn, const void *attr, void *buf, uint16_t len, uint16_t offset);
+
+#define GATT_SERVICE_STATIC_DEFINE(service, attr...) \
+        static const gatt_attr_t service##_attrs[]  __in_section(_bt_gatt_attr, static, attr_##_service) = {attr}; \
+        static const gatt_service_static service   __in_section(_bt_gatt_service_static, static, service) = { \
+            .attrs = service##_attrs,                        \
+            .attr_count = ARRAY_SIZES(service##_attrs)} ;
+
 #define GATT_ATT_DEFINE(_uuid, _perm, _read, _write,_value)     \
-    {                                   \
-        .uuid = _uuid,                          \
-                .perm = _perm,                          \
-                        .read = _read,                          \
-                                .write = _write,                        \
-        .user_data =(void *){ _value},                      \
+    {                                                           \
+        .uuid = _uuid,                                          \
+        .perm = _perm,                                          \
+        .read = _read,                                          \
+        .write = _write,                                        \
+        .user_data = _value,                                    \
     }
+
 #define GATT_PRIMARY_SERVICE_DEFINE(_uuid) \
-    GATT_ATT_DEFINE(UUID_GATT_PRIMARY, GATT_PERM_READ, NULL, NULL,_uuid)
+    GATT_ATT_DEFINE(UUID_GATT_PRIMARY, GATT_PERM_READ, gatt_attr_read_service, NULL,_uuid)
 
 #define GATT_SECONDARY_SERVICE_DEFINE(_uuid) \
     GATT_ATT_DEFINE(UUID_GATT_SECONDARY, GATT_PERM_READ, NULL, NULL, _uuid)
 
 #define GATT_CHAR_DEFINE(_uuid, _props) \
     GATT_ATT_DEFINE(UUID_GATT_CHRC, GATT_PERM_READ,  \
-    NULL, NULL,(&(struct gatt_char_t){.uuid= _uuid,.value_handle = 0,.properties = _props,}))
+    gatt_attr_read_chrc, NULL,(&(const struct gatt_char_t){.uuid= _uuid,.value_handle = 0,.properties = _props,}))
 
 #define GATT_CHAR_VAL_DEFINE(_uuid, _perm) \
-    GATT_ATT_DEFINE(_uuid, _perm, NULL, NULL, NULL)
+    GATT_ATT_DEFINE(_uuid, _perm, gatt_read_handle, gatt_write_handle, NULL)
 
 #define GATT_CHAR_DESCRIPTOR_DEFINE(_uuid, _perm) \
-    GATT_ATT_DEFINE(_uuid, _perm, NULL, NULL, NULL)
+    GATT_ATT_DEFINE(_uuid, _perm, gatt_read_handle, gatt_write_handle, NULL)
 
 #define GATT_CHAR_CCC_DEFINE() \
     GATT_ATT_DEFINE(UUID_GATT_CCC, GATT_PERM_READ | GATT_PERM_WRITE,  \
-    NULL, NULL,(&(struct bt_gatt_ccc_t){.cfg= {{0}}}))
+    gatt_attr_read_ccc, gatt_attr_write_ccc,(&(struct bt_gatt_ccc_t){.value = 0 ,.cfg_changed = gatt_cfg_changed, .cfg_match = gatt_cfg_match, .cfg_write = gatt_cfg_write}))
 
 #define GATT_CHAR_CUD_DEFINE(_value, _perm) \
-    GATT_ATT_DEFINE(UUID_GATT_CUD, _perm, NULL, NULL,(&(gatt_cud_t) {.user_des = _value}))
+    GATT_ATT_DEFINE(UUID_GATT_CUD, _perm, gatt_read_handle, gatt_write_handle,(&(gatt_cud_t) {.user_des = _value}))
 
-#define GATT_CHAR_CPF_DEFINE(_value, _perm) \
-    GATT_ATT_DEFINE(UUID_GATT_CPF, _perm, NULL, NULL,(&(gatt_cep_t) {.ext_props = _value}))
+#define GATT_CHAR_CEP_DEFINE(_value, _perm) \
+    GATT_ATT_DEFINE(UUID_GATT_CEP, _perm, gatt_attr_read_cep, NULL,(&(gatt_cep_t) {.ext_props = _value}))
 
 
 typedef enum {
@@ -330,14 +349,22 @@ typedef struct _snode_ sys_snode;
 /** @brief GATT Service structure */
 typedef struct _gatt_service_ {
     /** Service Attributes */
-    struct bt_gatt_attr *attrs;
+    gatt_attr_t *attrs;
     /** Service Attribute count */
     uint32_t            attr_count;
     sys_snode       node;
 } gatt_service;
 
+/** @brief GATT Service structure */
+typedef struct _gatt_service_static_ {
+    /** Service Attributes */
+    const gatt_attr_t *attrs;
+    /** Service Attribute count */
+    uint32_t            attr_count;
+} gatt_service_static;
 
 int ble_stack_gatt_registe_service(gatt_service *s, gatt_attr_t attrs[], uint16_t attr_num);
+int ble_stack_gatt_service_handle(const gatt_service_static *service);
 
 int ble_stack_gatt_notificate(int16_t conn_handle, uint16_t char_handle, const uint8_t *data, uint16_t len);
 int ble_stack_gatt_indicate(int16_t conn_handle, int16_t char_handle, const uint8_t *data, uint16_t len);

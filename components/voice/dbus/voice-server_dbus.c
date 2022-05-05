@@ -12,8 +12,9 @@
 #include <voice.h>
 #include <voice_hal.h>
 #include <voice_debug.h>
+#ifdef __linux__
 #include "aos_port/common.h"
-
+#endif
 
 #include "dbus_knife/kdbus_utils.h"
 #include "voice_server_dbus.h"

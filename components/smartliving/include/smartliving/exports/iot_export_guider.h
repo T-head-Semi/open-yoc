@@ -29,4 +29,5 @@ DLL_IOT_API int iotx_guider_get_kv_env(void);
 DLL_IOT_API guider_env_e iotx_guider_get_env(void);
 DLL_IOT_API iotx_cloud_region_types_t iotx_guider_get_region(void);
 DLL_IOT_API int iotx_guider_get_region_id(void);
+DLL_IOT_API int guider_set_direct_connect_count(unsigned char count);
 #endif

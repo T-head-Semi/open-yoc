@@ -32,19 +32,11 @@ void at_cmd_at(char *cmd, int type, char *data)
     }
 }
 
-extern const atserver_cmd_t at_cmd[];
 void at_cmd_help(char *cmd, int type, char *data)
 {
     if (type == EXECUTE_CMD) {
         atserver_send("\r\n%s:", cmd + 2);
-        int i = 0;
-
-        while (at_cmd[i++].cmd) {
-            if (at_cmd[i].cmd[2] == '+') {
-                atserver_send("%s;", at_cmd[i].cmd + 3);
-            }
-        }
-
+        atserver_show_command();
         atserver_send("\r\nOK\r\n");
     }
 }

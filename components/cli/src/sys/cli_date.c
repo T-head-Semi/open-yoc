@@ -18,10 +18,10 @@ static void cmd_ntp_func(char *wbuf, int wbuf_len, int argc, char **argv)
         ;
     } else {
         time_t t = time(NULL);
-        time_t lct = t + TIME_ZONE * 3600;
+        time_t lct = t + timezone * 3600;
         if (t >= 0) {
-            printf("\tTZ(%02d):%s %d\n", TIME_ZONE, ctime(&lct), lct );
-            printf("\t   UTC:%s %d\n", ctime(&t), t );
+            printf("\tTZ(%02ld): %s %ld\n", timezone, ctime(&t), lct);
+            printf("\t   UTC: %s %ld\n", asctime(gmtime(&t)), t);
         }
     }
 }

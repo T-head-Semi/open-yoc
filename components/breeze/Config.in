@@ -10,10 +10,6 @@ menuconfig AOS_COMP_BREEZE
 if AOS_COMP_BREEZE
 # Configurations for comp breeze
 
-    config CONFIG_AIS_SECURE_ADV
-        bool "Enable secure adv in Breeze"
-        default y
-
     config EN_COMBO_NET
         bool "Enable AWSS feature in Breeze"
         default y

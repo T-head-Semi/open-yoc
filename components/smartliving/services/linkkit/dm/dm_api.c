@@ -158,13 +158,6 @@ int iotx_dm_connect(_IN_ iotx_dm_init_params_t *init_params)
         return FAIL_RETURN;
     }
 
-#ifdef MQTT_SHADOW
-    dm_shadow_connect();
-#ifdef CLOUD_OFFLINE_RESET
-    offline_reset_init();
-#endif
-#endif
-
 #ifdef ALCS_ENABLED
     /* DM Connect Local */
     do{
@@ -398,10 +391,12 @@ int iotx_dm_post_property(_IN_ int devid, _IN_ char *payload, _IN_ int payload_l
 int iotx_dm_unified_service_post(_IN_ int devid, _IN_ char *payload, _IN_ int payload_len)
 {
     int res = 0;
+    int msgid = 0;
 
     _dm_api_lock();
 
-    res = dm_mgr_unified_service_post(devid, payload, payload_len);
+    msgid = iotx_report_id();
+    res = dm_mgr_unified_service_post(devid, msgid, payload, payload_len);
     if (res < SUCCESS_RETURN) {
         _dm_api_unlock();
         return FAIL_RETURN;
@@ -725,6 +720,30 @@ int iotx_dm_subdev_query(_IN_ char product_key[IOTX_PRODUCT_KEY_LEN + 1],
     return SUCCESS_RETURN;
 }
 
+int iotx_dm_get_subdev_triples_by_devid(_IN_ int devid, iotx_linkkit_dev_meta_info_t *p_subdev)
+{
+    int res = 0;
+    dm_mgr_dev_node_t *search_node = NULL;
+
+    if (devid < 0) {
+        return DM_INVALID_PARAMETER;
+    }
+
+    _dm_api_lock();
+    res = dm_mgr_search_device_node_by_devid(devid, (void **)&search_node);
+    if (res != SUCCESS_RETURN) {
+        _dm_api_unlock();
+        return FAIL_RETURN;
+    }
+
+    memcpy(p_subdev->product_key, search_node->product_key, PRODUCT_KEY_MAXLEN);
+    memcpy(p_subdev->device_name, search_node->device_name, DEVICE_NAME_MAXLEN);
+    memcpy(p_subdev->device_secret, search_node->device_secret, DEVICE_SECRET_MAXLEN);
+
+    _dm_api_unlock();
+    return res;
+}
+
 int iotx_dm_subdev_create(_IN_ char product_key[PRODUCT_KEY_MAXLEN], _IN_ char device_name[DEVICE_NAME_MAXLEN],
                           _IN_ char device_secret[DEVICE_SECRET_MAXLEN], _OU_ int *devid)
 {
@@ -986,33 +1005,25 @@ int iotx_dm_subdev_reset(_IN_ int devid)
     return res;
 }
 
-int iotx_dm_subdev_login(_IN_ int devid)
+int iotx_dm_subdev_batch_login(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total)
 {
     int res = 0;
 
-    if (devid < 0) {
-        return DM_INVALID_PARAMETER;
-    }
-
     _dm_api_lock();
 
-    res = dm_mgr_upstream_combine_login(devid);
+    res = dm_mgr_upstream_combine_batch_login(subdev_list, subdev_total);
 
     _dm_api_unlock();
     return res;
 }
 
-int iotx_dm_subdev_logout(_IN_ int devid)
+int iotx_dm_subdev_batch_logout(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total)
 {
     int res = 0;
 
-    if (devid < 0) {
-        return DM_INVALID_PARAMETER;
-    }
-
     _dm_api_lock();
 
-    res = dm_mgr_upstream_combine_logout(devid);
+    res = dm_mgr_upstream_combine_batch_logout(subdev_list, subdev_total);
 
     _dm_api_unlock();
     return res;

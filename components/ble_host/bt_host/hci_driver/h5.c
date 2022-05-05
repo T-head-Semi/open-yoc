@@ -52,6 +52,16 @@
 
 #include "h5.h"
 
+// Allocate packet. Max len of a H5 pkt=
+// 0xFFF (payload) +4 (header) +2 (crc)
+#ifndef CONFIG_BT_H5_SKB_PKT_SIZE
+#define CONFIG_BT_H5_SKB_PKT_SIZE 0x1005
+#endif
+
+#ifndef CONFIG_BT_H5_RECV_DATA_LIMIT
+#define CONFIG_BT_H5_RECV_DATA_LIMIT (0)
+#endif
+
 #define H5_TRACE_DATA_ENABLE 0
 
 #define STREAM_TO_UINT16(u16, p) {u16 = ((uint16_t)(*(p)) + (((uint16_t)(*((p) + 1))) << 8)); (p) += 2;}
@@ -62,7 +72,7 @@
 #define SYNC_RETRANS_COUNT  20  //20*250 = 5000ms(5s)
 #define CONF_RETRANS_COUNT  20
 
-#define DATA_RETRANS_TIMEOUT_VALUE             1000 //ms
+#define DATA_RETRANS_TIMEOUT_VALUE             100 //ms
 #define SYNC_RETRANS_TIMEOUT_VALUE             250
 #define CONF_RETRANS_TIMEOUT_VALUE             500
 #define WAIT_CT_BAUDRATE_READY_TIMEOUT_VALUE   500
@@ -86,6 +96,8 @@
 #define HCI_NUM_OF_CMP_PKTS_EVT             0x13
 #define HCI_BLE_EVT                         0x3E
 
+#define HCI_LE_SUB_ADV_REPORT_EVT           0x02
+#define HCI_LE_SUB_EXT_ADV_REPORT_EVT       0x0d
 
 #define PATCH_DATA_FIELD_MAX_SIZE     252
 #define READ_DATA_SIZE  16
@@ -118,6 +130,20 @@
 
 
 #define PACKET_TYPE_TO_INDEX(type) ((type) - 1)
+
+#ifndef CONFIG_DATA_READY_CB_TASK_STACK_SIZE
+#define CONFIG_DATA_READY_CB_TASK_STACK_SIZE 1024
+#endif
+
+#ifndef CONFIG_DATA_READY_CB_TASK_PRI
+#define CONFIG_DATA_READY_CB_TASK_PRI 8
+#endif
+
+#if defined(CONFIG_DATA_CB_STATIC_STACK) && CONFIG_DATA_CB_STATIC_STACK
+ktask_t          g_data_cb_task;
+cpu_stack_t      g_data_cb_stack[CONFIG_DATA_READY_CB_TASK_STACK_SIZE/4] = {0};
+#endif
+
 
 /* Callback function for the returned event of internal issued command */
 typedef void (*tTIMER_HANDLE_CBACK)(void *timer, void *arg);
@@ -185,6 +211,7 @@ typedef struct HCI_H5_CB {
     sk_buff     *internal_skb;
 
     aos_timer_t     *timer_data_retrans;
+    uint8_t         timer_data_retrans_start;
     aos_timer_t     *timer_sync_retrans;
     aos_timer_t     *timer_conf_retrans;
     aos_timer_t     *timer_wait_ct_baudrate_ready;
@@ -240,6 +267,7 @@ static int h5_alloc_data_retrans_timer();
 static int h5_free_data_retrans_timer();
 static int h5_stop_data_retrans_timer();
 static int h5_start_data_retrans_timer();
+static int h5_restart_data_retrans_timer();
 
 static int h5_alloc_sync_retrans_timer();
 static int h5_free_sync_retrans_timer();
@@ -668,6 +696,12 @@ static void h5_remove_acked_pkt(tHCI_H5_CB *h5)
     if (0 == hci_skb_queue_get_length(h5->unack)) {
         h5_stop_data_retrans_timer();
         rtk_h5.data_retrans_count = 0;
+        //check if there are unsend messages
+        h5_wake_up();
+    }
+    else
+    {
+        h5_restart_data_retrans_timer();
     }
 
     if (i != pkts_to_be_removed) {
@@ -744,7 +778,7 @@ static void hci_h5_send_conf_req()
 static void hci_h5_send_conf_resp()
 {
     //uint16_t bytes_sent = 0;
-    unsigned char h5confresp[2] = {0x04, 0x7B};
+    unsigned char h5confresp[3] = {0x04, 0x7B, 0x14};
     sk_buff *skb = NULL;
 
     skb = hci_skb_alloc_and_init(H5_LINK_CTL_PKT, h5confresp, sizeof(h5confresp));
@@ -766,9 +800,12 @@ static void rtk_notify_hw_h5_init_result(uint8_t result)
     BT_DBG("rtk_notify_hw_h5_init_result");
     uint8_t sync_event[6] = {0x0e, 0x04, 0x03, 0xee, 0xfc, 0x00};
     // we need to make a sync event to bt
-    sk_buff     *rx_skb;
+    sk_buff     *rx_skb = NULL;
     rx_skb = hci_skb_alloc_and_init(HCI_EVENT_PKT, sync_event, sizeof(sync_event));
-
+    if(!rx_skb) {
+        BT_ERR("skb alloc and init faild");
+		return;
+	}
     aos_mutex_lock(&rtk_h5.data_mutex, AOS_WAIT_FOREVER);
     hci_skb_queue_tail(rtk_h5.recv_data, rx_skb);
     aos_sem_signal(&rtk_h5.data_cond);
@@ -984,6 +1021,20 @@ static void h5_process_ctl_pkts(void)
     }
 }
 
+typedef void (*h5_ota_recv_cb)(uint8_t type,uint8_t *data,uint16_t len);
+
+h5_ota_recv_cb  g_h5_ota_recv_cb = NULL;
+
+void h5_ota_cb_register(h5_ota_recv_cb cb)
+{
+   g_h5_ota_recv_cb = cb;
+}
+
+void h5_ota_cb_unregister()
+{
+   g_h5_ota_recv_cb = NULL;
+}
+
 /**
 * Check if it's a hci frame, if it is, complete it with response or parse the cmd complete event
 *
@@ -996,7 +1047,7 @@ static uint8_t hci_recv_frame(sk_buff *skb, uint8_t pkt_type)
 
     uint32_t data_len = hci_skb_get_data_length(skb);
 
-    (void)data_len;
+   // (void)data_len;
     BT_DBG("UART H5 RX: length = %d", data_len);
 
     //we only intercept evt packet here
@@ -1010,6 +1061,7 @@ static uint8_t hci_recv_frame(sk_buff *skb, uint8_t pkt_type)
         // BT_DBG("hci_recv_frame event_code(0x%x), len = %d", event_code, len);
 
         if (event_code == HCI_COMMAND_COMPLETE_EVT) {
+            p++;
             num_hci_cmd_pkts = *p++;
             STREAM_TO_UINT16(opcode, p);
 
@@ -1018,9 +1070,24 @@ static uint8_t hci_recv_frame(sk_buff *skb, uint8_t pkt_type)
                 rtk_h5.internal_skb = skb;
                 BT_DBG("CommandCompleteEvent for command h5_start_wait_controller_baudrate_ready_timer (0x%04X)", opcode);
                 h5_start_wait_controller_baudrate_ready_timer();
+            }else if(opcode == HCI_VSC_DOWNLOAD_FW_PATCH && g_h5_ota_recv_cb){
+                g_h5_ota_recv_cb(HCI_EVENT_PKT,p,data_len);
+                intercepted = 1;
+                hci_skb_free(&skb);
+              }
+        }
+#if CONFIG_BT_H5_RECV_DATA_LIMIT > 0
+        else if (event_code == HCI_BLE_EVT && (hci_skb_queue_get_length(rtk_h5.recv_data)  > CONFIG_BT_H5_RECV_DATA_LIMIT))
+        {
+            p++;
+            /* drop adv report event if too many packages are unhandled*/
+            if (*p == HCI_LE_SUB_ADV_REPORT_EVT || *p == HCI_LE_SUB_EXT_ADV_REPORT_EVT)
+            {
+                intercepted = 1;
+                hci_skb_free(&skb);
             }
         }
-
+#endif
     }
 
     // BT_DBG("hci_recv_frame intercepted = %d", intercepted);
@@ -1140,7 +1207,6 @@ static uint8_t h5_complete_rx_pkt(tHCI_H5_CB *h5)
     rtk_h5.rx_skb = NULL;
     return pkt_type;
 }
-
 
 /**
 * Parse the receive data in h5 proto.
@@ -1274,11 +1340,12 @@ static uint32_t h5_recv(tHCI_H5_CB *h5, uint8_t *data, int count)
                         // Do not increment ptr or decrement count
                         // Allocate packet. Max len of a H5 pkt=
                         // 0xFFF (payload) +4 (header) +2 (crc)
-                        h5->rx_skb = hci_skb_alloc(0x1005);
+                        h5->rx_skb = hci_skb_alloc(CONFIG_BT_H5_SKB_PKT_SIZE);
 
                         if (!h5->rx_skb) {
                             h5->rx_state = H5_W4_PKT_DELIMITER;
                             h5->rx_count = 0;
+                            BT_ERR("skb alloc fail");
                             return 0;
                         }
 
@@ -1420,14 +1487,26 @@ static int create_data_ready_cb_thread()
         return -1;
     }
 
-    if (aos_task_new_ext(&rtk_h5.thread_data_ready_cb, "data_ready_cb",
-                         (void *)data_ready_cb_thread, NULL, 1024 * 6, AOS_DEFAULT_APP_PRI + 3) != 0) {
+    
+#if defined(CONFIG_DATA_CB_STATIC_STACK) && CONFIG_DATA_CB_STATIC_STACK
+    if (krhino_task_create(&g_data_cb_task, "data_ready_cb", NULL, CONFIG_DATA_READY_CB_TASK_PRI, 0u, g_data_cb_stack,
+                       CONFIG_DATA_READY_CB_TASK_STACK_SIZE/4, data_ready_cb_thread, 1u) != 0) {
         BT_ERR("pthread_create thread_data_ready_cb failed!");
         h5_data_ready_running = 0;
         aos_mutex_free(&rtk_h5.data_mutex);
         aos_sem_free(&rtk_h5.data_cond);
         return -1 ;
     }
+#else
+    if (aos_task_new_ext(&rtk_h5.thread_data_ready_cb, "data_ready_cb",
+                             (void *)data_ready_cb_thread, NULL, CONFIG_DATA_READY_CB_TASK_STACK_SIZE, CONFIG_DATA_READY_CB_TASK_PRI) != 0) {
+            BT_ERR("pthread_create thread_data_ready_cb failed!");
+            h5_data_ready_running = 0;
+            aos_mutex_free(&rtk_h5.data_mutex);
+            aos_sem_free(&rtk_h5.data_cond);
+            return -1 ;
+        }
+#endif
 
     return 0;
 
@@ -1635,6 +1714,39 @@ static uint16_t hci_h5_send_cmd(hci_data_type_t type, uint8_t *data, uint16_t le
     return length;
 }
 
+
+uint16_t hci_h5_send_cmd_with_header(hci_data_type_t type,IN uint8_t * header, IN uint8_t header_len, uint8_t *data, uint16_t length)
+{
+    sk_buff *skb = NULL;
+    uint16_t opcode;
+
+    skb = hci_skb_alloc_and_init_with_header(type, header, header_len, data, length);
+
+    if (!skb) {
+        BT_ERR("send cmd hci_skb_alloc_and_init fail!");
+        return -1;
+    }
+
+    h5_enqueue(skb);
+
+    num_hci_cmd_pkts--;
+
+    /* If this is an internal Cmd packet, the layer_specific field would
+         * have stored with the opcode of HCI command.
+         * Retrieve the opcode from the Cmd packet.
+         */
+    STREAM_TO_UINT16(opcode, data);
+    BT_DBG("HCI Command opcode(0x%04X)", opcode);
+
+    if (opcode == 0x0c03) {
+        BT_DBG("RX HCI RESET Command, stop hw init timer");
+        h5_stop_hw_init_ready_timer();
+    }
+
+    h5_wake_up();
+    return length;
+}
+
 /*******************************************************************************
 **
 ** Function        hci_h5_send_acl_data
@@ -1775,6 +1887,7 @@ static void h5_retransfer_timeout_handler(void *timer, void *arg)
     }
 
     h5_retransfer_signal_event(H5_EVENT_RX);
+    rtk_h5.timer_data_retrans_start = 0;
 }
 
 static void h5_sync_retrans_timeout_handler(void *timer, void *arg)
@@ -1861,23 +1974,40 @@ static int h5_alloc_data_retrans_timer()
 {
     // Create and set the timer when to expire
     rtk_h5.timer_data_retrans = OsAllocateTimer(h5_retransfer_timeout_handler);
-
+    rtk_h5.timer_data_retrans_start = 0;
     return 0;
 }
 
 static int h5_free_data_retrans_timer()
 {
+    rtk_h5.timer_data_retrans_start = 0;
     return OsFreeTimer(rtk_h5.timer_data_retrans);
 }
 
 static int h5_start_data_retrans_timer()
 {
+    rtk_h5.timer_data_retrans_start = 1;
     return OsStartTimer(rtk_h5.timer_data_retrans, DATA_RETRANS_TIMEOUT_VALUE, 0);
 }
 
 static int h5_stop_data_retrans_timer()
 {
-    return OsStopTimer(rtk_h5.timer_data_retrans);
+    if (rtk_h5.timer_data_retrans_start)
+    {
+        rtk_h5.timer_data_retrans_start = 0;
+        return OsStopTimer(rtk_h5.timer_data_retrans);
+    }
+    return 0;
+}
+
+static int h5_restart_data_retrans_timer()
+{
+    if (!rtk_h5.timer_data_retrans_start)
+    {
+        rtk_h5.timer_data_retrans_start = 1;
+        return OsStartTimer(rtk_h5.timer_data_retrans, 50, 0);
+    }
+    return 0;
 }
 
 /*

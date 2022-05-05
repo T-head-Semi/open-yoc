@@ -22,6 +22,7 @@ typedef struct _record_node {
     int             quit;
     aos_event_t     quit_event;
     data_ready_func d_rdy_func;
+    data_release_func d_release_func;
     void            *user_data;
     int             chunk_size;
     // TODO: for debug
@@ -73,16 +74,13 @@ static void _record_task(void *arg)
         goto out;
     }
     while(!node->quit) {
-        if (node->d_rdy_func) {
-            node->d_rdy_func(node->user_data);
-            aos_msleep(1);
-        } else {
-            aos_msleep(40);
-        }
         bytes = recio_read(node->read_hdl, sendbuffer, node->chunk_size, 0);
-        if (bytes < 0) {
-            LOGI(TAG, "ws rec file finish, from:%s, to:%s, bytes:%d", node->from, node->to, bytes);
-            break;
+        if (bytes <= 0) {
+            if (node->d_rdy_func) {
+                node->d_rdy_func(node->user_data);
+            } else {
+                aos_msleep(40);
+            }
         } else if (bytes > 0) {
             // LOGD(TAG, "w %d", bytes);
             node->read_bytes += bytes;
@@ -131,7 +129,7 @@ int record_start(rec_hdl_t hdl)
 
 int record_stop(rec_hdl_t hdl)
 {
-    unsigned flags;
+    unsigned int flags;
     record_node_t *node = (record_node_t *)hdl;
 
     if (node == NULL) {
@@ -139,7 +137,9 @@ int record_stop(rec_hdl_t hdl)
     }
 
     node->quit = 1;
-
+    if (node->d_release_func) {
+        node->d_release_func(node->user_data);
+    }
     if (node->quit_event.hdl)
         aos_event_get(&node->quit_event, 0x01, AOS_EVENT_OR_CLEAR, &flags, AOS_WAIT_FOREVER);
     if (node->read_hdl)
@@ -173,6 +173,15 @@ void record_set_data_ready_cb(rec_hdl_t hdl, data_ready_func cb, void *arg)
     if (hdl) {
         record_node_t *node = (record_node_t *)hdl;
         node->d_rdy_func = cb;
+        node->user_data = arg;
+    }
+}
+
+void record_set_data_release_cb(rec_hdl_t hdl, data_release_func cb, void *arg)
+{
+    if (hdl) {
+        record_node_t *node = (record_node_t *)hdl;
+        node->d_release_func = cb;
         node->user_data = arg;
     }
 }

@@ -28,7 +28,8 @@ static void _generic_level_cli_status(struct bt_mesh_model *model,
                                   struct bt_mesh_msg_ctx *ctx,
                                   struct net_buf_simple *buf)
 {
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LEVEL_STATUS, &message);

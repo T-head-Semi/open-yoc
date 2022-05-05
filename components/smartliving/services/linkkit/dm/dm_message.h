@@ -23,6 +23,7 @@
 #define DM_MSG_KEY_DEVICE_NAME          "deviceName"
 #define DM_MSG_KEY_DEVICE_SECRET        "deviceSecret"
 #define DM_MSG_KEY_SYNC_RESULT          "syncResult"
+#define DM_MSG_KEY_RESULT_CODE          "resultCode"
 #define DM_MSG_KEY_TIME                 "time"
 
 #define DM_MSG_SIGN_METHOD_SHA256       "Sha256"
@@ -147,8 +148,9 @@ int dm_msg_thing_event_notify_reply(dm_msg_response_payload_t *response);
     int dm_msg_thing_subdev_reset_reply(dm_msg_response_payload_t *response);
     int dm_msg_topo_get_reply(dm_msg_response_payload_t *response);
     int dm_msg_thing_list_found_reply(dm_msg_response_payload_t *response);
-    int dm_msg_combine_login_reply(dm_msg_response_payload_t *response);
-    int dm_msg_combine_logout_reply(dm_msg_response_payload_t *response);
+
+    int dm_msg_combine_batch_login_reply(dm_msg_response_payload_t *response);
+    int dm_msg_combine_batch_logout_reply(dm_msg_response_payload_t *response);
 #endif
 #ifdef ALCS_ENABLED
     int dm_msg_dev_core_service_dev(char **payload, int *payload_len);
@@ -179,9 +181,8 @@ int dm_msg_thing_subdev_reset(_OU_ dm_msg_request_t *request);
 int dm_msg_thing_topo_get(_OU_ dm_msg_request_t *request);
 int dm_msg_thing_list_found(_IN_ char product_key[PRODUCT_KEY_MAXLEN], _IN_ char device_name[DEVICE_NAME_MAXLEN],
                             _OU_ dm_msg_request_t *request);
-int dm_msg_combine_login(_IN_ char product_key[PRODUCT_KEY_MAXLEN], _IN_ char device_name[DEVICE_NAME_MAXLEN],
-                         _IN_ char device_secret[DEVICE_SECRET_MAXLEN], _OU_ dm_msg_request_t *request);
-int dm_msg_combine_logout(_IN_ char product_key[PRODUCT_KEY_MAXLEN], _IN_ char device_name[DEVICE_NAME_MAXLEN],
-                          _OU_ dm_msg_request_t *request);
+
+int dm_msg_combine_batch_login(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total, _OU_ dm_msg_request_t *request);
+int dm_msg_combine_batch_logout(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total, _OU_ dm_msg_request_t *request);
 #endif
 #endif

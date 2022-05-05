@@ -70,11 +70,11 @@ struct ut_uuid_128 {
     }
 
 #define UUID16_DECLARE(value) \
-    ((uuid_t *) (&((struct ut_uuid_16)UUID16_INIT(value))))
+    ((uuid_t *) (&((const struct ut_uuid_16)UUID16_INIT(value))))
 #define UUID32_DECLARE(value) \
-    ((uuid_t *) (&((struct ut_uuid_32)UUID32_INIT(value))))
+    ((uuid_t *) (&((const struct ut_uuid_32)UUID32_INIT(value))))
 #define UUID128_DECLARE(value...) \
-    ((uuid_t *) (&((struct ut_uuid_128)UUID128_INIT(value))))
+    ((uuid_t *) (&((const struct ut_uuid_128)UUID128_INIT(value))))
 
 #define UUID16(__u)  (((struct ut_uuid_16 *)(__u))->val)
 #define UUID32(__u)  (((struct ut_uuid_32 *)(__u))->val)

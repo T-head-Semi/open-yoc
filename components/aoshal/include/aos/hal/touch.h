@@ -11,9 +11,13 @@
 extern "C" {
 #endif
 
-typedef void (*touch_cb)(touch_message_t touch_msg);
+typedef void (*touch_cb)(touch_message_t touch_msg, void* arg);
 
-int hal_touch_init(touch_cb callback);
+int hal_touch_init(touch_cb callback, void *arg);
+
+int hal_touch_cb_register(touch_cb callback, void *arg);
+
+int hal_touch_cb_unregister(touch_cb callback);
 
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Alibaba Group Holding Limited
+ * Copyright (C) 2019-2022 Alibaba Group Holding Limited
  */
 #ifndef __DUT_HAL_COMMON_H_
 #define __DUT_HAL_COMMON_H_
@@ -55,4 +55,9 @@ int dut_hal_factorydata_read(uint32_t offset, uint8_t *buffer, uint32_t length);
  */
 int dut_hal_factorydata_store(uint32_t offset, uint8_t *buffer, uint32_t length);
 
+int dut_hal_test_gpio_read(uint8_t wrgpio, uint8_t *value);
+
+int dut_hal_test_gpio_write(uint8_t wrgpio, uint8_t value);
+
+int dut_hal_rx_current_test(uint32_t sleep_time);
 #endif

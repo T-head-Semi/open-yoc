@@ -1,4 +1,7 @@
-/* ntpclient.c */
+/*
+ * Copyright (C) 2019-2022 Alibaba Group Holding Limited
+ */
+
 #include <aos/aos.h>
 #include <sys/select.h>
 #include <lwip/netdb.h>
@@ -6,12 +9,6 @@
 
 
 static const char *TAG = "NTP";
-
-#ifndef CONFIG_NTP_CTS_ZONE
-#define CTS_ZONE 8
-#else
-#define CTS_ZONE CONFIG_NTP_CTS_ZONE
-#endif
 
 #define VERSION_3 3
 #define VERSION_4 4
@@ -30,7 +27,6 @@ static const char *TAG = "NTP";
 #define NTP_HLEN 48
 
 #define NTP_PORT 123
-#define NTP_SERVER "182.92.12.11"
 
 #define TIMEOUT 3
 
@@ -138,7 +134,7 @@ void print_ntp(struct ntphdr *ntp)
     printf("Route delay:\t %lf \n",
            ntohs(ntp->ntp_rtdelay.intpart) + NTP_REVE_FRAC16(ntohs(ntp->ntp_rtdelay.fracpart)));
     printf("Route Dispersion: %lf \n", ntohs(ntp->ntp_rtdispersion.intpart) +
-                                           NTP_REVE_FRAC16(ntohs(ntp->ntp_rtdispersion.fracpart)));
+           NTP_REVE_FRAC16(ntohs(ntp->ntp_rtdispersion.fracpart)));
     printf("Referencd ID:\t %u \n", ntohl(ntp->ntp_refid));
 
     time = ntohl(ntp->ntp_refts.intpart) - JAN_1970;
@@ -248,33 +244,31 @@ static int _ntp_sync_time(char *server)
             offset = get_offset((struct ntphdr *)buf, &recvtv);
 
             gettimeofday(&tv, NULL);
-            //TODO: ctime has some problem
-#if 0
-            LOGD(TAG, "system time:\t%s", ctime((time_t *) &tv.tv_sec));
-#else
-            //char *tbuf = NULL;
-            //char tbuf[64];
-            //strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %T", localtime(&tv.tv_sec));
-            //memset(&tv, 0, sizeof(tv));
-            //tbuf = ctime((time_t *)&tv.tv_sec);
-            //LOGD(TAG, "system time1:%s", tbuf);
-#endif
-#if 1
 
             tv.tv_sec += (int)offset;
-            tv.tv_usec += offset - (int)offset;
+            tv.tv_usec += ((offset - (int)offset) * 1000000);
+
+            tv.tv_sec += (tv.tv_usec / 1000000);
+            tv.tv_usec = (tv.tv_usec % 1000000);
+
+            if (tv.tv_usec < 0) {
+                tv.tv_sec --;
+                tv.tv_usec += 1000000;
+            }
+
+            LOGD(TAG, "NTP sec: %ld usec: %ld", tv.tv_sec, tv.tv_usec);
 
             if (settimeofday(&tv, NULL) != 0) {
-                //LOGE(TAG, "set time");
+                //LOGE(TAG, "settimeofday error");
                 close(sockfd);
                 return -1;
             }
-
-            //TODO: ctime has some problem
-            //LOGD(TAG, "ntp time:\t%s", ctime((time_t *) &tv.tv_sec));
-#endif
+        } else {
+            //LOGE(TAG, "select timeout");
+            return -1;
         }
     } else {
+        //LOGE(TAG, "FD_ISSET");
         close(sockfd);
         return -1;
     }
@@ -287,15 +281,12 @@ static int _ntp_sync_time(char *server)
 int ntp_sync_time(char *server)
 {
     int ret = -1;
-    for (int i = 0; i < 2; i++) {
-        ret = _ntp_sync_time(server);
-        if (ret == 0) {
-            LOGD(TAG, "sync success");
-            break;
-        }
-    }
 
-    if (ret < 0) {
+    ret = _ntp_sync_time(server);
+
+    if (ret == 0) {
+        LOGD(TAG, "sync success");
+    } else if (ret < 0) {
         LOGE(TAG, "sync error");
     }
 

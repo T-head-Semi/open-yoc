@@ -1,65 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Project Name="helloworld" Version="1">
-  <Description>YoC helloworld SDK</Description>
+  <Description>helloworld</Description>
   <MonitorProgress>
-    <FlashOperate>300</FlashOperate>
-    <DebugLaunch>25</DebugLaunch>
+    <FlashOperate>230</FlashOperate>
+    <DebugLaunch>118</DebugLaunch>
   </MonitorProgress>
   <Chips>
-    <Chip ID="chip_sc5654" Version="v7.4.y" IsBasic="false"/>
+    <Chip ID="chip_d1" Version="develop" IsBasic="false"/>
   </Chips>
   <Boards>
-    <Board ID="cb5654" Version="v7.4.y" IsBasic="false"/>
+    <Board ID="d1_evb" Version="develop" IsBasic="false"/>
   </Boards>
   <Packages>
-    <Package ID="sdk_chip_sc5654" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="rhino_arch" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="rhino_pwrmgmt" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="chip_sc5654" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="csi" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="cb5654" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="drv_wifi_rtl8723ds" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="aos" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="lwip" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="drv_bt_rtl8723ds" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="netmgr" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="drv_sdmmc" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="aos_hal" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="minilibc" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="hal_csi" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="partition" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="sec_crypto" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="cli" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="ulog" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="drivers" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="drv_snd_sc5654" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="uservice" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="minialsa" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="posix" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="vfs" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="button" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="rhino" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="ipc" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="kv" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="fota" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="httpclient" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="transport" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="mbedtls" Version="v7.4.y" IsBasic="false"/>
-    <Package ID="cjson" Version="v7.4.y" IsBasic="false"/>
+    <Package ID="sdk_chip_d1" Version="develop" IsBasic="false"/>
+    <Package ID="yoc_kernel_d1" Version="develop" IsBasic="false"/>
+    <Package ID="rhino" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="rhino_arch" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="aos" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="cli" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="kv" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="ulog" Version="develop" IsBasic="false"/>
+    <Package ID="csi" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="debug" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="aoshal" Version="develop" IsBasic="false"/>
+    <Package ID="libc_stub" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="uservice" Version="develop" IsBasic="false"/>
+    <Package ID="partition" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="key_mgr" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="sec_crypto" Version="v7.5.y" IsBasic="false"/>
+    <Package ID="posix" Version="v7.6.y" IsBasic="false"/>
+    <Package ID="vfs" Version="v7.6.y" IsBasic="false"/>
+    <Package ID="d1_evb" Version="develop" IsBasic="false"/>
+    <Package ID="chip_d1" Version="develop" IsBasic="false"/>
   </Packages>
   <MergedToYaml>yes</MergedToYaml>
   <Dependencies Name="BuildSet"/>
   <PackPathes>$(ProjectPath)/../../components|$(ProjectPath)/../../boards|$(ProjectPath)/Boards|$(ProjectPath)/Chips|$(ProjectPath)/Packages</PackPathes>
-  <DebugSessions>
-    <watchExpressions/>
-    <memoryExpressions>;;;</memoryExpressions>
-    <statistics>;;MHZ;</statistics>
-    <peripheralTabs/>
-    <WatchDisplayFormat>0</WatchDisplayFormat>
-    <LocalDisplayFormat>0</LocalDisplayFormat>
-    <debugLayout/>
-    <memoryTabColSizeExpressions>100:8;100:8;100:8;100:8;</memoryTabColSizeExpressions>
-  </DebugSessions>
+  <VendorInfo>
+    <VendorName>NULL</VendorName>
+  </VendorInfo>
   <BuildConfigs>
     <BuildConfig Name="BuildSet">
       <Target>
@@ -122,7 +101,7 @@
             <Init>yes</Init>
           </RAM5>
         </RAMBank>
-        <CPU>CK802</CPU>
+        <CPU>c906fdv</CPU>
         <UseMiniLib>yes</UseMiniLib>
         <Endian>little</Endian>
         <UseHardFloat>no</UseHardFloat>
@@ -138,7 +117,7 @@
         <Preprocessor>no</Preprocessor>
         <Disassmeble>yes</Disassmeble>
         <CallGraph>no</CallGraph>
-        <Map>no</Map>
+        <Map>yes</Map>
       </Output>
       <User>
         <BeforeCompile>
@@ -153,14 +132,15 @@
           <RunUserProg>yes</RunUserProg>
           <UserProgName>"$(ProjectPath)/script/aft_build.sh"</UserProgName>
         </AfterMake>
+        <Tools/>
       </User>
       <Compiler>
-        <Define>CONFIG_INIT_TASK_STACK_SIZE=2048;CONFIG_TCPIP=1;AOS_COMP_CLI="y";CLI_CONFIG_INBUF_SIZE=256;CLI_CONFIG_OUTBUF_SIZE=512;CLI_CONFIG_MAX_COMMANDS=64;CLI_CONFIG_MAX_ARG_NUM=16;CLI_CONFIG_MAX_ONCECMD_NUM=4;CLI_CONFIG_TASK_PRIORITY=60;CONFIG_UART_RECV_BUF_SIZE=1024;CONFIG_KERNEL_WORKQUEUE=1;CONFIG_KERNEL_RHINO=1;CONFIG_FOTA_IMG_AUTHENTICITY_NOT_CHECK=1;CONFIG_CJSON_WITHOUT_DOUBLE="y";CONFIG_CSI_V1=1;CONFIG_CSI="csi1";CONFIG_NON_ADDRESS_FLASH=1;BOARD_CB5654=1;CONFIG_CPU="ck803ef";CONFIG_CPU_CK803EF=1;CONFIG_VENDOR_NAME="silan";CONFIG_ARCH_INTERRUPTSTACK=1024;CONFIG_SYSTICK_HZ=100;CONFIG_NOT_SUPORRT_SASC=1;CONFIG_SEC_CRYPTO_SHA_SW=1;CONFIG_SEC_CRYPTO_RSA_SW=1;STDIO_UART=1;CONFIG_FOTA_BUFFER_SIZE=4096;CONFIG_CLI=1;CONFIG_DEBUG=1;CONFIG_PARITION_NO_VERIFY=1;__AOST_AOS_COMP_CLI__="y";__AOST_CLI_CONFIG_INBUF_SIZE__=256;__AOST_CLI_CONFIG_OUTBUF_SIZE__=512;__AOST_CLI_CONFIG_MAX_COMMANDS__=64;__AOST_CLI_CONFIG_MAX_ARG_NUM__=16;__AOST_CLI_CONFIG_MAX_ONCECMD_NUM__=4;__AOST_CLI_CONFIG_TASK_PRIORITY__=60;__AOST_BOARD_CB5654__=1;__AOST_STDIO_UART__=1;__AOST_CPU__="CK803EF";__AOST_ARCH__="CSKY";__ARCH___=1;__CPU_CK803EF__=1;__AOST_VENDOR__="SILAN";__AOST_CHIP__="CHIP_SC5654";__AOST_BOARD__="CB5654";__AOST_ALGORITHMS_PATH__="/mnt/d/ws/yoc7.4.1_test/components/chip_sc5654/configs/SC5654A_SPIFlash_CDK.elf";__AOST_CHIP_PATH__="/mnt/d/ws/yoc7.4.1_test/components/chip_sc5654";__AOST_BOARD_PATH__="/mnt/d/ws/yoc7.4.1_test/boards/cb5654";__AOST_SOLUTION_PATH__="/mnt/d/ws/yoc7.4.1_test/solutions/helloworld";</Define>
+        <Define>__AOST_CPU__="C906FDV";CONFIG_XR829=1;__AOST_FD_SETSIZE__=128;CONFIG_CPU_C906="y";__AOST_VFS_CONFIG_DEBUG__=1;DEBUG_LOG_FILE_NUM=10;__AOST_CLI_MAX_ARG_NUM__=16;DEBUG_ULOG_FLUSH=0;__AOST_CLI_MAX_ONCECMD_NUM__=4;DEBUG_CONFIG_LOG_FILE_NAME="/data/crash_reports/crash_report";CONFIG_LFS_BLOCK_CYCLES=500;CONFIG_DRIVERS_TOUCH=1;CONFIG_NO_CONFIG_BLOBS=1;CONFIG_KERNEL_WORKQUEUE=1;__AOST_POSIX_DEVICE_IO_NEED__=1;CONFIG_DRIVERS_DMA=1;__AOST_CLI_TASK_PRIORITY__=60;CONFIG_BACKEND_XRADIO=1;__AOST_CLI_TELNET_ENABLE__=0;CONFIG_AEFXER_SONA=0;__AOST_DEBUG_PANIC_PRT_INT__=1;__ARCH_RISCV__=1;RHINO_CONFIG_MM_TLF=1;__AOST_RHINO_CONFIG_MM_TLF_BLK_SIZE__=4194304;DEBUG_CPUUSAGE_FILE_NAME="/data/cpuusage";RHINO_CONFIG_MM_BLK=0;__AOST_CHIP__="CHIP_D1";CLI_MAX_COMMANDS=128;POSIX_DEVICE_IO_NEED=1;CONFIG_DRIVERS_SPINOR_FREQ=50;CONFIG_ARCH_INTERRUPTSTACK=4096;RHINO_CONFIG_MM_QUICK=0;__AOST_BOARD__="D1_EVB";__AOST_ALGORITHMS_PATH__="/home/cxx194832/yoc-d1/components/chip_d1/d1_flash.elf";CONFIG_NO_ROAMING=1;CONFIG_USERVICE_EVENT_TASK_STACK_SIZE=2048;CONFIG_CSI_V2=1;DEBUG_CPUUSAGE_RECODE_TO_FILE_ENABLE=0;CLI_IOBOX_ENABLE=0;__AOST_DEBUG_LASTWORD_RAM_ADDR__=0;RHINO_CONFIG_MM_TLF_BLK_SIZE=4194304;DEBUG_PANIC_CLI=1;AOS_COMP_VFS=1;CONFIG_KEY_FROM_OTP=0;__CPU_C906FDV__=1;__AOST_CLI_UAGENT_ENABLE__=0;CONFIG_DEBUG=1;__AOST_CLI_IOBOX_ENABLE__=0;__AOST_DEBUG_LOG_DIR_NAME__="/data/crash_reports";__AOST_CLI_SEPRATED_CONSOLE__=0;CONFIG_SUNXI_SPI_CPU_XFER_ONLY=1;DEBUG_LOG_DIR_NAME="/data/crash_reports";CONFIG_SOC_SUN20IW1P1=1;__AOST_CHIP_PATH__="/home/cxx194832/yoc-d1/components/chip_d1";__AOST_VFS_CONFIG_ROOTFS__=1;__AOST_AOS_COMP_CLI__=1;DEBUG_LASTWORD_RAM_ADDR=0;__AOST_CLI_MAX_COMMANDS__=128;__AOST_AOS_COMP_VFS__=1;__AOST_CLI_OUTBUF_SIZE__=512;CONFIG_TB_KP=0;CONFIG_SYSTICK_HZ=100;DEBUG_TEST_CMDS_ENABLE=0;CONFIG_SOC_SUN20I=1;__AOST_DEBUG_LASTWORD_REGION_LEN__=16384;AOS_COMP_ULOG="y";CONFIG_SUNXI_DISP2_FB_DISABLE_ROTATE=1;__AOST_RHINO_CONFIG_MM_BLK__=0;CONFIG_NO_RADIUS=1;CONFIG_AOS=1;CLI_CONFIG_STACK_SIZE=8192;__AOST_AOS_COMP_DEBUG__=1;CLI_OUTBUF_SIZE=512;CLI_TELNET_ENABLE=0;CONFIG_KV_ENABLE_CACHE=0;VFS_CONFIG_ROOTFS=1;CONFIG_SND_PLATFORM_SUNXI_CPUDAI=1;DEBUG_CONFIG_LOG_FILE_INDEX="/data/crash_reports/log_file_index";CONFIG_ARCH_SUN20IW1=1;DEBUG_PANIC_PRT_INT=1;CONFIG_NO_VLAN=1;__AOST_DEBUG_CONFIG_LOG_FILE_NAME__="/data/crash_reports/crash_report";WITH_LWIP=1;CLI_INBUF_SIZE=256;CONFIG_NO_ACCOUNTING=1;__AOST_DEBUG_TEST_CMDS_ENABLE__=0;__AOST_CPU0__=True;__AOST_BOARD_PATH__="/home/cxx194832/yoc-d1/boards/d1_evb";CLI_TASK_PRIORITY=60;__AOST_DEBUG_LAST_WORD_ENABLE__=0;CONFIG_CSI="csi2";__AOST_DEBUG_CONFIG_LOG_FILE_INDEX__="/data/crash_reports/log_file_index";CONFIG_NON_ADDRESS_FLASH="y";CONFIG_KERNEL_RHINO=1;__AOST_ARCH__="riscv";__AOST_RHINO_CONFIG_MM_BLK_SIZE__=256;DEBUG_LAST_WORD_ENABLE=0;CONFIG_SOC_SUN20IW1=1;CONFIG_DRIVERS_SUNXI_CCU=1;__AOST_DEBUG_CPUUSAGE_MAX_TASK__=80;CONFIG_SND_PLATFORM_SUNXI_DAUDIO=1;RHINO_CONFIG_MM_BLK_SIZE=256;__AOST_STDIO_UART__=0;__AOST_DEBUG_CPUUSAGE_RECODE_TO_FILE_ENABLE__=0;CONFIG_SND_PLATFORM_SUNXI_PCM=1;__AOST_RHINO_CONFIG_MM_TRACE_LVL__=4;CONFIG_USING_TLS=1;CONFIG_DRIVER_XRADIO=1;CONFIG_BUILTIN_WAV_FILE=1;__AOST_DEBUG_LOG_FILE_NUM__=10;CLI_MAX_ARG_NUM=16;__AOST_RHINO_CONFIG_MM_TLF__=1;CONFIG_OS_NUTTX_CM_PASS=1;__AOST_DEBUG_PANIC_CLI__=1;__AOST_MIPI_DSI_IP_VERSION__=40;CONFIG_LCD_SUPPORT_TFT08006=1;__AOST_CLI_CONFIG_STACK_SIZE__=8192;CONFIG_LOG_DEFAULT_LEVEL=2;HAVE_INIT_ARRAY_LD="y";CONFIG_DISP2_SUNXI_SUPPORT_ENAHNCE=1;RHINO_CONFIG_MM_TRACE_LVL=4;DEBUG_LASTWORD_REGION_LEN=16384;CONFIG_KERNEL_LWIP_HOOK=1;DEBUG_CPUUSAGE_MAX_TASK=80;MIPI_DSI_IP_VERSION=40;AOS_COMP_DEBUG=1;__AOST_RHINO_CONFIG_MM_MINISIZEBIT__=6;CONFIG_SND_CODEC_SUN8IW20_AUDIOCODEC=1;__AOST_DEBUG_CPUUSAGE_FILE_NAME__="/data/cpuusage";__AOST_HAVE_INIT_ARRAY_LD__="y";__AOST_RHINO_CONFIG_MM_QUICK__=0;CONFIG_DETECT_CARD=1;__AOST_VENDOR__="ALLWINNER";CONFIG_NO_CTRL_IFACE=1;CONFIG_OS_NUTTX=1;CONFIG_SND_PLATFORM_SUNXI_DMIC=1;STDIO_UART=0;CONFIG_USE_SDIO=1;FD_SETSIZE=128;CLI_SEPRATED_CONSOLE=0;CONFIG_DRIVERS_SOUND=1;CONFIG_INIT_TASK_STACK_SIZE=65536;__AOST_CLI_INBUF_SIZE__=256;CLI_UAGENT_ENABLE=0;__AOST_WITH_LWIP__=1;__AOST_DEBUG_ULOG_FLUSH__=0;CONFIG_USE_SD=1;CONFIG_NO_RANDOM_POOL=1;CONFIG_LFS_MOUNTPOINT="/";CONFIG_CRYPTO_INTERNAL=1;RHINO_CONFIG_MM_MINISIZEBIT=6;CONFIG_DRIVERS_SPINOR_4K_SECTORS=1;__AOST_AOS_COMP_ULOG__="y";VFS_CONFIG_DEBUG=1;CLI_MAX_ONCECMD_NUM=4;AOS_COMP_CLI=1;CONFIG_CHIP_D1=1;CONFIG_KV_SMART="y";</Define>
         <Undefine/>
         <Optim>Optimize (-Os)</Optim>
         <DebugLevel>Default (-g)</DebugLevel>
         <IncludePath>$(ProjectPath)/src;$(ProjectPath)/include</IncludePath>
-        <OtherFlags>-mhigh-registers -mdsp -ffunction-sections -fdata-sections -mhard-float -Wl,-zmax-page-size=1024 -Wno-address -Wno-unused-but-set-variable -Wno-main -Wno-unused-function -Os</OtherFlags>
+        <OtherFlags>-c -g -Os -ffunction-sections -fdata-sections -Wall -fno-common -DSYSINFO_PRODUCT_MODEL=\"ALI_AOS_RVB_D1\" -fno-asynchronous-unwind-tables</OtherFlags>
         <Verbose>no</Verbose>
         <Ansi>no</Ansi>
         <Syntax>no</Syntax>
@@ -170,10 +150,11 @@
         <AllWarn>yes</AllWarn>
         <WarnErr>no</WarnErr>
         <OneElfS>no</OneElfS>
+        <OneElfSPerData>no</OneElfSPerData>
         <Fstrict>no</Fstrict>
       </Compiler>
       <Asm>
-        <Define>CONFIG_INIT_TASK_STACK_SIZE=2048;CONFIG_TCPIP=1;AOS_COMP_CLI="y";CLI_CONFIG_INBUF_SIZE=256;CLI_CONFIG_OUTBUF_SIZE=512;CLI_CONFIG_MAX_COMMANDS=64;CLI_CONFIG_MAX_ARG_NUM=16;CLI_CONFIG_MAX_ONCECMD_NUM=4;CLI_CONFIG_TASK_PRIORITY=60;CONFIG_UART_RECV_BUF_SIZE=1024;CONFIG_KERNEL_WORKQUEUE=1;CONFIG_KERNEL_RHINO=1;CONFIG_FOTA_IMG_AUTHENTICITY_NOT_CHECK=1;CONFIG_CJSON_WITHOUT_DOUBLE="y";CONFIG_CSI_V1=1;CONFIG_CSI="csi1";CONFIG_NON_ADDRESS_FLASH=1;BOARD_CB5654=1;CONFIG_CPU="ck803ef";CONFIG_CPU_CK803EF=1;CONFIG_VENDOR_NAME="silan";CONFIG_ARCH_INTERRUPTSTACK=1024;CONFIG_SYSTICK_HZ=100;CONFIG_NOT_SUPORRT_SASC=1;CONFIG_SEC_CRYPTO_SHA_SW=1;CONFIG_SEC_CRYPTO_RSA_SW=1;STDIO_UART=1;CONFIG_FOTA_BUFFER_SIZE=4096;CONFIG_CLI=1;CONFIG_DEBUG=1;CONFIG_PARITION_NO_VERIFY=1;__AOST_AOS_COMP_CLI__="y";__AOST_CLI_CONFIG_INBUF_SIZE__=256;__AOST_CLI_CONFIG_OUTBUF_SIZE__=512;__AOST_CLI_CONFIG_MAX_COMMANDS__=64;__AOST_CLI_CONFIG_MAX_ARG_NUM__=16;__AOST_CLI_CONFIG_MAX_ONCECMD_NUM__=4;__AOST_CLI_CONFIG_TASK_PRIORITY__=60;__AOST_BOARD_CB5654__=1;__AOST_STDIO_UART__=1;__AOST_CPU__="CK803EF";__AOST_ARCH__="CSKY";__ARCH___=1;__CPU_CK803EF__=1;__AOST_VENDOR__="SILAN";__AOST_CHIP__="CHIP_SC5654";__AOST_BOARD__="CB5654";__AOST_ALGORITHMS_PATH__="/mnt/d/ws/yoc7.4.1_test/components/chip_sc5654/configs/SC5654A_SPIFlash_CDK.elf";__AOST_CHIP_PATH__="/mnt/d/ws/yoc7.4.1_test/components/chip_sc5654";__AOST_BOARD_PATH__="/mnt/d/ws/yoc7.4.1_test/boards/cb5654";__AOST_SOLUTION_PATH__="/mnt/d/ws/yoc7.4.1_test/solutions/helloworld";</Define>
+        <Define>__AOST_CPU__="C906FDV";CONFIG_XR829=1;__AOST_FD_SETSIZE__=128;CONFIG_CPU_C906="y";__AOST_VFS_CONFIG_DEBUG__=1;DEBUG_LOG_FILE_NUM=10;__AOST_CLI_MAX_ARG_NUM__=16;DEBUG_ULOG_FLUSH=0;__AOST_CLI_MAX_ONCECMD_NUM__=4;DEBUG_CONFIG_LOG_FILE_NAME="/data/crash_reports/crash_report";CONFIG_LFS_BLOCK_CYCLES=500;CONFIG_DRIVERS_TOUCH=1;CONFIG_NO_CONFIG_BLOBS=1;CONFIG_KERNEL_WORKQUEUE=1;__AOST_POSIX_DEVICE_IO_NEED__=1;CONFIG_DRIVERS_DMA=1;__AOST_CLI_TASK_PRIORITY__=60;CONFIG_BACKEND_XRADIO=1;__AOST_CLI_TELNET_ENABLE__=0;CONFIG_AEFXER_SONA=0;__AOST_DEBUG_PANIC_PRT_INT__=1;__ARCH_RISCV__=1;RHINO_CONFIG_MM_TLF=1;__AOST_RHINO_CONFIG_MM_TLF_BLK_SIZE__=4194304;DEBUG_CPUUSAGE_FILE_NAME="/data/cpuusage";RHINO_CONFIG_MM_BLK=0;__AOST_CHIP__="CHIP_D1";CLI_MAX_COMMANDS=128;POSIX_DEVICE_IO_NEED=1;CONFIG_DRIVERS_SPINOR_FREQ=50;CONFIG_ARCH_INTERRUPTSTACK=4096;RHINO_CONFIG_MM_QUICK=0;__AOST_BOARD__="D1_EVB";__AOST_ALGORITHMS_PATH__="/home/cxx194832/yoc-d1/components/chip_d1/d1_flash.elf";CONFIG_NO_ROAMING=1;CONFIG_USERVICE_EVENT_TASK_STACK_SIZE=2048;CONFIG_CSI_V2=1;DEBUG_CPUUSAGE_RECODE_TO_FILE_ENABLE=0;CLI_IOBOX_ENABLE=0;__AOST_DEBUG_LASTWORD_RAM_ADDR__=0;RHINO_CONFIG_MM_TLF_BLK_SIZE=4194304;DEBUG_PANIC_CLI=1;AOS_COMP_VFS=1;CONFIG_KEY_FROM_OTP=0;__CPU_C906FDV__=1;__AOST_CLI_UAGENT_ENABLE__=0;CONFIG_DEBUG=1;__AOST_CLI_IOBOX_ENABLE__=0;__AOST_DEBUG_LOG_DIR_NAME__="/data/crash_reports";__AOST_CLI_SEPRATED_CONSOLE__=0;CONFIG_SUNXI_SPI_CPU_XFER_ONLY=1;DEBUG_LOG_DIR_NAME="/data/crash_reports";CONFIG_SOC_SUN20IW1P1=1;__AOST_CHIP_PATH__="/home/cxx194832/yoc-d1/components/chip_d1";__AOST_VFS_CONFIG_ROOTFS__=1;__AOST_AOS_COMP_CLI__=1;DEBUG_LASTWORD_RAM_ADDR=0;__AOST_CLI_MAX_COMMANDS__=128;__AOST_AOS_COMP_VFS__=1;__AOST_CLI_OUTBUF_SIZE__=512;CONFIG_TB_KP=0;CONFIG_SYSTICK_HZ=100;DEBUG_TEST_CMDS_ENABLE=0;CONFIG_SOC_SUN20I=1;__AOST_DEBUG_LASTWORD_REGION_LEN__=16384;AOS_COMP_ULOG="y";CONFIG_SUNXI_DISP2_FB_DISABLE_ROTATE=1;__AOST_RHINO_CONFIG_MM_BLK__=0;CONFIG_NO_RADIUS=1;CONFIG_AOS=1;CLI_CONFIG_STACK_SIZE=8192;__AOST_AOS_COMP_DEBUG__=1;CLI_OUTBUF_SIZE=512;CLI_TELNET_ENABLE=0;CONFIG_KV_ENABLE_CACHE=0;VFS_CONFIG_ROOTFS=1;CONFIG_SND_PLATFORM_SUNXI_CPUDAI=1;DEBUG_CONFIG_LOG_FILE_INDEX="/data/crash_reports/log_file_index";CONFIG_ARCH_SUN20IW1=1;DEBUG_PANIC_PRT_INT=1;CONFIG_NO_VLAN=1;__AOST_DEBUG_CONFIG_LOG_FILE_NAME__="/data/crash_reports/crash_report";WITH_LWIP=1;CLI_INBUF_SIZE=256;CONFIG_NO_ACCOUNTING=1;__AOST_DEBUG_TEST_CMDS_ENABLE__=0;__AOST_CPU0__=True;__AOST_BOARD_PATH__="/home/cxx194832/yoc-d1/boards/d1_evb";CLI_TASK_PRIORITY=60;__AOST_DEBUG_LAST_WORD_ENABLE__=0;CONFIG_CSI="csi2";__AOST_DEBUG_CONFIG_LOG_FILE_INDEX__="/data/crash_reports/log_file_index";CONFIG_NON_ADDRESS_FLASH="y";CONFIG_KERNEL_RHINO=1;__AOST_ARCH__="riscv";__AOST_RHINO_CONFIG_MM_BLK_SIZE__=256;DEBUG_LAST_WORD_ENABLE=0;CONFIG_SOC_SUN20IW1=1;CONFIG_DRIVERS_SUNXI_CCU=1;__AOST_DEBUG_CPUUSAGE_MAX_TASK__=80;CONFIG_SND_PLATFORM_SUNXI_DAUDIO=1;RHINO_CONFIG_MM_BLK_SIZE=256;__AOST_STDIO_UART__=0;__AOST_DEBUG_CPUUSAGE_RECODE_TO_FILE_ENABLE__=0;CONFIG_SND_PLATFORM_SUNXI_PCM=1;__AOST_RHINO_CONFIG_MM_TRACE_LVL__=4;CONFIG_USING_TLS=1;CONFIG_DRIVER_XRADIO=1;CONFIG_BUILTIN_WAV_FILE=1;__AOST_DEBUG_LOG_FILE_NUM__=10;CLI_MAX_ARG_NUM=16;__AOST_RHINO_CONFIG_MM_TLF__=1;CONFIG_OS_NUTTX_CM_PASS=1;__AOST_DEBUG_PANIC_CLI__=1;__AOST_MIPI_DSI_IP_VERSION__=40;CONFIG_LCD_SUPPORT_TFT08006=1;__AOST_CLI_CONFIG_STACK_SIZE__=8192;CONFIG_LOG_DEFAULT_LEVEL=2;HAVE_INIT_ARRAY_LD="y";CONFIG_DISP2_SUNXI_SUPPORT_ENAHNCE=1;RHINO_CONFIG_MM_TRACE_LVL=4;DEBUG_LASTWORD_REGION_LEN=16384;CONFIG_KERNEL_LWIP_HOOK=1;DEBUG_CPUUSAGE_MAX_TASK=80;MIPI_DSI_IP_VERSION=40;AOS_COMP_DEBUG=1;__AOST_RHINO_CONFIG_MM_MINISIZEBIT__=6;CONFIG_SND_CODEC_SUN8IW20_AUDIOCODEC=1;__AOST_DEBUG_CPUUSAGE_FILE_NAME__="/data/cpuusage";__AOST_HAVE_INIT_ARRAY_LD__="y";__AOST_RHINO_CONFIG_MM_QUICK__=0;CONFIG_DETECT_CARD=1;__AOST_VENDOR__="ALLWINNER";CONFIG_NO_CTRL_IFACE=1;CONFIG_OS_NUTTX=1;CONFIG_SND_PLATFORM_SUNXI_DMIC=1;STDIO_UART=0;CONFIG_USE_SDIO=1;FD_SETSIZE=128;CLI_SEPRATED_CONSOLE=0;CONFIG_DRIVERS_SOUND=1;CONFIG_INIT_TASK_STACK_SIZE=65536;__AOST_CLI_INBUF_SIZE__=256;CLI_UAGENT_ENABLE=0;__AOST_WITH_LWIP__=1;__AOST_DEBUG_ULOG_FLUSH__=0;CONFIG_USE_SD=1;CONFIG_NO_RANDOM_POOL=1;CONFIG_LFS_MOUNTPOINT="/";CONFIG_CRYPTO_INTERNAL=1;RHINO_CONFIG_MM_MINISIZEBIT=6;CONFIG_DRIVERS_SPINOR_4K_SECTORS=1;__AOST_AOS_COMP_ULOG__="y";VFS_CONFIG_DEBUG=1;CLI_MAX_ONCECMD_NUM=4;AOS_COMP_CLI=1;CONFIG_CHIP_D1=1;CONFIG_KV_SMART="y";</Define>
         <Undefine/>
         <IncludePath>$(ProjectPath)/src;$(ProjectPath)/include</IncludePath>
         <OtherFlags/>
@@ -185,20 +166,23 @@
         <LDFile>$(ProjectPath)/gcc_eflash.ld</LDFile>
         <LibName/>
         <LibPath/>
-        <OtherFlags>-Wl,-zmax-page-size=1024 ,-ckmap="yoc.map"</OtherFlags>
+        <OtherFlags>-Wl,--gc-sections -lstdc++ -lsupc++ -lm -lc -lgcc -lnosys -nostartfiles --specs=nosys.specs -fno-asynchronous-unwind-tables</OtherFlags>
         <AutoLDFile>no</AutoLDFile>
         <LinkType>whole-archive</LinkType>
+        <IncludeAllLibs>yes</IncludeAllLibs>
       </Linker>
       <Debug>
-        <LoadApplicationAtStartup>no</LoadApplicationAtStartup>
+        <LoadApplicationAtStartup>yes</LoadApplicationAtStartup>
         <Connector>ICE</Connector>
-        <StopAt>no</StopAt>
+        <StopAt>yes</StopAt>
         <StopAtText>main</StopAtText>
         <InitFile>$(ProjectPath)/script/gdbinit</InitFile>
-        <AutoRun>no</AutoRun>
+        <AfterLoadFile/>
+        <AutoRun>yes</AutoRun>
         <ResetType>Hard Reset</ResetType>
         <SoftResetVal/>
         <ResetAfterLoad>no</ResetAfterLoad>
+        <AfterResetFile/>
         <Dumpcore>no</Dumpcore>
         <DumpcoreText>$(ProjectPath)/$(ProjectName).cdkcore</DumpcoreText>
         <ConfigICE>
@@ -207,6 +191,7 @@
           <CPUNumber>0</CPUNumber>
           <Clock>12000</Clock>
           <Delay>10</Delay>
+          <NResetDelay>100</NResetDelay>
           <WaitReset>500</WaitReset>
           <DDC>yes</DDC>
           <TRST>no</TRST>
@@ -220,6 +205,10 @@
           <GDBName/>
           <GDBServerType>Local</GDBServerType>
           <OtherFlags/>
+          <ICEEnablePCSampling>yes</ICEEnablePCSampling>
+          <ICESamplingFreq>1000</ICESamplingFreq>
+          <RemoteICEEnablePCSampling>yes</RemoteICEEnablePCSampling>
+          <RemoteICESamplingPort>1026</RemoteICESamplingPort>
         </ConfigICE>
         <ConfigSIM>
           <SIMTarget>soccfg/cskyv2/rhea802.xml</SIMTarget>
@@ -235,12 +224,13 @@
           <OpenOCDTclPortEnable>no</OpenOCDTclPortEnable>
           <OpenOCDTclPort>6666</OpenOCDTclPort>
           <OpenOCDConfigOptions/>
+          <OpenOCDTimeout>5000</OpenOCDTimeout>
         </ConfigOpenOCD>
       </Debug>
       <Flash>
         <InitFile>$(ProjectPath)/script/flash.init</InitFile>
         <Erase>Erase Sectors</Erase>
-        <Algorithms Path="">/mnt/d/ws/yoc7.4.1_test/components/chip_sc5654/configs/SC5654A_SPIFlash_CDK.elf</Algorithms>
+        <Algorithms Path="">/home/cxx194832/yoc-d1/components/chip_d1/d1_flash.elf</Algorithms>
         <Program>yes</Program>
         <Verify>yes</Verify>
         <ResetAndRun>no</ResetAndRun>
@@ -252,4 +242,14 @@
       </Flash>
     </BuildConfig>
   </BuildConfigs>
+  <DebugSessions>
+    <watchExpressions/>
+    <memoryExpressions>;;;</memoryExpressions>
+    <statistics>;;MHZ;</statistics>
+    <peripheralTabs/>
+    <WatchDisplayFormat>0</WatchDisplayFormat>
+    <LocalDisplayFormat>0</LocalDisplayFormat>
+    <debugLayout/>
+    <memoryTabColSizeExpressions>100:8;100:8;100:8;100:8;</memoryTabColSizeExpressions>
+  </DebugSessions>
 </Project>

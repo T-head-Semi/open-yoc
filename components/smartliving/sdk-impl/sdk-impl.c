@@ -117,7 +117,7 @@ int IOT_SetupConnInfo(const char *product_key,
     if (NULL == info_ptr) {
         return SUCCESS_RETURN;
     }
-    *info_ptr = iotx_conn_info_reload();
+    *info_ptr = iotx_conn_info_reload(NULL, NULL);
     if (*info_ptr == NULL) {
         return -1;
     }
@@ -135,7 +135,7 @@ int IOT_Ioctl(int option, void *data)
         sdk_err("Invalid Parameter");
         return FAIL_RETURN;
     }
-    
+
     switch (option) {
         case IOTX_IOCTL_SET_REGION: {
             ctx->domain_type = *(iotx_cloud_region_types_t *)data;
@@ -183,6 +183,13 @@ int IOT_Ioctl(int option, void *data)
             res = SUCCESS_RETURN;
         }
         break;
+#ifdef REPORT_UUID_ENABLE
+        case IOTX_IOCTL_SET_UUID_ENABLED: {
+            ctx->uuid_enabled = *(int *)data;
+            res = SUCCESS_RETURN;
+        }
+        break;
+#endif
 #if defined(DEVICE_MODEL_ENABLED)
 #if !defined(DEVICE_MODEL_RAWDATA_SOLO)
         case IOTX_IOCTL_RECV_EVENT_REPLY:
@@ -208,6 +215,12 @@ int IOT_Ioctl(int option, void *data)
         }
         break;
 #endif
+        case IOTX_IOCTL_WIFI_RECONNECTED: {
+            ctx->is_wifi_reconnected = *(int *)data;
+
+            res = SUCCESS_RETURN;
+        }
+        break;
         default: {
             sdk_err("Unknown Ioctl Option");
             res = FAIL_RETURN;

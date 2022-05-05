@@ -1,0 +1,16 @@
+out/
+.vscode
+.DS_Store
+Debug/
+.xcuserstate
+.xcodeproj
+GenieStars.build/
+UserInterfaceState.xcuserstate
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+GenieStars.xcodeproj/
+build/.cmake/
+100000000*
+cache/

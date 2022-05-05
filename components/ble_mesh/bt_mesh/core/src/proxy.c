@@ -14,6 +14,8 @@
 #include <bluetooth/conn.h>
 #include <bluetooth/gatt.h>
 #include <api/mesh.h>
+#include <bluetooth/hci.h>
+#include <host/conn_internal.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_PROXY)
 #include "common/log.h"
@@ -36,6 +38,10 @@
 #ifdef CONFIG_GENIE_OTA
 extern int genie_ota_pre_init(void);
 extern void genie_ais_adv_init(uint8_t ad_structure[14], uint8_t is_silent);
+#endif
+
+#ifdef CONFIG_OTA_CLIENT
+#include "yoc/ble_ais.h"
 #endif
 
 #ifdef CONFIG_BT_MESH_GATT_PROXY
@@ -71,8 +77,8 @@ static const struct bt_le_adv_param slow_adv_param = {
 		.interval_min = BT_GAP_ADV_FAST_INT_MIN_2,
 		.interval_max = BT_GAP_ADV_FAST_INT_MAX_2,
 #else
-		.interval_min = BT_GAP_ADV_SLOW_INT_MIN,
-		.interval_max = BT_GAP_ADV_SLOW_INT_MAX,
+		.interval_min = BT_GAP_ADV_FAST_INT_MIN_2,
+		.interval_max = BT_GAP_ADV_FAST_INT_MAX_2,
 #endif
 };
 #endif
@@ -578,19 +584,24 @@ uint8_t is_proxy_connected()
 
 static void proxy_connected(struct bt_conn *conn, u8_t err)
 {
-	struct bt_mesh_proxy_client *client;
-	int i;
+    if(conn->role == BT_HCI_ROLE_MASTER) {
+        return;
+    }
+    struct bt_mesh_proxy_client *client;
+    int i;
 
 	conn_count++;
 	BT_DBG("pconn:%p\r\n", conn);
 
 	/* Since we use ADV_OPT_ONE_TIME */
 	proxy_adv_enabled = false;
-	extern int bt_mesh_adv_disable();
 
+#if !(defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE)
+	extern int bt_mesh_adv_disable();
 	//make sure adv and scan stop first
 	bt_mesh_adv_disable();
 	bt_mesh_scan_disable();
+#endif
 
     //enable scan again
 	bt_mesh_scan_enable();
@@ -620,13 +631,17 @@ static void proxy_connected(struct bt_conn *conn, u8_t err)
 #ifdef CONFIG_GENIE_OTA
 	genie_ais_connect((struct bt_conn *)conn);
 #endif
+
 }
 
 static void proxy_disconnected(struct bt_conn *conn, u8_t reason)
 {
-	int i;
+    if(conn->role == BT_HCI_ROLE_MASTER) {
+        return;
+    }
+    int i;
 
-	printf("proxy disconn:%p reason:0x%02x\r\n", conn, reason);
+	BT_DBG("proxy disconn:%p reason:0x%02x", conn, reason);
 
 	conn_count--;
 
@@ -1010,17 +1025,30 @@ static int proxy_send(struct bt_conn *conn, const void *data, u16_t len)
 {
 	BT_DBG("%u bytes: %s", len, bt_hex(data, len));
 
+	struct bt_gatt_notify_params params = {0};
+	u16_t handle = 0;
+
+	params.data = data;
+	params.len = len;
+
 #if defined(CONFIG_BT_MESH_GATT_PROXY)
 	if (gatt_svc == MESH_GATT_PROXY) {
-		return bt_gatt_notify(conn, &proxy_attrs[3], data, len);
+	    handle = bt_gatt_attr_value_handle(&proxy_attrs[3]);
 	}
 #endif
 
 #if defined(CONFIG_BT_MESH_PB_GATT)
 	if (gatt_svc == MESH_GATT_PROV) {
-		return bt_gatt_notify(conn, &prov_attrs[3], data, len);
+		handle = bt_gatt_attr_value_handle(&prov_attrs[3]);
 	}
 #endif
+    extern int gatt_notify(struct bt_conn *conn, u16_t handle,
+		       struct bt_gatt_notify_params *params);
+
+	if (handle)
+	{
+		return gatt_notify(conn, handle, &params);
+	}
 
 	return 0;
 }
@@ -1203,6 +1231,11 @@ static int net_id_adv(struct bt_mesh_subnet *sub)
 	return 0;
 }
 
+bool bt_mesh_proxy_adv_enable()
+{
+	return proxy_adv_enabled;
+}
+
 static bool advertise_subnet(struct bt_mesh_subnet *sub)
 {
 	if (sub->net_idx == BT_MESH_KEY_UNUSED) {
@@ -1357,7 +1390,7 @@ static size_t gatt_prov_adv_create(struct bt_data prov_sd[2])
 s32_t bt_mesh_proxy_adv_start(void)
 {
 	BT_DBG("");
-
+	proxy_adv_enabled = false;
 	if (gatt_svc == MESH_GATT_NONE) {
 		return K_FOREVER;
 	}
@@ -1413,25 +1446,26 @@ s32_t bt_mesh_proxy_adv_start(void)
 	return K_FOREVER;
 }
 
-void bt_mesh_proxy_adv_stop(void)
+int bt_mesh_proxy_adv_stop(void)
 {
 	int err;
 
 	BT_DBG("adv_enabled %u", proxy_adv_enabled);
 
 	if (!proxy_adv_enabled) {
-		return;
+		return -EALREADY;
 	}
 
 	err = bt_mesh_adv_disable();
-	if (err) {
+	if (err && err != -EALREADY) {
 		BT_ERR("Failed to stop advertising (err %d)", err);
 	} else {
 		proxy_adv_enabled = false;
 	}
+	return err;
 }
 
-static struct bt_conn_cb conn_callbacks = {
+static struct bt_conn_cb proxy_conn_callbacks = {
 	.connected = proxy_connected,
 	.disconnected = proxy_disconnected,
 };
@@ -1451,7 +1485,7 @@ int bt_mesh_proxy_init(void)
 #endif
 	}
 
-	bt_conn_cb_register(&conn_callbacks);
+	bt_conn_cb_register(&proxy_conn_callbacks);
 
 #ifdef CONFIG_GENIE_OTA
     genie_ota_pre_init();

@@ -41,6 +41,7 @@
 #include <osdep_service.h>
 #include <wifi/wifi_conf.h>
 #include <wifi/wifi_util.h>
+#include <aos/cli.h>
 
 #ifndef CONFIG_INTERACTIVE_EXT
 #define CONFIG_INTERACTIVE_EXT  0
@@ -67,7 +68,7 @@
 #ifndef CONFIG_ENABLE_P2P
 #define CONFIG_ENABLE_P2P       0
 #endif
-#define SCAN_WITH_SSID		0	
+#define SCAN_WITH_SSID		1	
 
 #ifdef CONFIG_WPS
 #define STACKSIZE               1280
@@ -660,16 +661,16 @@ static void cmd_wifi_connect_bssid(int argc, char **argv)
         bssid_len = ETH_ALEN;
         password_len = strlen((const char *)argv[3 + index]);
         key_id = atoi(argv[4 + index]);
-        if(( password_len != 5) && (password_len != 13)) {
-            printf("\n\rWrong WEP key length. Must be 5 or 13 ASCII characters.");
-            return;
-        }
-        if((key_id < 0) || (key_id > 3)) {
-            printf("\n\rWrong WEP key id. Must be one of 0,1,2, or 3.");
-            return;
-        }
-        semaphore = NULL;
-    }
+		if(( password_len != 5) && (password_len != 13)&&( password_len != 10) && (password_len != 26)) {
+			printf("\n\rWrong WEP key length. Must be 5 or 13 ASCII characters or 10 or 26 hex.");
+			return;
+		}
+		if((key_id < 0) || (key_id > 3)) {
+			printf("\n\rWrong WEP key id. Must be one of 0,1,2, or 3.");
+			return;
+		}
+		semaphore = NULL;
+	}
 
     ret = wifi_connect_bssid(bssid, 
                     ssid,
@@ -916,6 +917,27 @@ static rtw_result_t app_scan_result_handler( rtw_scan_handler_result_t* malloced
     return RTW_SUCCESS;
 }
 #if SCAN_WITH_SSID
+static void cmd_wifi_scan_with_multiple_ssid(int argc,char **argv)
+{
+	int num_ssid,scan_buflen,i;
+	scan_ssid Ssid[3];
+	if(argc < 2||argc>4){
+		printf("\n\r For Scan all channel Usage: wifi_scan_with_multissid ssid... (num<=3!)");
+		return ;
+	}
+	for(i = 1;i<argc;i++){
+		Ssid[i-1].ssidlength = strlen((const char *)argv[i]);
+		memcpy(&(Ssid[i-1].ssid), argv[i], Ssid[i-1].ssidlength);
+		printf("\r\n %s: Ssid[%d].Ssid = %s, Ssid[%d].SsidLength = %d",__FUNCTION__,i-1,Ssid[i-1].ssid,i-1,Ssid[i-1].ssidlength);
+	}
+	scan_buflen = 200;
+	num_ssid = argc -1;
+	if(wifi_scan_networks_with_multissid(NULL,NULL, scan_buflen, Ssid ,num_ssid) != RTW_SUCCESS){
+		printf("\n\rERROR: wifi scan failed");
+	}
+	return ;
+}
+
 static void cmd_wifi_scan_with_ssid(int argc, char **argv)
 {
 
@@ -1073,61 +1095,20 @@ void fake_efuse_map_set(u32 offset,u32 cnt,u8 *data);
 
 static void cmd_wifi_iwpriv(int argc, char **argv)
 {
+    char *buffer = aos_zalloc(1024);
+    int i = 0;
 
-    if((argc==3) && argv[1]) {
-        char buf[64] = {0};
-        sprintf(buf, "%s %s", argv[1], argv[2]);
-        /** special routine for wlwfake because 
-            need to r/w parameter from/to flash 
-            */
-        if ((strcmp(argv[1], "efuse_set") == 0) &&
-            (strstr(argv[2], "wlwfake") != NULL)) {
-            /* fake efuse example:
-                iwpriv iwpriv efuse_set wlwfake,10,282828282828272727272702FFFFFFFF
-            */
-#if FAKE_EFUSE_ENABLED
-            int i = 0;
-            fake_efuse_set(1); /** enable fake efuse first */
+    for (i = 1; i < argc; i++) {
+        strcat(buffer, argv[i]);
 
-            char *index1 = strstr(argv[2], ",") + 1;
-            char *index2 = strstr(index1, ",") + 1;
-            int len1 = index2 - index1 -1;
-            int len2 = strlen(index2);
-
-
-            unsigned int offset = 0x00;
-            char offset_str[10] = {0x00};
-            strncpy(offset_str, index1, len1);
-            sscanf(offset_str, "%X", &offset);
-            i = 0;
-            while (i < len2) {
-                char val_str[10] = {0x00};
-                unsigned int val = 0x00;
-                strncpy(val_str, index2 + i, 2);
-                sscanf(val_str, "%02X", &val);
-                printf("Set %02X=%02X\n", offset + i/2, val);
-
-                unsigned char fake_data[1];
-                fake_data[0] = val;
-                fake_efuse_map_set(offset + i/2, 1, fake_data);
-                i += 2;
-            }
-#else
-        printf("wlwfake patch routine not enabled\n");
-#endif
-        } else {
-            wext_private_command(WLAN0_NAME, buf, 1);
-        }
-    } else {
-
-        char *buffer = aos_zalloc(1024);
-        int i = 0;
-        for (i = 1; i < argc; i++) {
-            strcat(buffer, argv[i]);
+        if (i != argc - 1) {
             strcat(buffer, " ");
         }
-        wext_private_command(WLAN0_NAME, buffer, argc - 1);
     }
+
+    wext_private_command(WLAN0_NAME, buffer, argc - 1);
+
+    free(buffer);
 }
 #endif	//#if CONFIG_WLAN
 
@@ -1190,6 +1171,10 @@ static void cmd_debug(int argc, char **argv)
         uint8_t ofdm_snr, ht_snr;
         rltk_get_snr(&ofdm_snr, &ht_snr);
         printf("\r\n%d, %d\r\n", ofdm_snr, ht_snr);
+    } else if(strcmp(argv[1], "get_chn") == 0) {
+        int  channel;
+        wifi_get_channel(&channel);
+        printf("\r\n%d\r\n", (uint8_t)channel);
     } else if(strcmp(argv[1], "set_mac") == 0) {
         printf("\r\n%d\r\n", wifi_set_mac_address(argv[2]));
     } else if(strcmp(argv[1], "get_mac") == 0) {
@@ -1206,6 +1191,17 @@ static void cmd_debug(int argc, char **argv)
 		printf("\r\n%d\r\n", wifi_enable_powersave());
 	} else if(strcmp(argv[1], "ps_off") == 0) {
 		printf("\r\n%d\r\n", wifi_disable_powersave());
+
+    } else if(strcmp(argv[1], "set_slot") == 0) {
+
+        rltk_set_a2dp_case_wifi_slot_proportion(atoi(argv[2]));
+
+	} else if(strcmp(argv[1], "get_slot") == 0) {
+        u8 proportion;
+
+        rltk_get_a2dp_case_wifi_slot_proportion(&proportion);
+        printf("\r\na2dp_case_wifi_slot: %d\r\n", proportion);
+
 #if 1 //TODO
     } else if(strcmp(argv[1], "get_txpwr") == 0) {
         int idx = 0;
@@ -1296,10 +1292,14 @@ static void cmd_debug(int argc, char **argv)
 extern void hal_wifi_test_enabled(int en);
         if ((strcmp(argv[2], "0") == 0)) {
             hal_wifi_test_enabled(0);
+            printf("\n\rwifi_log = 0");
         } else if ((strcmp(argv[2], "1") == 0)) {
             hal_wifi_test_enabled(1);
+            printf("\n\rwifi_log = 1");
         } else if ((strcmp(argv[2], "2") == 0)) {
             hal_wifi_test_enabled(2);
+            printf("\n\rwifi_log = 2");
+
         }
     } else {
         printf("\r\nUnknown CMD\r\n");
@@ -1385,7 +1385,7 @@ static void cmd_btcolog_disable(int argc, char **argv)
 static void cmd_rawdata_enable(int argc, char **argv)
 {
 	printf("\r\n Enable the receive raw data!");
-	printf("the callback function pointer is 0x%0x", (uint32_t)frame_handler);
+	printf("the callback function pointer is 0x%0lx", (size_t)frame_handler);
 	wext_enable_rawdata_recv(WLAN0_NAME, (void*)frame_handler);
 }
 static void cmd_rawdata_disable(int argc, char **argv)
@@ -1396,7 +1396,7 @@ static void cmd_rawdata_disable(int argc, char **argv)
 const uint8_t Frame_buf[] = {0x40, 0x0, 0x0, 0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0xe0, 0x4c, 0x87, 0x13, 0x30, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,0x0,0x0,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd,0xdd};
 static void cmd_rawdata_sendData(int argc, char **argv)
 {
-	printf("\r\n Send management frame and the length is %d!",sizeof(Frame_buf));
+	printf("\r\n Send management frame and the length is %ld!",sizeof(Frame_buf));
 	wext_send_rawdata(WLAN0_NAME, Frame_buf, sizeof(Frame_buf));
 }
 
@@ -1417,7 +1417,8 @@ static const cmd_entry cmd_table[] = {
     {"wifi_scan", cmd_wifi_scan},
 	{"wifi_reoder_scan", cmd_wifi_reorder_scan},
 #if SCAN_WITH_SSID	
-    {"wifi_scan_with_ssid", cmd_wifi_scan_with_ssid},
+	{"wifi_scan_with_ssid", cmd_wifi_scan_with_ssid},
+	{"wifi_scan_with_multissid", cmd_wifi_scan_with_multiple_ssid},
 #endif
     {"iwpriv", cmd_wifi_iwpriv},
     {"wifi_promisc", cmd_promisc},
@@ -1651,6 +1652,12 @@ void iwpriv(char *wbuf, int wbuf_len, int argc, char **argv)
     int i = 0;
     int found = 0;
 
+    if (strncmp((const char *)argv[1], "mp_", 3) == 0 ||
+        strncmp((const char *)argv[1], "efuse_", 6) == 0) {
+        cmd_wifi_iwpriv(argc, argv);
+        return;
+    }
+
     argc -= 1;
     argv += 1;
 
@@ -1667,5 +1674,13 @@ void iwpriv(char *wbuf, int wbuf_len, int argc, char **argv)
     }
 }
 
-
-
+void wifidrv_register_iwpriv_cmd(void)
+{
+    extern void iwpriv(char *wbuf, int wbuf_len, int argc, char **argv);
+    static const struct cli_command cmd_info = {
+        "iwpriv",
+        "test iwpriv",
+        iwpriv
+    };
+    aos_cli_register_command(&cmd_info);
+}

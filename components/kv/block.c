@@ -13,6 +13,7 @@
 #include <aos/debug.h>
 #endif
 
+#include "kv_cache.h"
 #include "kvset.h"
 #include "block.h"
 
@@ -44,14 +45,14 @@ static int keycmp(const uint8_t *s, uint8_t *d, int n)
 void kvnode_show(kvnode_t *node)
 {
     printf("  [%d]: size:%3d/%3d, erase:%08x, version:%3d, key:%.*s, values:%.*s, next:%d\n",
-            node->block->id,
-            node->val_size, node->node_size,
-            node->erase_flag,
-            node->version,
-            (int)(node->value_offset - node->head_offset - 1), KVNODE_OFFSET2CACHE(node, head_offset),
-            node->val_size, KVNODE_OFFSET2CACHE(node, value_offset),
-            node->next_offset
-    );
+           node->block->id,
+           node->val_size, node->node_size,
+           node->erase_flag,
+           node->version,
+           (int)(node->value_offset - node->head_offset - 1), KVNODE_OFFSET2CACHE(node, head_offset),
+           node->val_size, KVNODE_OFFSET2CACHE(node, value_offset),
+           node->next_offset
+          );
 }
 
 static void block_erase(kvblock_t *block)
@@ -97,7 +98,7 @@ static void __kvblock_gc(kvblock_t *block)
  * @param  [in] block
  * @param  [in] mem  : addr of the block
  * @param  [in] size : size of block mem
- * @return  
+ * @return
  */
 void kvblock_init(kvblock_t *block, uint8_t *mem, int size)
 {
@@ -155,7 +156,7 @@ void kvnode_rm(kvnode_t *node)
  * @brief  alloc a kv node, return node start write address
  * @param  [in] block
  * @param  [in] size
- * @return -1 on error 
+ * @return -1 on error
  */
 int kvblock_alloc_node(kvblock_t *block, int size)
 {
@@ -170,13 +171,13 @@ int kvblock_alloc_node(kvblock_t *block, int size)
 }
 
 /**
- * @brief  write the kv pair to the block 
+ * @brief  write the kv pair to the block
  * @param  [in] block
  * @param  [in] key
  * @param  [in] value
  * @param  [in] size    : size of the value
  * @param  [in] version : 1~255
- * @return -1 on error  
+ * @return -1 on error
  */
 int kvblock_set(kvblock_t *block, const char *key, void *value, int size, int version)
 {
@@ -236,11 +237,11 @@ int kvblock_set(kvblock_t *block, const char *key, void *value, int size, int ve
 }
 
 /**
- * @brief  search kv-node in the block 
+ * @brief  search kv-node in the block
  * @param  [in] block
  * @param  [in] c    : start addr begin search of the block
  * @param  [in] node
- * @return 0/-1 
+ * @return 0/-1
  */
 int kvblock_search(kvblock_t *block, uint8_t *c, kvnode_t *node)
 {
@@ -255,59 +256,59 @@ int kvblock_search(kvblock_t *block, uint8_t *c, kvnode_t *node)
 
     while (c - block->mem_cache < block->size - 1) {
         switch (*c) {
-            case '\0': {
-                uint16_t value_size = c[1] | ((c[2] << 8) & 0x3FF);
-                uint16_t key_size   = c[2] >> 2;
+        case '\0': {
+            uint16_t value_size = c[1] | ((c[2] << 8) & 0x3FF);
+            uint16_t key_size   = c[2] >> 2;
 
-                if (c[4] != '=' || c + value_size - block->mem_cache >= block->size ||
-                    c - key_size < block->mem_cache || c[2] != c[value_size + RW_FLAG_SIZE])
-                    break;
+            if (c[4] != '=' || c + value_size - block->mem_cache >= block->size ||
+                c - key_size < block->mem_cache || c[2] != c[value_size + RW_FLAG_SIZE])
+                break;
 
-                node->node_size = align4(key_size + value_size + RW_FLAG_SIZE + 1) + 4;
-                node->version = c[3];
-                node->val_size  = value_size;
-                node->erase_flag = *(int *)(c - key_size + node->node_size - 4);
-                node->rw         = 1;
+            node->node_size = align4(key_size + value_size + RW_FLAG_SIZE + 1) + 4;
+            node->version = c[3];
+            node->val_size  = value_size;
+            node->erase_flag = *(int *)(c - key_size + node->node_size - 4);
+            node->rw         = 1;
 
-                node->head_offset = KVNODE_CACHE2OFFSET(node, c) - key_size;
-                node->value_offset = KVNODE_CACHE2OFFSET(node, c) + RW_FLAG_SIZE;
-                node->next_offset = node->head_offset + node->node_size;
+            node->head_offset = KVNODE_CACHE2OFFSET(node, c) - key_size;
+            node->value_offset = KVNODE_CACHE2OFFSET(node, c) + RW_FLAG_SIZE;
+            node->next_offset = node->head_offset + node->node_size;
+
+#ifndef linux
+            aos_assert(node->node_size < block->size);
+#endif
+            return 0;
+        }
+
+        case '=':
+            delim = c;
+            break;
+
+        case '\n':
+            if (delim) {
+                node->version    = 0;
+                node->val_size   = c - delim - 1;
+                node->erase_flag = 0xFFFF;
+                node->rw         = 0;
+
+                node->value_offset =  KVNODE_CACHE2OFFSET(node, delim) + 1;
+                node->next_offset = KVNODE_CACHE2OFFSET(node, c) + 1;
+                node->node_size = node->next_offset - node->head_offset;
 
 #ifndef linux
                 aos_assert(node->node_size < block->size);
 #endif
                 return 0;
             }
+            break;
 
-            case '=':
-                delim = c;
-                break;
+        case '\r':
+            break;
 
-            case '\n':
-                if (delim) {
-                    node->version    = 0;
-                    node->val_size   = c - delim - 1;
-                    node->erase_flag = 0xFFFF;
-                    node->rw         = 0;
-
-                    node->value_offset =  KVNODE_CACHE2OFFSET(node, delim) + 1;
-                    node->next_offset = KVNODE_CACHE2OFFSET(node, c) + 1;
-                    node->node_size = node->next_offset - node->head_offset;
-
-#ifndef linux
-                aos_assert(node->node_size < block->size);
-#endif
-                    return 0;
-                }
-                break;
-
-            case '\r':
-                break;
-
-            default:
-                if (delim && !isprint(*c))
-                    delim = NULL;
-                break;
+        default:
+            if (delim && !isprint(*c))
+                delim = NULL;
+            break;
         }
 
         c++;
@@ -317,7 +318,7 @@ int kvblock_search(kvblock_t *block, uint8_t *c, kvnode_t *node)
 }
 
 /**
- * @brief  check the two kvnode(same key) & delete the old one 
+ * @brief  check the two kvnode(same key) & delete the old one
  * @param  [in] node1
  * @param  [in] node2
  * @return node of the delete
@@ -360,13 +361,13 @@ struct find_node_t {
  * @brief  compare the kvnode by key
  * @param  [in] node
  * @param  [in] key
- * @return 0 on equal 
+ * @return 0 on equal
  */
 int kvnode_cmp_name(kvnode_t *node, const char *key)
 {
     uint8_t *head =KVNODE_OFFSET2CACHE(node, head_offset);
     return keycmp((const uint8_t *)key, (uint8_t *)head,
-                node->value_offset - node->head_offset - 1);
+                  node->value_offset - node->head_offset - 1);
 }
 
 int _iter_find(kvnode_t *node, void *p)
@@ -385,11 +386,11 @@ int _iter_find(kvnode_t *node, void *p)
 }
 
 /**
- * @brief  find the kvnode by key  
+ * @brief  find the kvnode by key
  * @param  [in] block
  * @param  [in] key
  * @param  [in] node : used for store the result finding
- * @return 0 if find 
+ * @return 0 if find
  */
 int kvblock_find(kvblock_t *block, const char *key, kvnode_t *node)
 {
@@ -438,7 +439,7 @@ static int _iter_rm_all_rw_node(kvnode_t *node, void *p)
 /**
  * @brief  reset the block, detele valid kv pair
  * @param  [in] block
- * @return  
+ * @return
  */
 void kvblock_reset(kvblock_t *block)
 {
@@ -452,6 +453,39 @@ static int _iter_calc(kvnode_t *node, void *i)
         node->block->count++;
         if (node->rw == 0)
             node->block->ro_count++;
+#if (CONFIG_KV_ENABLE_CACHE || CONFIG_KV_START_OPT)
+        {
+            long idx;
+            int valid = 0;
+            cache_node_t *cache;
+            kv_t *kv = node->block->kv;
+            const char *key = (const char *)KVNODE_OFFSET2CACHE(node, head_offset);
+
+            idx = (long)hash_get2(&kv->map, key, &valid);
+            if (valid && idx >= 0) {
+                /* conflict */
+                lcache_node_t *lnode = (lcache_node_t*)calloc(1, sizeof(lcache_node_t));
+
+                cache            = &lnode->cache;
+                cache->block_id  = node->block->id;
+                cache->offset    = node->head_offset;
+                lnode->key       = strdup(key);
+                kv->had_conflict = 1;
+                slist_add_tail(&lnode->node, &kv->head);
+                //printf("conflict error, key = %s\n", key);
+            } else {
+                idx = kv_cache_node_get(kv);
+                if (idx >= 0) {
+                    cache           = &kv->nodes[idx];
+                    cache->block_id = node->block->id;
+                    cache->offset   = node->head_offset;
+                    hash_set(&kv->map, (const char *)KVNODE_OFFSET2CACHE(node, head_offset), (void*)idx);
+                } else {
+                    printf("error: iter cache node may be oom\n");
+                }
+            }
+        }
+#endif
     } else
         node->block->dirty_size += node->next_offset - node->head_offset;
 
@@ -476,7 +510,7 @@ void kvblock_calc(kvblock_t *block)
 
     while (v - block->mem_cache < 512 - 4) {
         if (*(uint32_t*)v != magic)
-             block->write_offset = v - block->mem_cache + 4;
+            block->write_offset = v - block->mem_cache + 4;
         v += 4;
     }
 
@@ -487,7 +521,7 @@ void kvblock_calc(kvblock_t *block)
  * @brief  show all kv to stdout in hex
  * @param  [in] block
  * @param  [in] num
- * @return  
+ * @return
  */
 void kvblock_show_data(kvblock_t *block, int num)
 {
@@ -518,9 +552,9 @@ static int _iter_dump(kvnode_t *node, void *p)
 }
 
 /**
- * @brief  dump the block to stdout 
+ * @brief  dump the block to stdout
  * @param  [in] block
- * @return  
+ * @return
  */
 void kvblock_dump(kvblock_t *block)
 {
@@ -529,9 +563,9 @@ void kvblock_dump(kvblock_t *block)
 }
 
 /**
- * @brief  malloc memory for the block  
+ * @brief  malloc memory for the block
  * @param  [in] block
- * @return  
+ * @return
  */
 void kvblock_cache_malloc(kvblock_t *block)
 {
@@ -550,9 +584,9 @@ void kvblock_cache_malloc(kvblock_t *block)
 }
 
 /**
- * @brief  free memory for the block  
+ * @brief  free memory for the block
  * @param  [in] block
- * @return  
+ * @return
  */
 void kvblock_cache_free(kvblock_t *block)
 {

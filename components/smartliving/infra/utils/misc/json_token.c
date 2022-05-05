@@ -17,17 +17,18 @@ char *LITE_json_value_of(char *key, char *src, ...)
     char       *key_iter;
     char       *key_next;
     char       *src_iter;
+    char       *module_name = NULL;
+
     int         key_len;
     int         value_len = -1;
     int         src_iter_len;
+    int         magic = 0;
 
     if (NULL == key || NULL == src) {
         return NULL;
     }
 
 #if WITH_MEM_STATS_PER_MODULE
-    int         magic = 0;
-    char       *module_name = NULL;
     va_list     ap;
     va_start(ap, src);
     magic = va_arg(ap, int);
@@ -63,11 +64,7 @@ char *LITE_json_value_of(char *key, char *src, ...)
     if (NULL == value) {
         return NULL;
     }
-#if WITH_MEM_STATS_PER_MODULE
     ret = LITE_malloc((value_len + 1) * sizeof(char), magic, module_name);
-#else
-    ret = LITE_malloc((value_len + 1) * sizeof(char));
-#endif
     if (NULL == ret) {
         return NULL;
     }

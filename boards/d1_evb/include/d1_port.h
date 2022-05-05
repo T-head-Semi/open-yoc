@@ -16,6 +16,8 @@ extern "C" {          /* C++编译器才能支持，C编译器不支持 */
 
 void display_draw(void *buffer);
 
+void ui_task_run(void);
+
 #ifdef __cplusplus
 }
 #endif

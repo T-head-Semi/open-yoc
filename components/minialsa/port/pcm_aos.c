@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <aos_pcm.h>
 #include <alsa/pcm.h>
 #include <alsa/mixer.h>
@@ -30,6 +31,18 @@ static int pcm_open(aos_pcm_t *pcm)
     if(!pcm->hdl) {
         return -1;
     }
+
+    if(strcmp(pcm->name, "pcmP0") == 0) {
+        ((aos_audio_pcm_device_t *)pcm->hdl)->card = 3;
+    } else if(strcmp(pcm->name, "pcmC0") == 0) {
+        ((aos_audio_pcm_device_t *)pcm->hdl)->card = 0;
+    }  else if(strcmp(pcm->name, "pcmC1") == 0) {
+        ((aos_audio_pcm_device_t *)pcm->hdl)->card = 1;
+    } else {
+        free(pcm->hdl);
+        return -1;
+    }
+
     return 0;
 }
 

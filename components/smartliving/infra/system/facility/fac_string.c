@@ -4,13 +4,11 @@
 
 #include "iotx_system_internal.h"
 
-#define JSON_NEWLINE            "\r\n"
 #define JSON_INDENT             "    "
 
-#define JSON_PRINT_NEWSTR       HAL_Printf("%s", newstr);
+#define JSON_PRINT_NEWSTR       printf("%s", newstr);
 #define JSON_PRINT_NEWLINE      \
     do { \
-        HAL_Printf("%s", JSON_NEWLINE); \
         if (mark == '>' || mark == '<' || mark == ':') { \
             HAL_Printf("%c ", mark); \
         } \
@@ -142,7 +140,6 @@ int iotx_facility_json_print(const char *str, int level, ...)
         }
     }
 
-    HAL_Printf("%s", JSON_NEWLINE JSON_NEWLINE);
     HAL_Printf("%s", "\033[0m");
     return 0;
 }

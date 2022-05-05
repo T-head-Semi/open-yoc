@@ -770,6 +770,19 @@ int button_add_event(int evt_id, button_evt_t *buttons, int button_count, button
     return ret;
 }
 
+int button_is_pressed(int button_id, bool *pressed)
+{
+    button_t *b = button_find(button_id);
+    if(b == NULL) {
+        LOGE(TAG, "button not found!");
+        return -1;
+    }
+
+    *pressed = b->is_pressed;
+
+    return 0;
+}
+
 int button_init(void)
 {
     if (g_button_srv.inited) {
@@ -778,8 +791,7 @@ int button_init(void)
     }
 
     memset(&g_button_srv, 0x00, sizeof(g_button_srv));
-    aos_timer_new(&g_button_srv.tmr, button_timer_entry, NULL, BUTTON_SCAN_TIME, 0);
-    aos_timer_stop(&g_button_srv.tmr);
+    aos_timer_new_ext(&g_button_srv.tmr, button_timer_entry, NULL, BUTTON_SCAN_TIME, 0, 0);
     slist_init(&g_button_srv.button_head);
     slist_init(&g_button_srv.event_node_head);
     g_button_srv.inited = 1;

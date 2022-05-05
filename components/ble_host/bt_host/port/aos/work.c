@@ -5,7 +5,7 @@
 #include <common/log.h>
 #include "errno.h"
 
-#ifndef CONFIG_BT_WORK_INDEPENDENCE
+#if !(defined(CONFIG_BT_WORK_INDEPENDENCE) && CONFIG_BT_WORK_INDEPENDENCE)
 struct k_work_q g_work_queue;
 
 extern void event_callback(uint8_t event_type);
@@ -134,6 +134,9 @@ static void k_work_submit_to_queue(struct k_work_q *work_q,
 {
     if (!atomic_test_and_set_bit(work->flags, K_WORK_STATE_PENDING)) {
         k_fifo_put(&work_q->fifo, work);
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+        k_sem_give(&g_work_queue_main.sem);
+#endif
     }
 }
 
@@ -143,8 +146,16 @@ static void work_queue_thread(void *arg)
     UNUSED(arg);
 
     while (1) {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+        k_sem_take(&g_work_queue_main.sem, K_FOREVER);
         work = k_fifo_get(&g_work_queue_main.fifo, K_FOREVER);
-
+        if (!work)
+        {
+            continue;
+        }
+#else
+		work = k_fifo_get(&g_work_queue_main.fifo, K_FOREVER);
+#endif
         if (atomic_test_and_clear_bit(work->flags, K_WORK_STATE_PENDING)) {
             if (work->handler)
             {
@@ -162,8 +173,11 @@ static void work_queue_thread(void *arg)
 
 int k_work_q_start(void)
 {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+    k_sem_init(&g_work_queue_main.sem, 0, 0);
+#endif
     k_fifo_init(&g_work_queue_main.fifo);
-    return k_thread_spawn(&workq_thread_data ,"work queue", work_q_stack,
+    return k_thread_spawn(&workq_thread_data ,"work queue", (uint32_t *)work_q_stack,
                           K_THREAD_STACK_SIZEOF(work_q_stack),
                           work_queue_thread, NULL, CONFIG_BLUETOOTH_WORK_QUEUE_PRIO);
 }
@@ -187,7 +201,7 @@ static void work_timeout(void *timer, void *args)
     struct k_delayed_work *w = (struct k_delayed_work *)args;
 
     /* submit work to workqueue */
-    k_timer_stop(&w->timer);
+    krhino_timer_stop(&w->timer);
     if (w->work_q)
     {
         k_work_submit_to_queue(w->work_q, &w->work);
@@ -200,7 +214,8 @@ void k_delayed_work_init(struct k_delayed_work *work, k_work_handler_t handler)
 {
     ASSERT(work, "delay work is NULL");
     k_work_init(&work->work, handler);
-    k_timer_init(&work->timer, work_timeout, work);
+    krhino_timer_create(&work->timer, "AOS", work_timeout,
+                            krhino_ms_to_ticks(1000), 0, work, 0);
     work->work_q = NULL;
 }
 
@@ -235,7 +250,10 @@ static int k_delayed_work_submit_to_queue(struct k_work_q *work_q,
         work->work_q = NULL;
     } else {
         /* Add timeout */
-        k_timer_start(&work->timer, delay);
+        work->start_ms = k_uptime_get_32();
+        work->timeout = delay;
+        krhino_timer_change(&work->timer, krhino_ms_to_ticks(delay), 0);
+        krhino_timer_start(&work->timer);
     }
 
     err = 0;
@@ -266,7 +284,7 @@ int k_delayed_work_cancel(struct k_delayed_work *work)
     }
 
     work->work_q = NULL;
-    k_timer_stop(&work->timer);
+    krhino_timer_stop(&work->timer);
 
 exit:
     irq_unlock(key);
@@ -276,14 +294,12 @@ exit:
 s32_t k_delayed_work_remaining_get(struct k_delayed_work *work)
 {
     int32_t remain;
-    k_timer_t *timer;
 
     if (work == NULL) {
         return 0;
     }
 
-    timer = &work->timer;
-    remain = timer->timeout - (k_uptime_get() - timer->start_ms);
+    remain = work->timeout - (k_uptime_get() - work->start_ms);
 
     if (remain < 0) {
         remain = 0;

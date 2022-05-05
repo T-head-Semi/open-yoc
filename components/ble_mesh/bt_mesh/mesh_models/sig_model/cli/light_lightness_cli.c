@@ -24,7 +24,7 @@ static void _light_lightness_status(struct bt_mesh_model *model,
                                     struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHTNESS_STATUS, &message);
@@ -36,7 +36,8 @@ static void _light_lightness_linear_status(struct bt_mesh_model *model,
         struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
+	message.trans = ctx->trans;
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHTNESS_LINEAR_STATUS, &message);
@@ -47,7 +48,7 @@ static void _light_lightness_last_status(struct bt_mesh_model *model,
         struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHTNESS_LAST_STATUS, &message);
@@ -59,7 +60,7 @@ static void _light_lightness_default_status(struct bt_mesh_model *model,
         struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHTNESS_DEF_STATUS, &message);
@@ -71,7 +72,7 @@ static void _light_lightness_range_status(struct bt_mesh_model *model,
         struct net_buf_simple *buf)
 {
     LOGD(TAG, "");
-    model_message message;
+    model_message message = {0};
     message.source_addr = ctx->addr;
     message.status_data = buf;
     model_event(BT_MESH_MODEL_LIGHTNESS_RANGE_STATUS, &message);

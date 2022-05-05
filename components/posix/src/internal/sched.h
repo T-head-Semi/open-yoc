@@ -7,32 +7,32 @@
 
 #include <sched.h>
 #include <pthread.h>
-#include <k_api.h>
+#include <aos/kernel.h>
 
-/* Convert the schedule policy of posix to rhino. */
-static inline int sched_policy_posix2rhino(int policy)
+/* Convert the schedule policy of posix to aos. */
+static inline int sched_policy_posix2aos(int policy)
 {
     switch (policy) {
         case SCHED_FIFO:
-            return KSCHED_FIFO;
+            return AOS_KSCHED_FIFO;
         case SCHED_RR:
-            return KSCHED_RR;
+            return AOS_KSCHED_RR;
         case SCHED_CFS:
-            return KSCHED_CFS;
+            return AOS_KSCHED_CFS;
         default:
             return -1;
     }
 }
 
 /* Convert the schedule policy of rhino to posix. */
-static inline int sched_policy_rhino2posix(int policy)
+static inline int sched_policy_aos2posix(int policy)
 {
     switch (policy) {
-        case KSCHED_FIFO:
+        case AOS_KSCHED_FIFO:
             return SCHED_FIFO;
-        case KSCHED_RR:
+        case AOS_KSCHED_RR:
             return SCHED_RR;
-        case KSCHED_CFS:
+        case AOS_KSCHED_CFS:
             return SCHED_CFS;
         default:
             return -1;

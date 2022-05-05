@@ -9,6 +9,8 @@
 #include "stdio.h"
 #include "timer_service.h"
 #include "linkkit_export.h"
+#include "iot_import.h"
+#include "aiot_kv_api.h"
 
 static void *check_timer = NULL;
 
@@ -53,7 +55,7 @@ static period_timer_t g_period_timer[NUM_OF_PERIOD_TIMER];
 #ifdef ENABLE_RANDOM_TIMER
 static random_timer_t g_random_timer[NUM_OF_RANDOM_TIMER];
 #endif
-
+static void timer_service_event_check();
 
 int get_cjson_int(int *data,cJSON *cjson, const char *prop_name)
 {
@@ -66,6 +68,35 @@ int get_cjson_int(int *data,cJSON *cjson, const char *prop_name)
 }
 
 #ifdef ENABLE_LOCALTIMER
+int update_local_timer_kv(int idx){
+    int ret = 0, i;
+    int len = ITEM_MAX_VAL_LEN; // 150*NUM_OF_LOCALTIMER;
+    char *str = (char *)HAL_Malloc(len), *ptr;
+    const char *find = "\"Enable\":";
+    int find_len = strlen(find);
+    if (str == NULL) {
+        // EXAMPLE_TRACE("get kv localtimer, HAL_Malloc failed!"); 
+        TS_ERR("TS_HAL_Malloc failed!"); 
+        return -1;
+    }
+    memset(str, 0, len);
+    ret = HAL_Kv_Get(str_prop_name[LOCAL_TIMER], str, &len);
+    // EXAMPLE_TRACE("get kv localtimer, ret=%d!", ret); 
+    // TS_INFO("LT before:%s", str); 
+    ptr = str;
+    for (i = 0; i <= idx; i++){
+        ptr = strstr(&str[ptr - str], find);
+        if( ptr != NULL && i < idx)
+            ptr += find_len;
+    }
+    if (str[ptr - str + find_len] == '1') {
+        str[ptr - str + find_len] = '0';
+        ret = HAL_Kv_Set(str_prop_name[LOCAL_TIMER], str, strlen(str), 1);
+    }
+    // TS_INFO("LT after:%s", str); 
+    HAL_Free(str);
+    return ret;
+}
 void local_timer_parse(const char *timing_string, int save)
 {
     cJSON *timing_JSON, *item_JSON, *prop;
@@ -91,7 +122,7 @@ void local_timer_parse(const char *timing_string, int save)
         utc_week_second_offset = (utc + ((uint32_t)aos_now_ms() - uptime_on_get_utc)/1000) % (86400 * 7);
 
         item_JSON = cJSON_GetObjectItem(prop, "Timer");
-        if (item_JSON != NULL && strlen(item_JSON->valuestring)) {
+        if (item_JSON != NULL && strlen(item_JSON->valuestring) && strlen(item_JSON->valuestring) < 32) {
             const char *err = NULL;
             char cron_str[64];
             cron_expr target;
@@ -110,10 +141,11 @@ void local_timer_parse(const char *timing_string, int save)
                 // EXAMPLE_TRACE("parse failed err %s", err);
                 TS_ERR("TS_parse err:%s", err);
                 cJSON_Delete(timing_JSON);
-                aos_kv_del(str_prop_name[LOCAL_TIMER]);
+                HAL_Kv_Del(str_prop_name[LOCAL_TIMER]);
                 return;
             }
-            int hour, minute, offset;
+            // HAL_Kv_Del(str_prop_name[LOCAL_TIMER]);
+            int hour = 0, minute = 0, offset = 0;
             for (i = 0; i < HOURS_OF_DAY; i++) {
                 if (cron_get_bit(target.hours, i)) {
                     hour = i;
@@ -142,7 +174,8 @@ void local_timer_parse(const char *timing_string, int save)
             g_local_timer[j].repeat = 0;
             for (i = 0; i < DAYS_OF_WEEK; i++) {
                 if (cron_get_bit(target.days_of_week, i)) {
-                    offset = (i * 24 + hour) * 60 * SECONDS_OF_MINUTE + minute * SECONDS_OF_MINUTE + DEFAULT_TIMEZONEOFFSET * 3600 - timezone;
+                    offset = ( (i * 24 + hour) * 60 * SECONDS_OF_MINUTE + minute * SECONDS_OF_MINUTE + 
+                            DEFAULT_TIMEZONEOFFSET * 3600 - timezone)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
                     // EXAMPLE_TRACE("offset %d  idx=%d, current=%d", offset, g_local_timer[j].repeat, utc_week_second_offset);
                     TS_INFO("TS_offset %d  idx=%d, current=%d", offset, g_local_timer[j].repeat, utc_week_second_offset);
                     g_local_timer[j].offset[g_local_timer[j].repeat++] = offset;
@@ -151,8 +184,8 @@ void local_timer_parse(const char *timing_string, int save)
 
             if (g_local_timer[j].repeat == 0) {
                 for (i = 0; i <= DAYS_OF_WEEK; i++) {
-                    offset = ( (i * 24 + hour) * 60 * SECONDS_OF_MINUTE + minute * SECONDS_OF_MINUTE )%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE) +
-                            DEFAULT_TIMEZONEOFFSET * 3600 - timezone;
+                    offset = ( (i * 24 + hour) * 60 * SECONDS_OF_MINUTE + minute * SECONDS_OF_MINUTE  +
+                            DEFAULT_TIMEZONEOFFSET * 3600 - timezone)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
                     if (offset > utc_week_second_offset) {
                         // EXAMPLE_TRACE("offset %d current %d", offset, utc_week_second_offset);
                         g_local_timer[j].offset[0] = offset;
@@ -160,6 +193,7 @@ void local_timer_parse(const char *timing_string, int save)
                         break;
                     }
                 }
+                // save = 0;
             }
         }
 
@@ -181,7 +215,7 @@ void local_timer_parse(const char *timing_string, int save)
     }
     cJSON_Delete(timing_JSON);
     if (save == 1){
-        int ret = aos_kv_set(str_prop_name[LOCAL_TIMER], timing_string, strlen(timing_string), 1);
+        int ret = HAL_Kv_Set(str_prop_name[LOCAL_TIMER], timing_string, strlen(timing_string), 1);
         // EXAMPLE_TRACE("len=%d ret=%d", strlen(timing_string), ret);
         // TS_INFO("len=%d ret=%d", strlen(timing_string), ret);
     }
@@ -270,12 +304,12 @@ void randomtimer_paramter_parse(const char *timing_string, int index, const char
     arr_item = cJSON_Parse(timing_string);
     if (arr_item == NULL) {
         if (tag != NULL)
-            aos_kv_del(tag);
+            HAL_Kv_Del(tag);
         return;
     }
     if (!cJSON_IsObject(arr_item)){
         if (tag != NULL)
-            aos_kv_del(tag);
+            HAL_Kv_Del(tag);
         goto exit;
     }
 
@@ -294,18 +328,19 @@ void randomtimer_paramter_parse(const char *timing_string, int index, const char
     if (item_JSON != NULL && strlen(item_JSON->valuestring)) {
         if(strlen(item_JSON->valuestring) > 5){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         strcpy(g_random_timer[index].start, item_JSON->valuestring);
         int ret = string2time(item_JSON->valuestring);
         if (ret < 0){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         g_random_timer[index].offset_start[0] = ret;
-        minute_start = g_random_timer[index].offset_start[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - timezone * MINUTES_OF_HOUR;
+        minute_start = (g_random_timer[index].offset_start[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - 
+                        timezone * MINUTES_OF_HOUR)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
         // EXAMPLE_TRACE("string %s", item_JSON->valuestring);
     } else  {
         memset(g_random_timer[index].start, 0, sizeof(g_random_timer[index].start));
@@ -316,20 +351,21 @@ void randomtimer_paramter_parse(const char *timing_string, int index, const char
     if (item_JSON != NULL && strlen(item_JSON->valuestring)) {
         if(strlen(item_JSON->valuestring) > 5){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         strcpy(g_random_timer[index].end, item_JSON->valuestring);
         int ret = string2time(item_JSON->valuestring);
         if (ret < 0){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         g_random_timer[index].offset_end[0] = ret;
         if ( g_random_timer[index].offset_end[0] < g_random_timer[index].offset_start[0])
             g_random_timer[index].offset_end[0] += 24 * 60;
-        minute_end = g_random_timer[index].offset_end[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - timezone * MINUTES_OF_HOUR;
+        minute_end = (g_random_timer[index].offset_end[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - 
+                    timezone * MINUTES_OF_HOUR)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
         // EXAMPLE_TRACE("string %s", item_JSON->valuestring);
         // TS_INFO("string %s", item_JSON->valuestring);
     } else 
@@ -339,7 +375,7 @@ void randomtimer_paramter_parse(const char *timing_string, int index, const char
     if (item_JSON != NULL && cJSON_IsString(item_JSON)) {
         if(strlen(item_JSON->valuestring) > 16){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         memset(g_random_timer[index].repeat_raw, 0, sizeof(g_random_timer[index].repeat_raw));
@@ -378,11 +414,11 @@ void randomtimer_paramter_parse(const char *timing_string, int index, const char
     
 save:
     if (tag != NULL && g_random_timer[index].repeat != 0){
-        int ret = aos_kv_set(tag, timing_string, strlen(timing_string), 1);
+        int ret = HAL_Kv_Set(tag, timing_string, strlen(timing_string), 1);
         // EXAMPLE_TRACE("%s save len=%d ret=%d",tag, strlen(timing_string), ret);
         TS_INFO("TS_save %s len=%d ret=%d",tag, strlen(timing_string), ret);
     } else if (tag != NULL)
-        aos_kv_del(tag);
+        HAL_Kv_Del(tag);
 
 exit:
     cJSON_Delete(arr_item);
@@ -398,12 +434,12 @@ void periodtimer_paramter_parse(const char *timing_string, int index, const char
     arr_item = cJSON_Parse(timing_string);
     if (arr_item == NULL) {
         if (tag != NULL)
-            aos_kv_del(tag);
+            HAL_Kv_Del(tag);
         return;
     }
     if (!cJSON_IsObject(arr_item)){
         if (tag != NULL)
-            aos_kv_del(tag);
+            HAL_Kv_Del(tag);
         goto exit;
     }
 
@@ -421,18 +457,19 @@ void periodtimer_paramter_parse(const char *timing_string, int index, const char
     if (item_JSON != NULL && strlen(item_JSON->valuestring)) {
         if(strlen(item_JSON->valuestring) > 5){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         strcpy(g_period_timer[index].start, item_JSON->valuestring);
         int ret = string2time(item_JSON->valuestring);
         if (ret < 0){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         g_period_timer[index].offset_start[0] = ret;
-        minute_start = g_period_timer[index].offset_start[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - timezone * MINUTES_OF_HOUR;
+        minute_start = (g_period_timer[index].offset_start[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - 
+                        timezone * MINUTES_OF_HOUR)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
         // EXAMPLE_TRACE("string %s", item_JSON->valuestring);
         // TS_INFO("string %s", item_JSON->valuestring);
     } else {
@@ -444,20 +481,21 @@ void periodtimer_paramter_parse(const char *timing_string, int index, const char
     if (item_JSON != NULL && strlen(item_JSON->valuestring)) {
         if(strlen(item_JSON->valuestring) > 5){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         strcpy(g_period_timer[index].end, item_JSON->valuestring);
         int ret = string2time(item_JSON->valuestring);
         if (ret < 0){
             if (tag != NULL)
-                aos_kv_del(tag);
+                HAL_Kv_Del(tag);
             goto exit;
         }
         g_period_timer[index].offset_end[0] = ret;
         if ( g_period_timer[index].offset_end[0] < g_period_timer[index].offset_start[0])
             g_period_timer[index].offset_end[0] += 24 * 60;
-        minute_end = g_period_timer[index].offset_end[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - timezone * MINUTES_OF_HOUR;
+        minute_end = (g_period_timer[index].offset_end[0] + DEFAULT_TIMEZONEOFFSET * MINUTES_OF_HOUR - 
+                        timezone * MINUTES_OF_HOUR)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
         // EXAMPLE_TRACE("string %s", item_JSON->valuestring);
     } else 
         goto save;
@@ -488,7 +526,7 @@ void periodtimer_paramter_parse(const char *timing_string, int index, const char
 
     if (g_period_timer[index].repeat != 0){
         for (i = 0; i < DAYS_OF_WEEK; i++) {
-            if (cron_get_bit(&g_period_timer[index].repeat, i)) {
+            if (cron_get_bit((uint8_t *)&g_period_timer[index].repeat, i)) {
                 g_period_timer[index].offset_start[idx] = ((i * 24) * 60 + minute_start) * SECONDS_OF_MINUTE;
                 g_period_timer[index].offset_end[idx] = ((i * 24) * 60 + minute_end) * SECONDS_OF_MINUTE;
                 // EXAMPLE_TRACE("offset start=%d end=%d idx=%d", g_period_timer[index].offset_start[idx], g_period_timer[index].offset_end[idx], idx);
@@ -508,11 +546,11 @@ void periodtimer_paramter_parse(const char *timing_string, int index, const char
 
 save:
     if (tag != NULL && g_period_timer[index].repeat != 0){
-        int ret = aos_kv_set(tag, timing_string, strlen(timing_string), 1);
+        int ret = HAL_Kv_Set(tag, timing_string, strlen(timing_string), 1);
         // EXAMPLE_TRACE("%s save len=%d ret=%d",tag, strlen(timing_string), ret);
         TS_INFO("TS_save %s len=%d ret=%d",tag, strlen(timing_string), ret);
     } else if (tag != NULL)
-        aos_kv_del(tag);
+        HAL_Kv_Del(tag);
 exit:
     cJSON_Delete(arr_item);
 }
@@ -577,7 +615,7 @@ void paraseContents(char *target, char *contents)
 
             ptr1 += 2;
             if (target_flag == 1){
-                g_countdown_list[i].time_left = atoi(ptr1) + utc_week_second_offset;
+                g_countdown_list[i].time_left = (atoi(ptr1) + utc_week_second_offset)%(MINUTES_OF_WEEK * SECONDS_OF_MINUTE);
                 g_countdown_list[i].duration = atoi(ptr1);
             }
             ptr1 = strchr(ptr1, '-');
@@ -625,6 +663,18 @@ exit:
 char *timer_service_property_get(const char *request){
     int i,j, index, ret = 0;
 
+#ifdef ENABLE_LOCALTIMER
+    int len = ITEM_MAX_VAL_LEN; // 150*NUM_OF_LOCALTIMER;
+    char *str = (char *)HAL_Malloc(len);
+    cJSON *localtimer_list = NULL;
+    if (str == NULL) {
+        // EXAMPLE_TRACE("get kv localtimer, HAL_Malloc failed!"); 
+        TS_ERR("TS_HAL_Malloc failed!"); 
+        ret = 2;
+        goto err;
+    }
+    memset(str, 0, len);
+#endif
     /* Parse Request */
     cJSON *request_root = cJSON_Parse(request);
     if (request_root == NULL || !cJSON_IsArray(request_root)) {
@@ -681,6 +731,12 @@ char *timer_service_property_get(const char *request){
         }
 #ifdef ENABLE_COUNTDOWN_LIST
         else if (strcmp(str_prop_name[COUNT_DOWN_LIST], item_propertyid->valuestring) == 0) {
+            if(countdownlist_target_list == NULL){
+                cJSON_Delete(request_root);
+                cJSON_Delete(property_JSON);
+                ret = 15;
+                goto err;
+            }
             /* CountDownList start */
             cJSON *list = cJSON_CreateObject();
             if (list == NULL) {
@@ -691,6 +747,7 @@ char *timer_service_property_get(const char *request){
                 ret = 5;
                 goto err;
             }
+
             cJSON_AddStringToObject(list, "Target", countdownlist_target_list[0]);
             char tmp[64], str[512];
             int content_idx = 0;
@@ -719,6 +776,13 @@ char *timer_service_property_get(const char *request){
 #endif
 #ifdef ENABLE_LOCALTIMER
         else if (strcmp(str_prop_name[LOCAL_TIMER], item_propertyid->valuestring) == 0) {
+            #if 0
+            if(localtimer_target_list == NULL){
+                cJSON_Delete(request_root);
+                cJSON_Delete(property_JSON);
+                ret = 16;
+                goto err;
+            }
             /* LocalTimer start */
             cJSON *items[NUM_OF_LOCALTIMER];
             cJSON *array_localtimer = cJSON_CreateArray();
@@ -750,11 +814,31 @@ char *timer_service_property_get(const char *request){
                 cJSON_AddItemToArray(array_localtimer, items[i]);
             }
             cJSON_AddItemToObject(property_JSON, str_prop_name[LOCAL_TIMER], array_localtimer);
+            #else
+                ret = HAL_Kv_Get(str_prop_name[LOCAL_TIMER], str, &len);
+                TS_INFO("TS_get kv localtimer, ret=%d!", ret); 
+                
+                if (strlen(str) == 0)
+                    localtimer_list = cJSON_Parse("[]");
+                else 
+                    localtimer_list = cJSON_Parse(str);
+                if (localtimer_list == NULL || !cJSON_IsArray(localtimer_list)) {
+                    ret = 7;
+                    goto err;
+                }
+                cJSON_AddItemToObject(property_JSON, str_prop_name[LOCAL_TIMER], localtimer_list);
+            #endif
             /* LocalTimer end*/
         } 
 #endif
 #ifdef ENABLE_PERIOD_TIMER
         else if (strstr(item_propertyid->valuestring, str_prop_name[PERIOD_TIMER]) != NULL){
+            if(control_targets_list == NULL){
+                cJSON_Delete(request_root);
+                cJSON_Delete(property_JSON);
+                ret = 18;
+                goto err;
+            }
             cJSON *period = cJSON_CreateObject();
             if (period == NULL) {
                 // EXAMPLE_TRACE("No Enough Memory");
@@ -790,6 +874,12 @@ char *timer_service_property_get(const char *request){
 #endif
 #ifdef ENABLE_RANDOM_TIMER
         else if (strstr(item_propertyid->valuestring, str_prop_name[RANDOM_TIMER]) != NULL){
+            if(control_targets_list == NULL){
+                cJSON_Delete(request_root);
+                cJSON_Delete(property_JSON);
+                ret = 19;
+                goto err;
+            }
             cJSON *list_random = cJSON_CreateObject();
             if (list_random == NULL) {
                 // EXAMPLE_TRACE("No Enough Memory");
@@ -840,6 +930,7 @@ char *timer_service_property_get(const char *request){
     }
     cJSON_Delete(request_root);
     char *property = cJSON_PrintUnformatted(property_JSON);
+
     if (property == NULL) {
         // EXAMPLE_TRACE("No Enough Memory");
         cJSON_Delete(property_JSON);
@@ -847,11 +938,19 @@ char *timer_service_property_get(const char *request){
         ret = 10;
         goto err;
     }
+#ifdef ENABLE_LOCALTIMER
+    HAL_Free(str);
+#endif
     cJSON_Delete(property_JSON);
     // EXAMPLE_TRACE("property_post:%s!", property);
     TS_INFO("TS_get:%s", property);
     return property;
 err:
+#ifdef ENABLE_LOCALTIMER
+    if(localtimer_list != NULL)
+        cJSON_Delete(localtimer_list);
+    HAL_Free(str);
+#endif
     TS_ERR("TS_get_err:%d", ret);
     return NULL;
 }
@@ -1082,7 +1181,7 @@ void timer_service_ntp_update(const char *str)
                 } else {
                     snprintf(tag, sizeof(tag), "%s_%d", str_prop_name[PERIOD_TIMER], i);
                 }
-                ret = aos_kv_get(tag, &str, &len);
+                ret = HAL_Kv_Get(tag, &str, &len);
                 // EXAMPLE_TRACE("get kv %s, ret=%d!", tag, ret); 
                 TS_INFO("TS_get kv %s, ret=%d!", tag, ret); 
                 if (ret == 0){
@@ -1105,7 +1204,7 @@ void timer_service_ntp_update(const char *str)
                 } else {
                     snprintf(tag, sizeof(tag), "%s_%d", str_prop_name[RANDOM_TIMER], i);
                 }
-                ret = aos_kv_get(tag, &str, &len);
+                ret = HAL_Kv_Get(tag, &str, &len);
                 // EXAMPLE_TRACE("get kv %s, ret=%d!", tag, ret); 
                 TS_INFO("TS_get kv %s, ret=%d!", tag, ret); 
                 if (ret == 0){
@@ -1120,7 +1219,7 @@ void timer_service_ntp_update(const char *str)
     if ( g_need_read_kv == 0) {
         memset(&g_local_timer, 0, sizeof(g_local_timer));  
         {
-            int len = 150*NUM_OF_LOCALTIMER;
+            int len = ITEM_MAX_VAL_LEN; // 150*NUM_OF_LOCALTIMER;
             char *str = (char *)HAL_Malloc(len);
             if (str == NULL) {
                 // EXAMPLE_TRACE("get kv localtimer, HAL_Malloc failed!"); 
@@ -1128,11 +1227,12 @@ void timer_service_ntp_update(const char *str)
                 return;
             }
             memset(str, 0, len);
-            ret = aos_kv_get(str_prop_name[LOCAL_TIMER], str, &len);
+            ret = HAL_Kv_Get(str_prop_name[LOCAL_TIMER], str, &len);
             // EXAMPLE_TRACE("get kv localtimer, ret=%d!", ret); 
             TS_INFO("TS_get kv localtimer, ret=%d!", ret); 
             if (ret == 0){
-                local_timer_parse(str, 0);
+                local_timer_parse(str, 1);
+                timer_service_event_check();
             }
             HAL_Free(str);
         }
@@ -1154,7 +1254,7 @@ void timer_service_clear(){
 #endif
 #ifdef ENABLE_LOCALTIMER
     memset(&g_local_timer, 0, sizeof(g_local_timer));
-    aos_kv_del(str_prop_name[LOCAL_TIMER]);
+    HAL_Kv_Del(str_prop_name[LOCAL_TIMER]);
 #endif
 #ifdef ENABLE_PERIOD_TIMER
     memset(&g_period_timer, 0, sizeof(g_period_timer));
@@ -1164,7 +1264,7 @@ void timer_service_clear(){
             snprintf(tag_period, sizeof(tag_period), "%s", str_prop_name[PERIOD_TIMER]);
         else 
             snprintf(tag_period, sizeof(tag_period), "%s_%d", str_prop_name[PERIOD_TIMER], i);
-        aos_kv_del(tag_period);
+        HAL_Kv_Del(tag_period);
     }
 #endif
 #ifdef ENABLE_RANDOM_TIMER
@@ -1175,7 +1275,7 @@ void timer_service_clear(){
             snprintf(tag, sizeof(tag), "%s", str_prop_name[RANDOM_TIMER]);
         else 
             snprintf(tag, sizeof(tag), "%s_%d", str_prop_name[RANDOM_TIMER], i);
-        aos_kv_del(tag);
+        HAL_Kv_Del(tag);
     }
 #endif
 }
@@ -1183,7 +1283,7 @@ void timer_service_clear(){
 static int _sec_next_event = -1;
 static void timer_service_event_check()
 {
-    int i = 0, j,k, current_time;
+    int i = 0, j,k,h, current_time;
     uint32_t ticket = ((uint32_t)aos_now_ms() - uptime_on_get_utc)/1000;
     if (ntp_time_s == 0 || ticket < 0 || (ticket > SECONDS_OF_DAY/4 && 
         (_sec_next_event == -1 || _sec_next_event - utc_week_second_offset > 10))) {
@@ -1216,13 +1316,24 @@ static void timer_service_event_check()
 #endif
 #ifdef ENABLE_COUNTDOWN_LIST
     for (i = 0; i < g_num_countdownlist_target; i++){
-        if (g_countdown_list[i].is_running && (_sec_next_event == -1 || g_countdown_list[i].time_left < _sec_next_event) && g_countdown_list[i].time_left > utc_week_second_offset)
+        if (g_countdown_list[i].is_running && (_sec_next_event == -1 || g_countdown_list[i].time_left < _sec_next_event) 
+            && g_countdown_list[i].time_left > utc_week_second_offset){
             _sec_next_event = g_countdown_list[i].time_left;
-        if (g_countdown_list[i].is_running && g_countdown_list[i].time_left == utc_week_second_offset){
+            g_countdown_list[i].event_ready = 1;
+        }
+        if (g_countdown_list[i].is_running && (g_countdown_list[i].time_left == utc_week_second_offset || 
+            (g_countdown_list[i].event_ready == 1 && utc_week_second_offset > g_countdown_list[i].time_left &&
+            utc_week_second_offset - g_countdown_list[i].time_left < 5))){
             g_countdown_list[i].is_running = 0;
+            g_countdown_list[i].event_ready = 0;
+            // printf("curr=%d  left=%d", utc_week_second_offset, g_countdown_list[i].time_left);
             for (k = 0; k < g_num_control_list; k++){
                 if (strcmp(control_targets_list[k], countdownlist_target_list[i]) == 0){
                     g_control_targets_list_int[k] = g_countdown_list[i].action;
+                    // need change by device app features
+                    for(j = 0; j < g_num_control_list; j++){
+                        g_control_targets_list_int[j] = g_countdown_list[i].action;
+                    }
                     break;
                 }
             }
@@ -1241,16 +1352,29 @@ static void timer_service_event_check()
         if (g_local_timer[i].enable == 1){
             int val_idx = 0;
             for ( j = 0; j < DAYS_OF_WEEK; j++){
-                if ((_sec_next_event == -1 || g_local_timer[i].offset[j] < _sec_next_event) && g_local_timer[i].offset[j] > utc_week_second_offset)
+                if ((_sec_next_event == -1 || g_local_timer[i].offset[j] < _sec_next_event) && 
+                    g_local_timer[i].offset[j] > utc_week_second_offset) {
                     _sec_next_event = g_local_timer[i].offset[j];
-                if (g_local_timer[i].offset[j] == utc_week_second_offset){
-                    if (g_local_timer[i].repeat == 0)
-                        g_local_timer[i].enable = 0;
+                    g_local_timer[i].event_ready[j] = 1;
+                }
+                if (g_local_timer[i].offset[j] == utc_week_second_offset || 
+                    (g_local_timer[i].event_ready[j] == 1 && utc_week_second_offset > g_local_timer[i].offset[j] && 
+                    utc_week_second_offset - g_local_timer[i].offset[j] < 5 )){
+                    if (g_local_timer[i].repeat == 0){
+                        g_local_timer[i].enable = 0; 
+                        update_local_timer_kv(i);
+                    }
+                    g_local_timer[i].event_ready[j] = 0;
+                    // printf("curr=%d  left=%d", utc_week_second_offset, g_countdown_list[i].time_left);
                     for ( k = 0; k < g_num_control_list; k++){
                         for (val_idx = 0; val_idx < g_num_localtimer_list; val_idx++){
                             if (strcmp(control_targets_list[k], localtimer_target_list[val_idx]) == 0 && 
                                 localTimer_target_match(control_targets_list[k],g_local_timer[i].targets) == 1){
                                 g_control_targets_list_int[k] = g_local_timer[i].value_list[val_idx];
+                                // need change by device app features
+                                for(h = 0; h < g_num_control_list; h++){
+                                    g_control_targets_list_int[h] = g_local_timer[i].value_list[val_idx];
+                                }
                                 // char *post_str = property_post(LOCAL_TIMER, i);
                                 // if (post_str != NULL){
                                     // EXAMPLE_TRACE("name = %s  val = %d\n",control_targets_list[k], g_control_targets_list_int[k]);
@@ -1375,6 +1499,8 @@ int timer_service_init(const char **control_list, uint8_t num_control_list, \
                                     const char **countdownlist_target, uint8_t num_countdownlist_target, \
                                     const char **localtimer_list, uint8_t num_localtimer_list, \
                                     callback_fun timer_service_cb, int *num_of_tsl_type, callback_ntp_fun timer_ntp_cb){
+    if (ntp_time_s != 0)
+        return 0;
     int i, ret = linkkit_ntp_time_request(timer_service_ntp_update);
     if (check_timer == NULL) {
         check_timer = HAL_Timer_Create("timer_service", (void (*)(void *))timer_service_event_check, NULL);
@@ -1388,12 +1514,12 @@ int timer_service_init(const char **control_list, uint8_t num_control_list, \
     HAL_Timer_Stop(check_timer);
     HAL_Timer_Start(check_timer, 2000);
 
-    if (ret != 0) {
-        // EXAMPLE_TRACE("ERR:ntp_time_request failed=%d!", ret);
-        // return -1;
-        ret = 2;
-        goto err;
-    }
+    // if (ret != 0) {
+    //     // EXAMPLE_TRACE("ERR:ntp_time_request failed=%d!", ret);
+    //     // return -1;
+    //     ret = 2;
+    //     goto err;
+    // }
     if (timer_service_cb == NULL){
         // EXAMPLE_TRACE("ERR: callback is NULL!");
         // return -1;
@@ -1460,6 +1586,12 @@ int timer_service_init(const char **control_list, uint8_t num_control_list, \
     g_timer_service_cb = timer_service_cb; 
     g_timer_service_ntp_cb = timer_ntp_cb; 
 
+    if (ret != 0) {
+        // EXAMPLE_TRACE("ERR:ntp_time_request failed=%d!", ret);
+        // return -1;
+        ret = 2;
+        goto err;
+    }
     return 0;
 
 err:
@@ -1577,6 +1709,7 @@ int timer_service_property_set(const char* data)
     timer_service_event_check();
 exit:
     cJSON_Delete(root);
+    return ret;
 }
 
 #endif

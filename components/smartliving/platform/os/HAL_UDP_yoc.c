@@ -386,7 +386,7 @@ int HAL_UDP_joinmulticast(intptr_t sockfd, char *p_group)
     err =
       setsockopt(socket_id, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
     if (err < 0) {
-        fprintf(stderr, "setsockopt():IP_MULTICAST_LOOP failed\r\n");
+        printf("setsockopt():IP_MULTICAST_LOOP failed\r\n");
         return err;
     }
 
@@ -398,7 +398,7 @@ int HAL_UDP_joinmulticast(intptr_t sockfd, char *p_group)
     err =
       setsockopt(socket_id, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
     if (err < 0) {
-        fprintf(stderr, "setsockopt():IP_ADD_MEMBERSHIP failed\r\n");
+        printf("setsockopt():IP_ADD_MEMBERSHIP failed\r\n");
         return err;
     }
 

@@ -70,7 +70,7 @@ static struct cli_status *g_cli = NULL;
 extern cli_console cli_uart_console;
 extern void hal_reboot(void);
 #if CLI_IOBOX_ENABLE
-extern uint32_t vfs_get_match_dev_node(const char *name, char *match_name);
+extern uint32_t vfs_get_match_dev_node(const char *name, char *match_name, int match_name_buf_len);
 #endif
 int32_t cli_va_printf(const char *fmt, va_list va);
 int32_t cli_printf(const char *fmt, ...);
@@ -470,7 +470,7 @@ static void cli_tab_complete_path(char *inbuf, uint32_t *idx)
 
     /*  device fs process */
     if (!strncmp(dir, "/dev", strlen("/dev"))) {
-        m = vfs_get_match_dev_node(last_name, fm);
+        m = vfs_get_match_dev_node(last_name, fm, sizeof(fm));
     } else {
         uint32_t match_count = 0;
         while ((entry = readdir(pdir))) {

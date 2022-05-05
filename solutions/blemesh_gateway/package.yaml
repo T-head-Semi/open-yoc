@@ -1,0 +1,400 @@
+## 第一部分： 基础信息
+name: blemesh_gateway
+version: v1.2.0
+description: YoC smart lighting SDK
+type: solution
+## 第二部分：依赖信息
+#           指定该组件依赖的组件及版本，版本支持条件比较，支持：>=v1.0, >v1.0, ==v1.0, <=v1.0, <v1.0, v1.0
+#           未指定条件时，默认为 ==，如 v1.0 与 ==v1.0
+# depends:                                 # <可选项> 该组件依赖其他的组件，合理的依赖才能保证组件能编译、使用
+#   - minilibc: v7.2.0
+#   - aos: >=v7.2.0
+depends:
+  - sdk_chip_d1: v7.5.1
+  - at: v7.4.6
+  - ble_mesh: v7.4.10
+  - breeze: v1.6.6
+  - button: v7.5.1
+  - cjson: v7.4.5
+  - drv_bt_rtl8723ds: v7.4.6
+  - drv_wifi_rtl8723ds: v7.4.7
+  - duktape: v7.4.4
+  - dut_service: v7.4.5
+  - ers: v7.4.6
+  - fota: v7.6.0
+  - gateway_mgmt: v7.5.0
+  - lwip: v7.4.7
+  - httpclient: v7.5.2
+  - transport: v7.5.0
+  - key_mgr: v7.5.0
+  - mbedtls: v7.4.5
+  - netmgr: v7.4.7
+  - ntp: v7.4.6
+  - ota_module: v7.4.9
+  - smartliving: v1.6.8
+  - tsl_engine: v7.5.0
+  - wifi_provisioning: v7.4.7
+## 第三部分：板级信息
+# hw_info:                                 # 对 solution、board、chip 三个字段的改进，统称为 hw_info 字段
+#   cpu_id: cpu0
+#   cpu_name: CK804EF
+#   vendor_name: t-head
+#   chip_name: chip_pangu                  # <可选项> 指定芯片组件名,未设置时，使用depends中 chip 第一个组件
+#   board_name: pangu_cpu0                 # <可选项> 指定开发板组件名，未设置时，使用depends中 board 第一个组件
+#   ld_script: configs/gcc_eflash.ld       # <可选项> 连接时使用 LD 脚本，当选把未设置时，使用对应的 board 的 LD 脚本
+#   flash_program: bin/flash_program.elf   # <可选项> 芯片全局烧写程序
+#   toolchain_prefix: csky-abiv2-elf       # <可选项> 编译器前缀
+#   cpu0:
+#     cpu_name: CK804EF                    # <必选项> 该芯片使用的 CPU 型号
+#     ld_script: configs/gcc_eflash.ld     # <必选项> 连接时使用 LD 脚本
+#     flash_program: bin/flash_program.elf # <可选项> 该CPU对应烧写程序，未指定时使用全局烧写程序
+#     toolchain_prefix: csky-abiv2-elf     # <可选项> 编译器前缀
+#   cpu1:
+#     cpu_name: CK804EF                    # <必选项> 该芯片使用的 CPU 型号
+#     ld_script: configs/gcc_eflash.ld     # <可选项> 连接时使用 LD 脚本
+#     flash_program: bin/flash_program.elf # <可选项> 该CPU对应烧写程序，未指定时使用全局烧写程序
+#     toolchain_prefix: csky-abiv2-elf     # <可选项> 编译器前缀
+## solution component
+# hw_info:
+#   cpu_id: cpu0
+#   board_name: pangu_cpu0
+#   cpu_name: CK805EF
+#   vendor_name: csky
+#   chip_name: 'chip_pangu'
+#   ld_script: configs/gcc_eflash.ld.S
+## board component
+# hw_info:
+#   chip_name: chip_pangu
+#   ld_script: configs/gcc_eflash.ld
+## chip component (单处理器)
+# hw_info:
+#   cpu_name: CK804EF
+#   ld_script: configs/gcc_eflash.ld
+#   toolchain_prefix: csky-abiv2-elf
+#   flash_program: bin/flash_program.elf
+## chip component(多处理器)
+# hw_info:
+#   cpu0:
+#     cpu_name: CK804EF                    # <必选项> 该芯片使用的 CPU 型号
+#     ld_script: configs/gcc_eflash.ld     # <必选项> 连接时使用 LD 脚本
+#     flash_program: bin/flash_program.elf # <可选项> 该CPU对应烧写程序，未指定时使用全局烧写程序
+#     toolchain_prefix: csky-abiv2-elf     # <可选项> 编译器前缀
+#   cpu1:
+#     cpu_name: CK804EF                    # <必选项> 该芯片使用的 CPU 型号
+#     ld_script: configs/gcc_eflash.ld     # <必选项> 连接时使用 LD 脚本
+#     flash_program: bin/flash_program.elf # <可选项> 该CPU对应烧写程序，未指定时使用全局烧写程序
+#     toolchain_prefix: csky-abiv2-elf     # <可选项> 编译器前缀
+hw_info:
+  cpu_id: ""
+  cpu_name: ""
+  vendor_name: ""
+  chip_name: ""
+  board_name: d1_evb
+  ld_script: ""
+  flash_program: ""
+## 第四部分：编译连接信息
+# build_config:                            # <可选项> 编译配置项
+#   include:                               # <可选项> 编译时，影响编译器的-I 参数 ,全局有效
+#     - src                                #        include 只能是该软件包下的目录，不能使用外部目录
+#   internal_include:                      # <可选项> 编译时，影响编译器的-I 参数 ,组件内有效
+#     - include
+#   cflag: ''                              # <可选项> C 编译器所需要要的编译参数
+#   cxxflag: ''                            # <可选项> CXX 编译器所需要要的编译参数
+#   asmflag: ''                            # <可选项> 汇编器所需要要参数
+#   define:                                # <可选项> 宏定义, 增加编译器的-D 选项,如：
+#     XXX: 1                               #   -DXXX=1
+#     AAA: 1                               #   -DAAA
+#     STR: "abc"                           #   -DSTR="abc"
+#   libs:                                  # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
+#     - xxx                                #   -lxxx
+#     - yyy                                #   -lyyy
+#   libpath:                               # 指定静态库所在的路径（相对于该组件路径）
+#     - libs                               #   -Llibs
+build_config:
+  include:
+    - app/include
+  internal_include: 
+  cflag: -Os  -g
+  cxxflag: -Os  -g
+  asmflag: ""
+  define: 
+  libs: 
+  libpath: 
+  ldflag: -Wl,-Map=yoc.map -Wl,-zmax-page-size=1024
+#  cflag: '-g -O0 -Wall'
+#  cxxflag: '-g -O0 -Wall'
+#  asmflag: '-g -O0 -Wall'
+# source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
+#   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
+source_file:
+  - app/src/init/cli_cmd.c
+  - app/src/init/init.c
+  - app/src/nsp/*.c
+  - app/src/app_voice.c
+  - app/src/app_main.c
+  - app/src/combo_net.c
+  - app/src/app_net.c
+  - app/src/app_sys.c
+  - app/src/app_mesh.c
+  - app/src/app_mesh_comp_init.c
+  - app/src/app_smartliving_ota.c
+  - app/src/app_kp_cmd.c
+  - app/src/app_http_cmd.c
+#  - app/src/duktape_demo.c
+# - app/src/app_key_user.c
+# - app/src/app_led.c
+# - app/src/app_pwm.c
+# - app/src/app_rf_cmd.c
+# - app/src/at_cmd/*.c
+#  - app/src/linkkit_gateway/*.c
+# - app/src/ymodem/*.c
+## 第五部分：配置信息
+# def_config:                              # 组件的可配置项
+#   CONFIG_DEBUG: y
+#   CONFIG_PARAM_NOT_CHECK: y
+#   CONFIG_CLI: y
+yoc_version: ""
+keywords: 
+author:
+  name: ""
+license: ""
+link_config:
+  path: 
+  library: 
+defconfig:
+  CONFIG_USERVICE_EVENT_TASK_STACK_SIZE: 8192
+  CONFIG_KV_ENABLE_CACHE: 1
+  BLE_4_2: 1
+  CONFIG_KERNEL_TIMER: 1
+  CONFIG_ARCH_INTERRUPTSTACK: 4096
+  CONFIG_BLE_MESH_PROV: 1
+  CONFIG_BLUETOOTH_WORK_QUEUE_STACK_SIZE: 3072
+  CONFIG_BT_AUTO_DATA_LEN_UPDATE: 1
+  CONFIG_BT_CENTRAL: 1
+  CONFIG_BT_CONN_TX_MAX: 3
+  CONFIG_BT_DEBUG_LOG: 1
+  CONFIG_BT_H5_RECV_DATA_LIMIT: 20
+  CONFIG_BT_HCI_ACL_FLOW_CONTROL: 1
+  CONFIG_BT_HCI_CMD_COUNT: 12
+  CONFIG_BT_L2CAP_RX_MTU: 247
+  CONFIG_BT_L2CAP_TX_BUF_COUNT: 8
+  CONFIG_BT_L2CAP_TX_MTU: 247
+  CONFIG_BT_MESH_APP_KEY_COUNT: 2
+  CONFIG_BT_MESH_CFG_CLI: 1
+  CONFIG_BT_MESH_GATT_PROXY: 1
+  CONFIG_BT_MESH_HEALTH_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_LEVEL_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_ONOFF_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_ONOFF_SRV: 1
+  CONFIG_BT_MESH_MAX_PROV_NODES: 128
+  CONFIG_BT_MESH_MAX_STORED_NODES: 128
+  CONFIG_BT_MESH_CRPL: 128
+  CONFIG_BT_MESH_MODEL_BLOB_CLI: 1
+  CONFIG_BT_MESH_MODEL_GROUP_COUNT: 10
+  CONFIG_BT_MESH_MODEL_LIGHT_CTL_CLI: 1
+  CONFIG_BT_MESH_MODEL_LIGHT_LIGHTNESS_CLI: 1
+  CONFIG_BT_MESH_MODEL_VENDOR_CLI: 1
+  CONFIG_BT_MESH_MODEL_VENDOR_SRV: 1
+  CONFIG_BT_MESH_PB_GATT: 1
+  CONFIG_BT_MESH_PROVISIONER: 1
+  CONFIG_BT_MESH_RELAY: 1
+  CONFIG_BT_MESH_SUBNET_COUNT: 2
+  CONFIG_BT_MESH_USE_SIG_MODEL: 1
+  CONFIG_BT_PERIPHERAL: 1
+  CONFIG_BT_RX_BUF_COUNT: 4
+  CONFIG_BT_RX_BUF_LEN: 512
+  CONFIG_BT_RX_STACK_SIZE: 4096
+  CONFIG_BT_SHELL: 1
+  CONFIG_BT_SMP: 1
+  CONFIG_BT_WHITELIST: 1
+  CONFIG_BT_WORK_INDEPENDENCE: 1
+  CONFIG_CLI: 1
+  CONFIG_DEBUG: 1
+  CONFIG_DYN_TASK_STACK_SIZE: 256
+  CONFIG_FOTA_DATA_IN_RAM: 1
+  CONFIG_FOTA_USE_HTTPC: 1
+  CONFIG_HAL_UART_RINGBUF_LEN: 8192
+  CONFIG_HAL_UART_DISABLED: 1
+  CONFIG_IDLE_TASK_STACK_SIZE: 256
+  CONFIG_KERNEL_RHINO: 1
+  CONFIG_KERNEL_TIMER_MSG_NUM: 40
+  CONFIG_KERNEL_TIMER_STACK_SIZE: 2048
+  CONFIG_FOTA_BUFFER_SIZE: 4096
+  CONFIG_KEY_MGR_KP_PROTECT: 1
+  CONFIG_KEY_MGR_NO_PUB_PARTITION: 1
+  CONFIG_KV_SMART: 1
+  CONFIG_MESH_LPM: 1
+  CONFIG_NET_BUF: 1
+  CONFIG_OTA_SERVER: 1
+  CONFIG_SDK_VERSION: ble_mesh_gateway_1.0.0
+  CONFIG_SEC_CRYPTO_AES_SW: 1
+  CONFIG_SEC_CRYPTO_SHA_SW: 1
+  CONFIG_SUPPORT_YMODEM: 1
+  CONFIG_SYSTICK_HZ: 1000
+  CONFIG_OTA_SERVER_TRANS_GATT: 1
+  CONFIG_OTA_SERVER_TRANS_HCI_UART: 1
+  CONFIG_BT_MESH_MSG_CACHE_SIZE: 60
+  CLI_CONFIG_MAX_ONCECMD_NUM: 13
+  CONFIG_TCPIP: 1
+  CONFIG_GW_USE_YOC_BOOTLOADER: 1
+  CONFIG_USING_TLS: 1
+  CONFIG_WIFI_PROV_BLE: 1
+  DEVICE_MODEL_GATEWAY: 1
+  DM_UNIFIED_SERVICE_POST: 1
+  EN_COMBO_NET: 1
+  EN_LONG_MTU: 1
+  MBEDTLS_SSL_MAX_CONTENT_LEN: 16384
+  OTA_ENABLED: 1
+  CONFIG_SAVE_JS_TO_RAM: 1
+  CONFIG_XIP: 1
+  CONFIG_MQTT_RX_MAXLEN: 30720
+  CONFIG_GW_SMARTLIVING_SUPPORT: 1
+  CONFIG_BT_TINYCRYPT_ECC: 1
+  CONFIG_GW_NETWORK_SUPPORT: 1
+  CONFIG_BT_MESH_TX_SDU_MAX: 512
+  CONFIG_BT_HCI_ECC_STACK_SIZE: 4096
+  CLI_CMD_DEBUG: 1
+  CLI_CONFIG_STACK_SIZE: 16384
+  CONFIG_MESH_SCAN_INTERVAL_MS: 50
+  CONFIG_MESH_SCAN_WINDOW_MS: 20
+  CONFIG_BT_DRV_NO_ONESHOT: 1
+  CONFIG_INIT_TASK_STACK_SIZE: 65536
+#CONFIG_BT_MESH_EXT_ADV: 1
+#CONFIG_BT_MESH_TX_SEG_MSG_COUNT: 5
+#CONFIG_BT_MESH_RX_SEG_MSG_COUNT: 5
+#CONFIG_BT_MESH_ADV_BUF_COUNT: 20
+# CONFIG_MTB_NAME_KP: fcds
+#CONFIG_AT_MESH_TRS_TEST: 1
+# CONFIG_MESH_OCC_AUTH: 1
+# CONFIG_TB_KP: 1
+#MESH_DEBUG_RX: 1
+#MESH_DEBUG_TX: 1
+#CONFIG_BT_EXT_ADV: 1
+#CONFIG_BT_EXT_ADV_MAX_ADV_SET: 1
+#CONFIG_BLOB_CLI_DEFAULT_TTL: 2
+#CONFIG_MAX_BLOB_RECEIVERS_SIZE: 32
+#CONFIG_BTSOOP: 1
+#CONFIG_BTSOOP_FILE_SIZE: 8192
+#CONFIG_BTSOOP_MBEDTLS_BASE64_FORMATE: 1
+install: 
+hidden: 
+homepage: 
+soc_config: 
+## 第六部分：安装信息
+# install:
+#   - dest: include/                       # 安装的目的路径 dest是相对路径，通常是相对于YoC SDK 安装目录
+#     source:                              # 安装源列表
+#      - src/*.h                           # 支持通配符，相对路径
+## 第七部分：导出部分
+# export:
+#   - dest: "<SOLUTION_PATH>/generated/data" # 安装的目的路径 dest是相对路径
+#     source:                                # 安装源列表
+#       - "bootimgs/boot"
+#       - "bootimgs/tee"
+#       - "bootimgs/mtb"
+#       - "configs/config.yaml"
+export:
+  - dest: <SOLUTION_PATH>/generated/data
+    source:
+      - config.yaml
+      - kp
+tag: ""
+
+def_config:
+  BLE_4_2: 1
+  CLI_CMD_DEBUG: 1
+  CLI_CONFIG_MAX_ONCECMD_NUM: 13
+  CLI_CONFIG_STACK_SIZE: 16384
+  CONFIG_ARCH_INTERRUPTSTACK: 4096
+  CONFIG_BLE_MESH_PROV: 1
+  CONFIG_BLUETOOTH_WORK_QUEUE_STACK_SIZE: 3072
+  CONFIG_BT_AUTO_DATA_LEN_UPDATE: 1
+  CONFIG_BT_CENTRAL: 1
+  CONFIG_BT_CONN_TX_MAX: 3
+  CONFIG_BT_DEBUG_LOG: 1
+  CONFIG_BT_DRV_NO_ONESHOT: 1
+  CONFIG_BT_H5_RECV_DATA_LIMIT: 20
+  CONFIG_BT_HCI_ACL_FLOW_CONTROL: 1
+  CONFIG_BT_HCI_CMD_COUNT: 12
+  CONFIG_BT_HCI_ECC_STACK_SIZE: 4096
+  CONFIG_BT_L2CAP_RX_MTU: 247
+  CONFIG_BT_L2CAP_TX_BUF_COUNT: 8
+  CONFIG_BT_L2CAP_TX_MTU: 247
+  CONFIG_BT_MESH_APP_KEY_COUNT: 2
+  CONFIG_BT_MESH_CFG_CLI: 1
+  CONFIG_BT_MESH_CRPL: 128
+  CONFIG_BT_MESH_GATT_PROXY: 1
+  CONFIG_BT_MESH_HEALTH_CLI: 1
+  CONFIG_BT_MESH_MAX_PROV_NODES: 128
+  CONFIG_BT_MESH_MAX_STORED_NODES: 128
+  CONFIG_BT_MESH_MODEL_BLOB_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_LEVEL_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_ONOFF_CLI: 1
+  CONFIG_BT_MESH_MODEL_GEN_ONOFF_SRV: 1
+  CONFIG_BT_MESH_MODEL_GROUP_COUNT: 10
+  CONFIG_BT_MESH_MODEL_LIGHT_CTL_CLI: 1
+  CONFIG_BT_MESH_MODEL_LIGHT_LIGHTNESS_CLI: 1
+  CONFIG_BT_MESH_MODEL_VENDOR_CLI: 1
+  CONFIG_BT_MESH_MODEL_VENDOR_SRV: 1
+  CONFIG_BT_MESH_MSG_CACHE_SIZE: 60
+  CONFIG_BT_MESH_PB_GATT: 1
+  CONFIG_BT_MESH_PROVISIONER: 1
+  CONFIG_BT_MESH_RELAY: 1
+  CONFIG_BT_MESH_SUBNET_COUNT: 2
+  CONFIG_BT_MESH_TX_SDU_MAX: 512
+  CONFIG_BT_MESH_USE_SIG_MODEL: 1
+  CONFIG_BT_PERIPHERAL: 1
+  CONFIG_BT_RX_BUF_COUNT: 4
+  CONFIG_BT_RX_BUF_LEN: 512
+  CONFIG_BT_RX_STACK_SIZE: 4096
+  CONFIG_BT_SHELL: 1
+  CONFIG_BT_SMP: 1
+  CONFIG_BT_TINYCRYPT_ECC: 1
+  CONFIG_BT_WHITELIST: 1
+  CONFIG_BT_WORK_INDEPENDENCE: 1
+  CONFIG_CLI: 1
+  CONFIG_DEBUG: 1
+  CONFIG_DYN_TASK_STACK_SIZE: 256
+  CONFIG_FOTA_BUFFER_SIZE: 4096
+  CONFIG_FOTA_DATA_IN_RAM: 1
+  CONFIG_FOTA_USE_HTTPC: 1
+  CONFIG_GW_NETWORK_SUPPORT: 1
+  CONFIG_GW_SMARTLIVING_SUPPORT: 1
+  CONFIG_GW_USE_YOC_BOOTLOADER: 1
+  CONFIG_HAL_UART_DISABLED: 1
+  CONFIG_HAL_UART_RINGBUF_LEN: 8192
+  CONFIG_IDLE_TASK_STACK_SIZE: 256
+  CONFIG_INIT_TASK_STACK_SIZE: 65536
+  CONFIG_KERNEL_RHINO: 1
+  CONFIG_KERNEL_TIMER: 1
+  CONFIG_KERNEL_TIMER_MSG_NUM: 40
+  CONFIG_KERNEL_TIMER_STACK_SIZE: 2048
+  CONFIG_KEY_MGR_KP_PROTECT: 1
+  CONFIG_KEY_MGR_NO_PUB_PARTITION: 1
+  CONFIG_KV_ENABLE_CACHE: 1
+  CONFIG_KV_SMART: 1
+  CONFIG_MESH_LPM: 1
+  CONFIG_MESH_SCAN_INTERVAL_MS: 50
+  CONFIG_MESH_SCAN_WINDOW_MS: 20
+  CONFIG_MQTT_RX_MAXLEN: 30720
+  CONFIG_NET_BUF: 1
+  CONFIG_OTA_SERVER: 1
+  CONFIG_OTA_SERVER_TRANS_GATT: 1
+  CONFIG_OTA_SERVER_TRANS_HCI_UART: 1
+  CONFIG_SAVE_JS_TO_RAM: 1
+  CONFIG_SDK_VERSION: ble_mesh_gateway_1.0.0
+  CONFIG_SEC_CRYPTO_AES_SW: 1
+  CONFIG_SEC_CRYPTO_SHA_SW: 1
+  CONFIG_SUPPORT_YMODEM: 1
+  CONFIG_SYSTICK_HZ: 1000
+  CONFIG_TCPIP: 1
+  CONFIG_USERVICE_EVENT_TASK_STACK_SIZE: 8192
+  CONFIG_USING_TLS: 1
+  CONFIG_WIFI_PROV_BLE: 1
+  CONFIG_XIP: 1
+  DEVICE_MODEL_GATEWAY: 1
+  DM_UNIFIED_SERVICE_POST: 1
+  EN_COMBO_NET: 1
+  EN_LONG_MTU: 1
+  MBEDTLS_SSL_MAX_CONTENT_LEN: 16384
+  OTA_ENABLED: 1

@@ -15,6 +15,6 @@
 extern struct bt_mesh_model_pub g_generic_onoff_pub;
 extern const struct bt_mesh_model_op g_generic_onoff_op[GEN_ONOFF_OPC_NUM];
 
-int ble_mesh_generic_onoff_publication(struct bt_mesh_model *model);
+int ble_mesh_generic_onoff_publication(struct bt_mesh_model *model,uint8_t onoff);
 
 #endif // _MODEL_GEN_ONOFF_SRV_H_

@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#if defined(CONFIG_SAL) || defined(CONFIG_TCPIP)
 #if defined (CONFIG_AT_SOCKET_ZTW)
 #include <stdio.h>
 #include <stdlib.h>
@@ -860,3 +860,4 @@ int at_socket_ztw_deinit(void)
 }
 
 #endif /* CONFIG_AT_SOCKET_ZTW */
+#endif

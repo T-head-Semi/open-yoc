@@ -13,6 +13,7 @@
 #include <aos/version.h>
 #include <aos/kernel.h>
 #include <aos/kv.h>
+
 #include "iot_import.h"
 
 #include "devices/wifi.h"
@@ -98,7 +99,7 @@ int HAL_Awss_Get_Channelscan_Interval_Ms(void)
 
 int HAL_Awss_Get_Timeout_Interval_Ms(void)
 {
-	return 300 * 1000;
+	return 600 * 1000;
 }
 
 void HAL_Awss_Switch_Channel(char primary_channel, char secondary_channel, uint8_t bssid[ETH_ALEN])
@@ -225,14 +226,45 @@ int HAL_Wifi_Get_Ap_Info(char ssid[HAL_MAX_SSID_LEN],char passwd[HAL_MAX_PASSWD_
 int HAL_Wifi_Send_80211_Raw_Frame(_IN_ enum HAL_Awss_Frame_Type type,
                                   _IN_ uint8_t *buffer, _IN_ int len)
 {
-    return 0;
+    aos_dev_t *wifi_dev = get_wifi_dev();
+    if (wifi_dev == NULL)
+    {
+        return -1;
+    }
+
+    return hal_wifi_send_80211_raw_frame(wifi_dev, buffer, len);
+}
+
+static awss_wifi_mgmt_frame_cb_t monitor_cb = NULL;
+static void mgnt_rx_cb(uint8_t *data, uint32_t len)
+{
+    if (monitor_cb)
+    {
+        monitor_cb(data, len, NULL, 0);
+    }
 }
 
 int HAL_Wifi_Enable_Mgmt_Frame_Filter(
-            _IN_ uint32_t filter_mask,
-            _IN_OPT_ uint8_t vendor_oui[3],
-            _IN_ awss_wifi_mgmt_frame_cb_t callback)
+    _IN_ uint32_t filter_mask,
+    _IN_OPT_ uint8_t vendor_oui[3],
+    _IN_ awss_wifi_mgmt_frame_cb_t callback)
 {
+    aos_dev_t *wifi_dev = get_wifi_dev();
+    if (wifi_dev == NULL)
+    {
+        return -1;
+    }
+
+    monitor_cb = callback;
+
+    if (callback != NULL)
+    {
+        hal_wifi_start_mgnt_monitor(wifi_dev, mgnt_rx_cb);
+    }
+    else
+    {
+        hal_wifi_start_mgnt_monitor(wifi_dev, NULL);
+    }
+
     return 0;
 }
-

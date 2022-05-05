@@ -593,6 +593,10 @@ int bt_mesh_net_obfuscate(u8_t *pdu, u32_t iv_index,
 int bt_mesh_net_encrypt(const u8_t key[16], struct net_buf_simple *buf,
 			u32_t iv_index, bool proxy)
 {
+    if (!buf || !buf->data)
+	{
+		return -EINVAL;
+	}
 	u8_t mic_len = NET_MIC_LEN(buf->data);
 	u8_t nonce[13];
 	int err;
@@ -630,6 +634,10 @@ int bt_mesh_net_encrypt(const u8_t key[16], struct net_buf_simple *buf,
 int bt_mesh_net_decrypt(const u8_t key[16], struct net_buf_simple *buf,
 			u32_t iv_index, bool proxy)
 {
+    if (!buf || !buf->data)
+	{
+		return -EINVAL;
+	}
 	u8_t mic_len = NET_MIC_LEN(buf->data);
 	u8_t nonce[13];
 
@@ -637,10 +645,6 @@ int bt_mesh_net_decrypt(const u8_t key[16], struct net_buf_simple *buf,
 	BT_DBG("iv_index %u, key %s mic_len %u", iv_index, bt_hex(key, 16),
 	       mic_len);
 
-	if (!buf || !buf->data)
-	{
-		return -EINVAL;
-	}
 #if defined(CONFIG_BT_MESH_PROXY)
 	if (proxy) {
 		create_proxy_nonce(nonce, buf->data, iv_index);

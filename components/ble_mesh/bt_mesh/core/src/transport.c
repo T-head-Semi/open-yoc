@@ -44,6 +44,10 @@
 #include "mesh_event_port.h"
 #endif
 
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+#include "ext_net.h"
+#endif
+
 /* The transport layer needs at least three buffers for itself to avoid
  * deadlocks. Ensure that there are a sufficient number of advertising
  * buffers available compared to the maximum supported outgoing segment
@@ -127,6 +131,8 @@ static u8_t __noinit seg_rx_buf_data[(CONFIG_BT_MESH_RX_SEG_MSG_COUNT *
 
 static u16_t hb_sub_dst = BT_MESH_ADDR_UNASSIGNED;
 
+
+
 void bt_mesh_set_hb_sub_dst(u16_t addr)
 {
 	hb_sub_dst = addr;
@@ -140,11 +146,21 @@ static int send_unseg(struct bt_mesh_net_tx *tx, struct net_buf_simple *sdu,
 	BT_DBG("src 0x%04x dst 0x%04x app_idx 0x%04x sdu_len %u",
 	       tx->src, tx->ctx->addr, tx->ctx->app_idx, sdu->len);
 
-	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit, BUF_TIMEOUT);
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+	buf = bt_mesh_ext_adv_create(BT_MESH_ADV_DATA, tx->xmit, tx->ctx->trans, 1, BUF_TIMEOUT);
+#else
+    buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit, BUF_TIMEOUT);
+#endif
 	if (!buf) {
 		BT_ERR("Out of network buffers");
 		return -ENOBUFS;
 	}
+
+#if  defined(CONFIG_MESH_LPM) && defined(CONFIG_BT_MESH_PROVISIONER)
+	if(bt_mesh_provisioner_get_node_lpm_flag(tx->ctx->addr)) {
+		BT_MESH_ADV(buf)->lpm_flag = 1;
+	}
+#endif
 
 	net_buf_reserve(buf, BT_MESH_NET_HDR_LEN);
 
@@ -234,7 +250,6 @@ static inline void seg_tx_complete(struct seg_tx *tx, int err)
 static void seg_first_send_start(u16_t duration, int err, void *user_data)
 {
 	struct seg_tx *tx = user_data;
-
 	if (tx->cb && tx->cb->start) {
 		tx->cb->start(duration, err, tx->cb_data);
 	}
@@ -243,7 +258,6 @@ static void seg_first_send_start(u16_t duration, int err, void *user_data)
 static void seg_send_start(u16_t duration, int err, void *user_data)
 {
 	struct seg_tx *tx = user_data;
-
 	/* If there's an error in transmitting the 'sent' callback will never
 	 * be called. Make sure that we kick the retransmit timer also in this
 	 * case since otherwise we risk the transmission of becoming stale.
@@ -258,19 +272,17 @@ static void seg_send_start(u16_t duration, int err, void *user_data)
 static void seg_sent(int err, void *user_data)
 {
 	struct seg_tx *tx = user_data;
-	/*[Genie begin] add by lgy at 2020-09-14*/
-	/*Don't retransmit if dst addr is not unicast*/
-	if (!BT_MESH_ADDR_IS_UNICAST(tx->dst))
-	{
-		seg_tx_complete(tx, -ENOPROTOOPT);
-	}
-	else
-	{
 	k_delayed_work_submit(&tx->retransmit,
-			      SEG_RETRANSMIT_TIMEOUT(tx));
-	}
-	/*[Genie end]*/
+					  SEG_RETRANSMIT_TIMEOUT(tx));
 }
+
+
+static void last_seg_sent(int err, void *user_data)
+{
+	struct seg_tx *tx = user_data;
+	seg_tx_complete(tx, 0);
+}
+
 
 static const struct bt_mesh_send_cb first_sent_cb = {
 	.start = seg_first_send_start,
@@ -282,6 +294,12 @@ static const struct bt_mesh_send_cb seg_sent_cb = {
 	.end = seg_sent,
 };
 
+static const struct bt_mesh_send_cb last_seg_sent_cb = {
+	.start = seg_send_start,
+	.end = last_seg_sent,
+};
+
+
 static void seg_tx_send_unacked(struct seg_tx *tx)
 {
 	int i, err;
@@ -291,6 +309,11 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 
 		if (!seg) {
 			continue;
+		}
+
+	    if (!BT_MESH_ADDR_IS_UNICAST(tx->dst)) {
+			seg_tx_complete(tx, -ETIMEDOUT);
+			return;
 		}
 
 		if (BT_MESH_ADV(seg)->busy) {
@@ -310,8 +333,11 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 		}
 
 		BT_DBG("resending %u/%u", i, tx->seg_n);
+	    if (BT_MESH_ADDR_IS_UNICAST(tx->dst)) {
+			BT_MESH_ADV(seg)->xmit = BT_MESH_TRANSMIT(4, 20);
+        }
 
-		err = bt_mesh_net_resend(tx->sub, seg, tx->new_key,
+		err = bt_mesh_net_resend(tx->sub, seg, tx->new_key, tx->dst,
 					 &seg_sent_cb, tx);
 		if (err) {
 			BT_WARN("ReSending segment failed");
@@ -328,6 +354,20 @@ static void seg_retransmit(struct k_work *work)
 	seg_tx_send_unacked(tx);
 }
 
+int bt_mesh_get_tx_seg_size(uint8_t net_if, uint16_t size)
+{
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+   if(net_if == NET_TRANS_LEGACY) {
+      return (size + 11) / 12;
+   } else {
+      return (size + CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH) / (CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH + 1);
+   }
+#else
+      return (size + 11) / 12;
+#endif
+}
+
+
 static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 		    const struct bt_mesh_send_cb *cb, void *cb_data)
 {
@@ -336,8 +376,8 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 	struct seg_tx *tx;
 	int i;
 
-	BT_DBG("src 0x%04x dst 0x%04x app_idx 0x%04x aszmic %u sdu_len %u",
-	       net_tx->src, net_tx->ctx->addr, net_tx->ctx->app_idx,
+	BT_DBG("Trans %02x src 0x%04x dst 0x%04x app_idx 0x%04x aszmic %u sdu_len %u",
+	       net_tx->ctx->trans,net_tx->src, net_tx->ctx->addr, net_tx->ctx->app_idx,
 	       net_tx->aszmic, sdu->len);
 
 	if (sdu->len < 1) {
@@ -345,10 +385,18 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 		return -EINVAL;
 	}
 
-	if (((sdu->len + 11) / 12 ) > CONFIG_BT_MESH_TX_SEG_MAX) {
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	if (((net_tx->ctx->trans == NET_TRANS_LEGACY) && ((sdu->len + 11) / 12  > CONFIG_BT_MESH_TX_SEG_MAX)  ) ||  \
+	    ((sdu->len + CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH) / (CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH + 1) > CONFIG_BT_MESH_TX_SEG_MAX)) {
 		BT_ERR("Not enough segment buffers for length %u", sdu->len);
 		return -EMSGSIZE;
 	}
+#else
+    if (((sdu->len + 11) / 12 ) > CONFIG_BT_MESH_TX_SEG_MAX ) {
+		BT_ERR("Not enough segment buffers for length %u", sdu->len);
+		return -EMSGSIZE;
+	}
+#endif
 
 	for (tx = NULL, i = 0; i < ARRAY_SIZE(seg_tx); i++) {
 		if (!seg_tx[i].nack_count) {
@@ -369,8 +417,18 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 	}
 
 	seg_o = 0;
+
 	tx->dst = net_tx->ctx->addr;
-	tx->seg_n = (sdu->len - 1) / 12;
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	if(net_tx->ctx->trans == NET_TRANS_LEGACY) {
+        tx->seg_n = (sdu->len - 1) / 12;
+	} else {
+		tx->seg_n = (sdu->len - 1) / (CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH + 1);
+	}
+#else
+    tx->seg_n = (sdu->len - 1) / 12;
+#endif
+
 	tx->nack_count = tx->seg_n + 1;
 	tx->seq_auth = SEQ_AUTH(BT_MESH_NET_IVI_TX, bt_mesh.seq);
 	tx->sub = net_tx->sub;
@@ -393,14 +451,34 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 		u16_t len;
 		int err;
 
-		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, net_tx->xmit,
-					 BUF_TIMEOUT);
+		BT_DBG("sdu len:%d",sdu->len);
+		if (BT_MESH_ADDR_IS_UNICAST(net_tx->ctx->addr) && seg_o == 0) {
+			net_tx->xmit = BT_MESH_TRANSMIT(4, 20);
+        } else {
+			net_tx->xmit = BT_MESH_TRANSMIT(2, 20);
+		}
+
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+        uint8_t sid_change = 0;
+
+		if(!seg_o) {
+           sid_change = 1;
+		}
+		seg = bt_mesh_ext_adv_create(BT_MESH_ADV_DATA, net_tx->xmit, net_tx->ctx->trans, sid_change, BUF_TIMEOUT);
+#else
+		seg = bt_mesh_adv_create(BT_MESH_ADV_DATA, net_tx->xmit, BUF_TIMEOUT);
+#endif
 		if (!seg) {
 			BT_ERR("Out of segment buffers");
 			seg_tx_reset(tx);
 			return -ENOBUFS;
 		}
 
+#if defined(CONFIG_MESH_LPM) && defined(CONFIG_BT_MESH_PROVISIONER)
+       if(bt_mesh_provisioner_get_node_lpm_flag(net_tx->ctx->addr)) {
+          BT_MESH_ADV(seg)->lpm_flag = 1;
+	   }
+#endif
 		BT_MESH_ADV(seg)->seg.attempts = SEG_RETRANSMIT_ATTEMPTS;
 
 		net_buf_reserve(seg, BT_MESH_NET_HDR_LEN);
@@ -410,8 +488,15 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 		net_buf_add_u8(seg, (((seq_zero & 0x3f) << 2) |
 				     (seg_o >> 3)));
 		net_buf_add_u8(seg, ((seg_o & 0x07) << 5) | tx->seg_n);
-
-		len = MIN(sdu->len, 12);
+		#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+        if(net_tx->ctx->trans == NET_TRANS_LEGACY) {
+            len = MIN(sdu->len, 12);
+		} else {
+            len = MIN(sdu->len, (CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH + 1));
+		}
+		#else
+            len = MIN(sdu->len, 12);
+		#endif
 		net_buf_add_mem(seg, sdu->data, len);
 		net_buf_simple_pull(sdu, len);
 
@@ -439,11 +524,38 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 		}
 
 		BT_DBG("Sending %u/%u", seg_o, tx->seg_n);
-		err = bt_mesh_net_send(net_tx, seg,
-				       seg_o ? &seg_sent_cb : &first_sent_cb,
-				       tx);
+		const struct bt_mesh_send_cb *cb = NULL;
+		if(!seg_o) {
+            cb =  &first_sent_cb;
+		} else if(seg_o == tx->seg_n && !BT_MESH_ADDR_IS_UNICAST(tx->dst)) {
+            cb = &last_seg_sent_cb;
+		} else {
+            cb = &seg_sent_cb;
+		}
+
+
+		if(net_tx->ctx->trans == NET_TRANS_LEGACY) {
+            err = bt_mesh_net_send(net_tx, seg, cb, tx);
+		} else {
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+			u8_t frag = 0;
+			if(seg_o == 0) {
+                frag = EXT_NET_TRANS_FIRST;
+			} else if(seg_o == tx->seg_n) {
+                frag = EXT_NET_TRANS_LAST;
+			} else {
+                frag = EXT_NET_TRANS_INTERM;
+			}
+
+            err = bt_mesh_ext_net_send(net_tx, seg, frag, cb, tx);
+#else
+            BT_ERR("Extended mesh not enabled");
+            return -EOPNOTSUPP;
+#endif
+		}
+
 		if (err) {
-			BT_ERR("Sending segment failed");
+			BT_ERR("Sending segment failed %d",err);
 			seg_tx_reset(tx);
 			return err;
 		}
@@ -485,13 +597,24 @@ int bt_mesh_trans_send(struct bt_mesh_net_tx *tx, struct net_buf_simple *msg,
 		return -EINVAL;
 	}
 
-	if (msg->len > 11) {
+#if  defined(CONFIG_BT_MESH_EXT_ADV)  && CONFIG_BT_MESH_EXT_ADV > 0
+	if ((((tx->ctx->trans ==  NET_TRANS_EXT_ADV_1M) || (tx->ctx->trans ==  NET_TRANS_EXT_ADV_2M) || (tx->ctx->trans ==  NET_TRANS_EXT_ADV_CODED)) &&  \
+		 (msg->len > CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH) ) || ((tx->ctx->trans ==  NET_TRANS_LEGACY) && (msg->len > 11))) {
 		tx->ctx->send_rel = 1;
 		/*reduce packect when send large packet to unicast addr to avoid network storm*/
 		if (BT_MESH_ADDR_IS_UNICAST(tx->ctx->addr)) {
 			tx->xmit = 0;
 		}
 	}
+#else
+	if (msg->len > 11) {
+			tx->ctx->send_rel = 1;
+			/*reduce packect when send large packet to unicast addr to avoid network storm*/
+			if (BT_MESH_ADDR_IS_UNICAST(tx->ctx->addr)) {
+				tx->xmit = 0;
+			}
+		}
+#endif
 
 	BT_DBG("net_idx 0x%04x app_idx 0x%04x dst 0x%04x", tx->sub->net_idx,
 	       tx->ctx->app_idx, tx->ctx->addr);
@@ -661,7 +784,7 @@ static bool is_replay(struct bt_mesh_net_rx *rx)
 static int sdu_recv(struct bt_mesh_net_rx *rx, u32_t seq, u8_t hdr,
 		    u8_t aszmic, struct net_buf_simple *buf)
 {
-	NET_BUF_SIMPLE_DEFINE(sdu, CONFIG_BT_MESH_RX_SDU_MAX - 4);
+	static NET_BUF_SIMPLE_DEFINE(sdu, CONFIG_BT_MESH_RX_SDU_MAX - 4);
 	u8_t *ad;
 	u16_t i;
 	int err;
@@ -898,6 +1021,16 @@ static int trans_heartbeat(struct bt_mesh_net_rx *rx,
 	return 0;
 }
 
+/*[Genie begin] add by wenbing.cwb at 2021-05-11*/
+#ifdef CONFIG_GENIE_RHYTHM
+extern int genie_rhythm_recv_msg(u8_t ctl_op, struct bt_mesh_net_rx *rx, struct net_buf_simple *buf);
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-05-11*/
+/*[Genie begin] add by wenbing.cwb at 2021-08-17*/
+#ifdef CONFIG_BT_MESH_NPS_OPT
+extern int genie_nps_config_msg_recv(u8_t ctl_op, struct bt_mesh_net_rx *rx, struct net_buf_simple *buf);
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-08-17*/
 static int ctl_recv(struct bt_mesh_net_rx *rx, u8_t hdr,
 		    struct net_buf_simple *buf, u64_t *seq_auth)
 {
@@ -918,6 +1051,19 @@ static int ctl_recv(struct bt_mesh_net_rx *rx, u8_t hdr,
 		return ctrl_relay_msg_recv(ctl_op, rx, buf);
 #endif
 /*[Genie end] add by wenbing.cwb at 2021-01-21*/
+/*[Genie begin] add by wenbing.cwb at 2021-05-11*/
+#ifdef CONFIG_GENIE_RHYTHM
+	case TRANS_CTL_OP_RHYTHM_DATA:
+	case TRANS_CTL_OP_RHYTHM_CMD:
+		return genie_rhythm_recv_msg(ctl_op, rx, buf);
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-05-11*/
+/*[Genie begin] add by wenbing.cwb at 2021-08-17*/
+#ifdef CONFIG_BT_MESH_NPS_OPT
+	case TRANS_CTL_OP_NPS_CONFIG:
+		return genie_nps_config_msg_recv(ctl_op, rx, buf);
+#endif
+/*[Genie end] add by wenbing.cwb at 2021-08-17*/
 	}
 
 	/* Only acks and heartbeats may need processing without local_match */
@@ -1038,6 +1184,7 @@ int bt_mesh_ctl_send(struct bt_mesh_net_tx *tx, u8_t ctl_op, void *data,
 	       tx->ctx->addr, tx->ctx->send_ttl, ctl_op);
 	BT_DBG("len %zu: %s", data_len, bt_hex(data, data_len));
 
+	/*use legacy adv for ctl*/
 	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, tx->xmit, BUF_TIMEOUT);
 	if (!buf) {
 		BT_ERR("Out of transport buffers");
@@ -1065,6 +1212,27 @@ int bt_mesh_ctl_send(struct bt_mesh_net_tx *tx, u8_t ctl_op, void *data,
 	return bt_mesh_net_send(tx, buf, cb, cb_data);
 }
 
+/*[Genie begin] add by wenbing.cwb at 2021-07-01*/
+int bt_mesh_ctl_send_ext(u8_t ctl_op, u16_t dst_addr, u8_t ttl, void *data, size_t data_len,
+                         const struct bt_mesh_send_cb *cb, void *cb_data)
+{
+    struct bt_mesh_msg_ctx ctx = {
+        .net_idx = bt_mesh.sub[0].net_idx,
+        .app_idx = BT_MESH_KEY_UNUSED,
+        .addr = dst_addr,
+        .send_ttl = ttl,
+    };
+    struct bt_mesh_net_tx tx = {
+        .sub = &bt_mesh.sub[0],
+        .ctx = &ctx,
+        .src = bt_mesh_primary_addr(),
+        .xmit = bt_mesh_net_transmit_get(),
+    };
+
+    return  bt_mesh_ctl_send(&tx, ctl_op, data, data_len, NULL, cb, cb_data);
+}
+/*[Genie end] add by wenbing.cwb at 2021-07-01*/
+
 static int send_ack(struct bt_mesh_subnet *sub, u16_t src, u16_t dst,
 		    u8_t ttl, u64_t *seq_auth, u32_t block, u8_t obo)
 {
@@ -1078,7 +1246,7 @@ static int send_ack(struct bt_mesh_subnet *sub, u16_t src, u16_t dst,
 		.sub = sub,
 		.ctx = &ctx,
 		.src = obo ? bt_mesh_primary_addr() : src,
-		.xmit = bt_mesh_net_transmit_get(),
+		.xmit = BT_MESH_TRANSMIT(3, 20),
 	};
 	u16_t seq_zero = *seq_auth & 0x1fff;
 	u8_t buf[6];
@@ -1132,13 +1300,16 @@ static void seg_rx_reset(struct seg_rx *rx, bool full_reset)
 	}
 }
 
+
+
+
 static void seg_ack(struct k_work *work)
 {
 	struct seg_rx *rx = CONTAINER_OF(work, struct seg_rx, ack);
 
 	BT_DBG("rx %p", rx);
 
-	if (k_uptime_get_32() - rx->last > K_SECONDS(60)) {
+	if (k_uptime_get_32() - rx->last > K_SECONDS(9)) { //TODO
 		BT_WARN("Incomplete timer expired");
 		seg_rx_reset(rx, false);
 		if (IS_ENABLED(CONFIG_BT_TESTING)) {
@@ -1154,18 +1325,35 @@ static void seg_ack(struct k_work *work)
 	k_delayed_work_submit(&rx->ack, ack_timeout(rx));
 }
 
-static inline u8_t seg_len(bool ctl)
+static inline u8_t seg_len(enum bt_mesh_net_if _net_if, bool ctl)
 {
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+
+    if(_net_if != BT_MESH_NET_IF_EXT_ADV_1M && _net_if != BT_MESH_NET_IF_EXT_ADV_2M && _net_if != BT_MESH_NET_IF_EXT_ADV_CODED) {
+		if (ctl) {
+			return 8;
+		} else {
+			return 12;
+		}
+	} else {
+		if (ctl) {
+			return 8;
+		} else {
+			return CONFIG_MAX_EXT_TRANSPORT_SEG_PDU_LENGTH + 1;
+		}
+	}
+#else
 	if (ctl) {
 		return 8;
 	} else {
 		return 12;
 	}
+#endif
 }
 
-static inline bool sdu_len_is_ok(bool ctl, u8_t seg_n)
+static inline bool sdu_len_is_ok(enum bt_mesh_net_if _net_if, bool ctl, u8_t seg_n)
 {
-	return ((seg_n * seg_len(ctl) + 1) <= CONFIG_BT_MESH_RX_SDU_MAX);
+	return ((seg_n * seg_len(_net_if, ctl) + 1) <= CONFIG_BT_MESH_RX_SDU_MAX);
 }
 
 static struct seg_rx *seg_rx_find(struct bt_mesh_net_rx *net_rx,
@@ -1330,7 +1518,7 @@ static int trans_seg(struct net_buf_simple *buf, struct bt_mesh_net_rx *net_rx,
 		}
 
 		if (rx->block == BLOCK_COMPLETE(rx->seg_n)) {
-			BT_WARN("Got segment for already complete SDU");
+			//BT_WARN("Got segment for already complete SDU");
 			send_ack(net_rx->sub, net_rx->ctx.recv_dst,
 				 net_rx->ctx.addr, net_rx->ctx.send_ttl,
 				 seq_auth, rx->block, rx->obo);
@@ -1346,8 +1534,8 @@ static int trans_seg(struct net_buf_simple *buf, struct bt_mesh_net_rx *net_rx,
 	}
 
 	/* Bail out early if we're not ready to receive such a large SDU */
-	if (!sdu_len_is_ok(net_rx->ctl, seg_n)) {
-		BT_ERR("Too big incoming SDU length");
+	if (!sdu_len_is_ok(net_rx->net_if, net_rx->ctl, seg_n)) {
+		BT_DBG("Too big incoming SDU length");
 		send_ack(net_rx->sub, net_rx->ctx.recv_dst, net_rx->ctx.addr,
 			 net_rx->ctx.send_ttl, seq_auth, 0,
 			 net_rx->friend_match);
@@ -1379,12 +1567,12 @@ found_rx:
 	 */
 	if (seg_o == seg_n) {
 		/* Set the expected final buffer length */
-		rx->buf.len = seg_n * seg_len(rx->ctl) + buf->len;
-		BT_DBG("Target len %u * %u + %u = %u", seg_n, seg_len(rx->ctl),
+		rx->buf.len = seg_n * seg_len(net_rx->net_if,rx->ctl) + buf->len;
+		BT_DBG("Target len %u * %u + %u = %u", seg_n, seg_len(net_rx->net_if, rx->ctl),
 		       buf->len, rx->buf.len);
 
 		if (rx->buf.len > CONFIG_BT_MESH_RX_SDU_MAX) {
-			BT_ERR("Too large SDU len");
+			BT_ERR("Too large SDU len %d %d",rx->buf.len,CONFIG_BT_MESH_RX_SDU_MAX);
 			send_ack(net_rx->sub, net_rx->ctx.recv_dst,
 				 net_rx->ctx.addr, net_rx->ctx.send_ttl,
 				 seq_auth, 0, rx->obo);
@@ -1392,8 +1580,8 @@ found_rx:
 			return -EMSGSIZE;
 		}
 	} else {
-		if (buf->len != seg_len(rx->ctl)) {
-			BT_ERR("Incorrect segment size for message type");
+		if (buf->len != seg_len(net_rx->net_if,rx->ctl)) {
+			BT_ERR("Incorrect segment size for message type %d %d",buf->len,seg_len(net_rx->net_if,rx->ctl));
 			return -EINVAL;
 		}
 	}
@@ -1407,7 +1595,7 @@ found_rx:
 	}
 
 	/* Location in buffer can be calculated based on seg_o & rx->ctl */
-	memcpy(rx->buf.data + (seg_o * seg_len(rx->ctl)), buf->data, buf->len);
+	memcpy(rx->buf.data + (seg_o * seg_len(net_rx->net_if, rx->ctl)), buf->data, buf->len);
 
 	BT_DBG("Received %u/%u", seg_o, seg_n);
 

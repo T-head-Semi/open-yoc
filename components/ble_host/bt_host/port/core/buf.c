@@ -16,15 +16,11 @@
 #include <net/buf.h>
 #include <misc/util.h>
 #include "common/log.h"
-#ifdef CONFIG_BT_USE_MM
-#include <umm_heap.h>
-#include <mm.h>
-#endif
 
 #if defined(CONFIG_NET_BUF_LOG)
 #define SYS_LOG_DOMAIN "net/buf"
 #define SYS_LOG_LEVEL CONFIG_SYS_LOG_NET_BUF_LEVEL
-#include <logging/yoc_syslog.h>
+#include <common/log.h>
 
 #define NET_BUF_DBG(fmt, ...) SYS_LOG_DBG("(%p) " fmt, k_current_get(), \
 					  ##__VA_ARGS__)
@@ -209,7 +205,7 @@ static u8_t *fixed_data_alloc(struct net_buf *buf, size_t *size,
 	u32_t *ref_count;
 	unsigned int key;
 	key = irq_lock();
-	ref_count = mm_malloc(USR_HEAP, sizeof(*ref_count) + *size, __builtin_return_address(0));
+	ref_count = malloc(sizeof(*ref_count) + *size);
 	irq_unlock(key);
 	if (!ref_count) {
 		return NULL;
@@ -235,7 +231,7 @@ static void fixed_data_unref(struct net_buf *buf, u8_t *data)
 
 	unsigned int key;
 	key = irq_lock();
-	mm_free(USR_HEAP, ref_count, __builtin_return_address(0));
+	free(ref_count);
 	irq_unlock(key);
 #endif
 }
@@ -413,7 +409,7 @@ success:
 			return NULL;
 		}
 
-		NET_BUF_ASSERT(req_size <= size);
+		//NET_BUF_ASSERT(req_size <= size);
 	} else {
 		buf->__buf = NULL;
 	}
@@ -584,11 +580,11 @@ struct net_buf *net_buf_slist_get(sys_slist_t *list)
 void net_buf_put(struct kfifo *fifo, struct net_buf *buf)
 {
 	struct net_buf *tail;
-	if(NULL == fifo){
+	if(NULL == fifo) {
 		BT_WARN("fifo is NULL");
 		return;
 	}
-	if(NULL == buf){
+	if(NULL == buf) {
 		BT_WARN("buf is NULL");
 		return;
 	}
@@ -605,7 +601,8 @@ void net_buf_put(struct kfifo *fifo, struct net_buf *buf)
 		tail->flags |= NET_BUF_FRAGS;
 	}
 
-	k_fifo_put(fifo, buf);
+	k_fifo_put_list(fifo, buf, tail);
+
 }
 
 #if defined(CONFIG_NET_BUF_LOG)
@@ -620,10 +617,9 @@ void net_buf_unref(struct net_buf *buf)
 		struct net_buf *frags = buf->frags;
 		struct net_buf_pool *pool;
 		u8_t flags = buf->flags;
-#if defined(CONFIG_NET_BUF_LOG)
+#if 1
 		if (!buf->ref) {
-			NET_BUF_ERR("%s():%d: buf %p double free", func, line,
-				    buf);
+			BT_WARN("buf %p double free", buf);
 			return;
 		}
 #endif
@@ -756,6 +752,23 @@ struct net_buf *net_buf_frag_add(struct net_buf *head, struct net_buf *frag)
 	return head;
 }
 
+struct net_buf *net_buf_frag_add_with_flags(struct net_buf *head, struct net_buf *frag)
+{
+	__ASSERT_NO_MSG(frag);
+
+	if (!head) {
+		return net_buf_ref(frag);
+	}
+
+	head->flags |= NET_BUF_FRAGS;
+	frag->flags |= NET_BUF_FRAGS;
+
+	net_buf_frag_insert(net_buf_frag_last(head), frag);
+
+	return head;
+}
+
+
 #if defined(CONFIG_NET_BUF_LOG)
 struct net_buf *net_buf_frag_del_debug(struct net_buf *parent,
 				       struct net_buf *frag,
@@ -785,6 +798,36 @@ struct net_buf *net_buf_frag_del(struct net_buf *parent, struct net_buf *frag)
 #endif
 
 	return next_frag;
+}
+
+#if defined(CONFIG_NET_BUF_LOG)
+void net_buf_frag_del_all_debug(struct net_buf *parent,
+				       const char *func, int line)
+#else
+void net_buf_frag_del_all(struct net_buf *parent)
+#endif
+{
+	struct net_buf *frag = parent;
+	struct net_buf *next_frag;
+
+	if (!parent)
+	{
+		return;
+	}
+
+	while(frag)
+	{
+		next_frag = frag->frags;
+		frag->frags = NULL;
+
+	#if defined(CONFIG_NET_BUF_LOG)
+		net_buf_unref_debug(frag, func, line);
+	#else
+		net_buf_unref(frag);
+	#endif
+		frag = next_frag;
+	}
+	return;
 }
 
 size_t net_buf_linearize(void *dst, size_t dst_len, struct net_buf *src,

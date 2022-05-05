@@ -25,8 +25,10 @@ extern "C"
 {
 #endif
 
-char awss_finished = 2;
-char awss_stop_connecting = 0;
+/* g_awss_finished: 0-awss not finished, 1-finish but coap not free, 2-finish and coap free */
+static char g_awss_finished = 2;
+/* g_awss_stop: 0-default, 1-__awss_stop called */
+static char g_awss_stop = 0;
 
 int __awss_start(pair_success_callback pair_cb)
 {
@@ -43,21 +45,25 @@ int __awss_start(pair_success_callback pair_cb)
     int pair_success = -1;
 
     awss_trace("%s\n", __func__);
-    awss_stop_connecting = 0;
-    awss_finished = 0;
+    g_awss_stop = 0;
+    g_awss_finished = 0;
     /* these params is useless, keep it for compatible reason */
     aws_start(NULL, NULL, NULL, NULL);
 
+    /* if awss interrupted by User, aws_info data may have been destroyed */
     ret = aws_get_ssid_passwd(&ssid[0], &passwd[0], &bssid[0], &token[0],
                               (char *)&auth, (char *)&encry, &channel, &token_type);
+    awss_debug("ssid get ret=%d, g_awss_stop=%d", ret, g_awss_stop);
     if (!ret) {
-        awss_warn("awss timeout!");
+        awss_warn("awss no ssid get, timeout or force stoped");
     }
-
-    if (awss_stop_connecting) {
-        awss_finished = 1;
+    /* if awss interrupted by User, g_awss_finished */
+    if (g_awss_stop) {
+        g_awss_finished = 1;
         return -1;
     }
+
+    /* awss sucess, continue */
     for (i = 0; i < ZC_MAX_TOKEN_LEN; i++) {
         if (token[i] != 0) {
             find_token = 1;
@@ -73,7 +79,7 @@ int __awss_start(pair_success_callback pair_cb)
         int adha = 0;
 #endif
 
-        if (awss_stop_connecting || strlen(ssid) == 0) {
+        if (g_awss_stop || strlen(ssid) == 0) {
             break;
         }
 #if defined(AWSS_SUPPORT_ADHA) || defined(AWSS_SUPPORT_AHA)
@@ -133,13 +139,13 @@ int __awss_start(pair_success_callback pair_cb)
     } while (0);
 
     AWSS_DISP_STATIS();
-    awss_finished = 1;
+    g_awss_finished = 1;
     return pair_success;
 }
 
 int __awss_stop(void)
 {
-    awss_stop_connecting = 1;
+    g_awss_stop = 1;
     aws_destroy();
 #if defined(AWSS_SUPPORT_ADHA) || defined(AWSS_SUPPORT_AHA)
     awss_devinfo_notify_stop();
@@ -148,20 +154,20 @@ int __awss_stop(void)
 #ifndef AWSS_DISABLE_REGISTRAR
     awss_registrar_deinit();
 #endif
-    if (awss_finished < 2) {
+    if (g_awss_finished < 2) {
         awss_cmp_local_deinit(1);
     } else {
         awss_cmp_local_deinit(0);
     }
 
     while (1) {
-        if (awss_finished) {
+        if (g_awss_finished) {
             break;
         }
         os_msleep(300);
     }
     aws_release_mutex();
-    awss_finished = 2;
+    g_awss_finished = 2;
     return 0;
 }
 

@@ -74,18 +74,13 @@ static int platform_aes128_encrypt_decrypt(void *aes_ctx, const void *src,
 
     in_len <<= 4;
     dlen = in_len;
-    extern ali_crypto_result breeze_aes_init(aes_type_t type, bool is_enc,
-                               const uint8_t *key1, const uint8_t *key2,
-                               size_t keybytes, const uint8_t *iv,
-                               void *context);
+
     result = breeze_aes_init(AES_CBC, is_enc, key, NULL, KEY_LEN, iv, aes_ctx);
     if (result != ALI_CRYPTO_SUCCESS) {
         LOGE("aos_awss", "breeze_aes_init fail(%08x)", result);
         return 0;
     }
-    extern ali_crypto_result breeze_aes_finish(const uint8_t *src, size_t src_size,
-                                 uint8_t *dst, size_t *dst_size,
-                                 sym_padding_t padding, void *context);
+
     result = breeze_aes_finish(src, in_len, dst, &dlen, SYM_NOPAD, aes_ctx);
     if (result != ALI_CRYPTO_SUCCESS) {
         LOGE("aos_awss", "aes_finish fail(%08x)", result);

@@ -30,6 +30,15 @@ extern "C" {
 #define AOS_EVENT_OR               0x00u
 #define AOS_EVENT_OR_CLEAR         0x01u
 
+/** @addtogroup aos sched
+ *  Task schedule.
+ *
+ *  @{
+ */
+#define AOS_KSCHED_FIFO          0u
+#define AOS_KSCHED_RR            1u
+#define AOS_KSCHED_CFS           2u
+
 /**
  * @addtogroup aos_kernel_task
  * 提供AliOS Things系统内核任务管理功能的基础API.

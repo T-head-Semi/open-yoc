@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: d1_evb                                        # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.5.0                                    # <必选项> 组件版本号
+version: v7.5.1                                     # <必选项> 组件版本号
 description: d1 board configure                     # <必选项> 建议至少20字以上
 type: board                                         # <必选项> 组件类型，为：solution, chip, board, common, sdk
 license: Apache license v2.0                        # <可选项> 源代码的许可证，要确保所有代码、文件的许可证不冲突。如：MIT，Apache license v2.0，BSD
@@ -64,43 +64,15 @@ hw_info:
 #     - libs                               #   -Llibs
 build_config:
   cflag: >
-        -c -g -Os -ffunction-sections -fdata-sections -Wall -fno-common
-        -DSYSINFO_PRODUCT_MODEL=\"ALI_AOS_RVB_D1\"
-        -fno-asynchronous-unwind-tables
+        -c -g -Os -ffunction-sections -fdata-sections -Wall -fno-common -fno-asynchronous-unwind-tables
   asmflag: -c -g -ffunction-sections -fdata-sections -Wall
-  ldflag: -lstdc++ -lsupc++ -lm -lc -lgcc -lnosys -nostartfiles --specs=nosys.specs -fno-asynchronous-unwind-tables
+  ldflag: -Wl,--gc-sections -lstdc++ -lsupc++ -lm -lc -lgcc -lnosys -nostartfiles --specs=nosys.specs -fno-asynchronous-unwind-tables 
   cxxflag: >
         -D_GLIBCXX_HAS_GTHREADS
         -std=gnu++11 -fno-common -fno-exceptions -ffunction-sections -fdata-sections -fomit-frame-pointer -fpermissive -g -Os
         -fno-asynchronous-unwind-tables
   include:
     - include
-  libs:                                  # 该组件中支持的二进制静态库,如：libxxx.a, libyyy.a
-     - falcon_entry
-     - jquick_falcon                            #   -lxxx
-     - jquick_core                                #   -lyyy
-     - jsapi_fs
-     - jsapi_file
-     - jsapi_dbus
-     - JQuickCommon
-     - JQuickBase
-     - JQuickPort
-     - greenui
-     - greenuix
-     - expat
-     - skia
-     - png
-     - quickjs
-     - ft2
-     - gif
-     - jpeg
-     - qrencode
-     - json-jquick
-     - yoga
-     - jsapi_proxy
-     - pms
-  libpath:                               # 指定静态库所在的路径（相对于该组件路径）
-    - lib
 
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
@@ -118,7 +90,6 @@ def_config:
   STDIO_UART: 0
   WITH_LWIP: 1
   CONFIG_KERNEL_WORKQUEUE: 1
-  CONFIG_INIT_TASK_STACK_SIZE: 65536
   CLI_CONFIG_STACK_SIZE: 8192
   CONFIG_LFS_BLOCK_CYCLES: 500
   CONFIG_LFS_MOUNTPOINT: "/"
@@ -130,6 +101,10 @@ def_config:
   CONFIG_KV_SMART: y
   POSIX_DEVICE_IO_NEED: 1
   CONFIG_CHIP_D1: 1
+  FD_SETSIZE: 128
+  CONFIG_USERVICE_EVENT_TASK_STACK_SIZE: 8192
+  SYSINFO_DEVICE_NAME: "d1_evb"
+  OSAL_RHINO: 1
 
 ## 第六部分：安装信息
 # install:

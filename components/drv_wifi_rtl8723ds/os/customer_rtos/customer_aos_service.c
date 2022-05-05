@@ -8,6 +8,9 @@
 #include "k_api.h"
 #include <osdep_service.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 /********************* os depended utilities ********************/
 
 #ifndef USE_MUTEX_FOR_SPINLOCK
@@ -33,7 +36,7 @@ void hal_wifi_test_enabled(int en){
     g_wifi_test_en = en;
 }
 
-
+extern int vasprintf(char **strp, const char *fmt, va_list ap);
 int rtw_printf(const char *format, ...)
 {
     char *buffer;
@@ -52,6 +55,7 @@ int rtw_printf(const char *format, ...)
         }
 
         printf("%s", buffer);
+        fflush(stdout);
         free(buffer);
         return n;
     }
@@ -519,7 +523,7 @@ static int _aos_pop_from_xqueue(_xqueue *queue, void *message, u32 timeout_ms)
         timeout_ms = 1000 * 1000 * 1000;
     }
 
-    if (aos_queue_recv(&desc->queue_hdl, timeout_ms, message, (u32*)&desc->message_size) != 0) {
+    if (aos_queue_recv(&desc->queue_hdl, timeout_ms, message, (size_t*)&desc->message_size) != 0) {
         return _FAIL;
     }
 
@@ -546,7 +550,7 @@ static u32 _aos_get_current_time(void)
 #if DBG_OS_API
     printf("[AOS]%s\n", __FUNCTION__);
 #endif
-    return krhino_ms_to_ticks(aos_now_ms());
+    return krhino_sys_tick_get();
 }
 
 static u32 _aos_systime_to_ms(u32 systime)
@@ -760,7 +764,7 @@ static int _aos_arc4random(void)
     return (int)seed;
 }
 
-static int _aos_get_random_bytes(void *buf, size_t len)
+static int _aos_get_random_bytes(void *buf, u32 len)
 {
 #if DBG_OS_API
     printf("[AOS]%s\n", __FUNCTION__);
@@ -816,7 +820,16 @@ static int _aos_create_task(struct task_struct *ptask, const char *name,
 #endif
 
     int ret = 0;
-    ret = aos_task_new_ext((aos_task_t*)&ptask->task, name, func, thctx, stack_size * 8, AOS_DEFAULT_APP_PRI - priority + 8);
+
+    if(strcmp("xmit_thread", name) == 0) {
+        stack_size *= 10;
+    } else if (strcmp("cmd_thread", name) == 0) {
+        stack_size *= 8;
+    } else {
+        stack_size *= 8;
+    }
+
+    ret = aos_task_new_ext((aos_task_t*)&ptask->task, name, func, thctx, stack_size, AOS_DEFAULT_APP_PRI - priority + 8);
 
     ptask->task_name = name;
 
@@ -882,7 +895,7 @@ atimer *_get_timer()
             return &g_wifi_timer[i];
         }
     }
-    asm("bkpt");
+
     return NULL;
 }
 
@@ -906,7 +919,7 @@ _timerHandle _aos_timerCreate(const signed char *pcTimerName,
     int ret = 0;
 
     if (xTimerPeriodInTicks == TIMER_MAX_DELAY) {
-        xTimerPeriodInTicks = 10 * 365 * 86400; //smaller than MAX_TIMER_TICKS
+        xTimerPeriodInTicks = 10 * 365 * 86400; // aos < v3.3.0 smaller than RHINO_MAX_TICKS, aos = v3.3.0 smaller than MAX_TIMER_TICKS
     }
 
     int ms = krhino_ticks_to_ms(xTimerPeriodInTicks);
@@ -939,6 +952,7 @@ u32 _aos_timerDelete(_timerHandle xTimer,
 #endif
     timer->pxCallbackFunction = NULL;
 
+    aos_timer_stop(&timer->timer);
     aos_timer_free(&timer->timer);
 
     return _SUCCESS;

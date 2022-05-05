@@ -43,17 +43,7 @@ static const uint8_t apscan_probe_req_frame_tail[APSCAN_PROBE_REQ_TAIL_LEN] = {
     0x01, 0x08, 0x82, 0x84, 0x8B, 0x96, 0x8C, 0x92, 0x98, 0xA4,  // supported rates
     0x32, 0x04, 0xB0, 0x48, 0x60, 0x6C,  // extended supported rates
     0x3F, 0x84, 0x10, 0x9E  // FCS
-}; 
-
-static uint8_t apscan_next_scan_chan(void)
-{
-    uint8_t chan = wlan_fixed_scanning_channels[g_apscan_chan_idx];
-    g_apscan_chan_idx++;
-    if ( g_apscan_chan_idx > (sizeof(wlan_fixed_scanning_channels) - 1) ) {
-        g_apscan_chan_idx = 0;
-    }
-    return chan;
-}
+};
 
 static int apscan_send_probe_req(void)
 {
@@ -153,6 +143,21 @@ static int apscan_80211_frame_handler(char *buf, int length, enum AWSS_LINK_TYPE
     return 0;
 }
 
+void apscan_reset_scan_chan(void)
+{
+    g_apscan_chan_idx = 0;
+}
+
+uint8_t apscan_next_scan_chan(void)
+{
+    uint8_t chan = wlan_fixed_scanning_channels[g_apscan_chan_idx];
+    g_apscan_chan_idx++;
+    if ( g_apscan_chan_idx > (sizeof(wlan_fixed_scanning_channels) - 1) ) {
+        g_apscan_chan_idx = 0;
+    }
+    return chan;
+}
+
 int awss_apscan_process(uint32_t *p_scan_time, char *p_scan_ssid, ap_scan_info_t *p_scan_result)
 {
     int result = -1;
@@ -160,7 +165,7 @@ int awss_apscan_process(uint32_t *p_scan_time, char *p_scan_ssid, ap_scan_info_t
     uint32_t next_chn_start_time = 0;
     uint32_t cur_chn_start_time = 0;
     uint8_t cur_scan_chan = wlan_fixed_scanning_channels[0];
-    uint32_t apscan_start_time = os_get_time_ms();
+    uint32_t apscan_start_time = 0;
 
     // Parameters check
     if ( (strlen(p_scan_ssid) == 0) || strlen(p_scan_ssid) > OS_MAX_SSID_LEN ) {
@@ -186,12 +191,13 @@ int awss_apscan_process(uint32_t *p_scan_time, char *p_scan_ssid, ap_scan_info_t
     memset(&g_apscan_info, 0, sizeof(ap_scan_info_t));
     strncpy(g_apscan_info.ssid, p_scan_ssid, strlen(p_scan_ssid));
 
-    // start scaning channel
-    cur_chn_start_time = apscan_start_time;
-    next_chn_start_time = apscan_start_time;
     // open wifi monitor, start scan on the first channel
     g_apscan_chan_idx = 0;
     os_awss_open_monitor(apscan_80211_frame_handler);
+    // record scaning start time
+    apscan_start_time = os_get_time_ms();
+    cur_chn_start_time = apscan_start_time;
+    next_chn_start_time = apscan_start_time;
 
     while( ((next_chn_start_time - apscan_start_time) < apscan_total_time)
         && (g_apscan_info.found == 0) ) {
@@ -228,6 +234,26 @@ int awss_apscan_process(uint32_t *p_scan_time, char *p_scan_ssid, ap_scan_info_t
     }
 
     return result;
+}
+
+int apscan_send_unusable_beacon(void)
+{
+    uint32_t beacon_start_time = 0;
+    uint32_t beacon_sending_time = 0;
+
+    os_awss_open_ap("adh_unusable", "adh_test", 100, 0);
+
+    beacon_start_time = os_get_time_ms();
+    beacon_sending_time = beacon_start_time;
+
+    while( ((beacon_sending_time - beacon_start_time) < 3000)) {
+        os_msleep(100);
+        beacon_sending_time = os_get_time_ms();
+    }
+
+    os_awss_close_ap();
+
+    return 0;
 }
 
 #if defined(__cplusplus)  /* If this is a C++ compiler, use C linkage */

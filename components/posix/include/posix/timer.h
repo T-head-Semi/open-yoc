@@ -10,7 +10,6 @@ extern "C" {
 #endif
 
 #include <time.h>
-#include "k_api.h"
 #include "signal.h"
 
 #define NANOSECONDS_PER_SECOND       1000000000LL
@@ -18,10 +17,12 @@ extern "C" {
 #define MILLISECONDS_PER_SECOND      1000LL
 #define NANOSECONDS_PER_MICROSECONDS 1000000LL
 
-#undef CLOCK_REALTIME
+#ifndef CLOCK_REALTIME
 #define CLOCK_REALTIME  0
-#undef CLOCK_MONOTONIC
+#endif
+#ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 1
+#endif
 
 int timer_create(clockid_t clockid, struct sigevent *evp, timer_t *timerid);
 int timer_delete(timer_t timerid);

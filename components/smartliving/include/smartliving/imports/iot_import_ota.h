@@ -19,7 +19,7 @@
  * @see None.
  * @note None.
  */
-DLL_HAL_API void HAL_Firmware_Persistence_Start(void);
+DLL_HAL_API void HAL_Firmware_Persistence_Start(uint32_t file_size);
 
 
 /**

@@ -184,10 +184,10 @@ static int publish_retransmit(struct bt_mesh_model *mod)
 	}
 
 	tx.sub = bt_mesh_subnet_get(key->net_idx);
-        if (!tx.sub) {
-            BT_ERR("No available subnet found");
-            return -EINVAL;
-        }
+	if (!tx.sub) {
+		BT_ERR("No available subnet found");
+		return -EINVAL;
+	}
 
 	ctx.net_idx = key->net_idx;
 	ctx.app_idx = key->app_idx;
@@ -476,6 +476,25 @@ struct bt_mesh_elem *bt_mesh_elem_find_by_id(u8_t id)
 	return NULL;
 }
 
+uint8_t bt_mesh_elem_find_id(struct bt_mesh_elem *p_elem)
+{
+    uint8_t elem_id = 0xFF;
+    int i;
+
+    for (i = 0; i < dev_comp->elem_count; i++)
+    {
+        struct bt_mesh_elem *elem = &dev_comp->elem[i];
+
+        if (elem == p_elem)
+        {
+            elem_id = i;
+            break;
+        }
+    }
+
+    return elem_id;
+}
+
 u8_t bt_mesh_elem_count(void)
 {
 	return dev_comp->elem_count;
@@ -586,6 +605,11 @@ bool bt_mesh_fixed_group_match(u16_t addr)
 	}
 }
 
+__attribute__((weak)) int bt_mesh_device_to_cloud_hook(uint32_t opcode, struct net_buf_simple *buf, uint16_t src_addr)
+{
+    return 0;
+}
+
 void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 {
 	struct bt_mesh_model *models = NULL, *model = NULL;
@@ -607,13 +631,15 @@ void bt_mesh_model_recv(struct bt_mesh_net_rx *rx, struct net_buf_simple *buf)
 
 #ifdef MESH_DEBUG_RX
 	MESH_RX_D("RSSI: %d\n", rx->rssi);
-	MESH_RX_D("TTL: %d\n", rx->ctx.recv_ttl);
+	MESH_RX_D("TTL: %d AppIdx: 0x%04x\n", rx->ctx.recv_ttl, rx->ctx.app_idx);
 	MESH_RX_D("SRC: 0x%02X\n", rx->ctx.addr);
 	MESH_RX_D("DST: 0x%02X\n", rx->ctx.recv_dst);
 	MESH_RX_D("OPCODE: 0x%04X\n", opcode);
 	MESH_RX_D("Payload size: %d\n", buf->len);
 	MESH_RX_D("%s\n", bt_hex_real(buf->data, buf->len));
 #endif
+
+    bt_mesh_device_to_cloud_hook(opcode, buf, rx->ctx.addr);
 
 	for (i = 0; i < dev_comp->elem_count; i++) {
 		struct bt_mesh_elem *elem = &dev_comp->elem[i];
@@ -728,7 +754,7 @@ static int model_send(struct bt_mesh_model *model,
 	}
 
 #ifdef MESH_DEBUG_TX
-	MESH_TX_D("TTL: %d\n", tx->ctx->send_ttl);
+	MESH_TX_D("TTL: %d AppIdx: 0x%04x\n", tx->ctx->send_ttl, tx->ctx->app_idx);
 	MESH_TX_D("SRC: 0x%02X\n", bt_mesh_model_elem(model)->addr);
 	MESH_TX_D("DST: 0x%02X\n", tx->ctx->addr);
 	MESH_TX_D("msg size: %d\n", msg->len);
@@ -739,6 +765,7 @@ static int model_send(struct bt_mesh_model *model,
 }
 
 
+
 int bt_mesh_model_send(struct bt_mesh_model *model,
 		       struct bt_mesh_msg_ctx *ctx,
 		       struct net_buf_simple *msg,
@@ -747,6 +774,7 @@ int bt_mesh_model_send(struct bt_mesh_model *model,
 	if (model == NULL || ctx == NULL || msg == NULL) {
 		return -EINVAL;
 	}
+
 	struct bt_mesh_net_tx tx = {
 		.sub = bt_mesh_subnet_get(ctx->net_idx),
 		.ctx = ctx,
@@ -755,10 +783,15 @@ int bt_mesh_model_send(struct bt_mesh_model *model,
 		.friend_cred = 0,
 	};
 
-        if (!tx.sub) {
-            BT_ERR("No available subnet found");
-            return -EINVAL;
-        }
+	if (!tx.sub) {
+		BT_ERR("No available subnet found");
+		return -EINVAL;
+	}
+
+	if (ctx->net_transmit)
+	{
+		tx.xmit = ctx->net_transmit;
+	}
 
 	return model_send(model, &tx, false, msg, cb, cb_data);
 }
@@ -768,7 +801,7 @@ int bt_mesh_model_publish(struct bt_mesh_model *model)
 	if(NULL == model){
 		return -EINVAL;
 	}
-	NET_BUF_SIMPLE_DEFINE(sdu, BT_MESH_TX_SDU_MAX);
+	static NET_BUF_SIMPLE_DEFINE(sdu, BT_MESH_TX_SDU_MAX);
 	struct bt_mesh_model_pub *pub = model->pub;
 	struct bt_mesh_app_key *key;
 	struct bt_mesh_msg_ctx ctx = {
@@ -881,9 +914,12 @@ u16_t bt_mesh_model_get_netkey_id(struct bt_mesh_elem *elem)
     return 0;
 }
 
-u16_t bt_mesh_model_get_appkey_id(struct bt_mesh_elem *elem,  struct bt_mesh_model *p_model)
+u16_t bt_mesh_model_get_appkey_id(struct bt_mesh_elem *elem, struct bt_mesh_model *p_model)
 {
-    return 0;
+	if (bt_mesh_app_key_find(1)) //Have shared app key
+	{
+		return 1;
+	}
+
+	return 0;
 }
-
-

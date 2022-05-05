@@ -8,7 +8,6 @@
 #include "common.h"
 #include "core.h"
 #include "bzopt.h"
-#include "bz_utils.h"
 
 ble_ais_t g_ais;
 
@@ -16,10 +15,7 @@ static void service_enabled(void)
 {
     if (g_ais.is_indication_enabled && g_ais.is_notification_enabled) {
         BREEZE_DEBUG("Let's notify that service is enabled");
-#ifdef EN_LONG_MTU
-        extern uint32_t trans_update_mtu(void);
         trans_update_mtu();
-#endif
 #if BZ_ENABLE_AUTH
         auth_service_enabled();
 #endif
@@ -58,13 +54,13 @@ static void nc_ccc_handler(ais_ccc_value_t val)
     service_enabled();
 }
 
-static size_t wc_write_handler(void *buf, uint16_t len)
+static size_t wc_write_handler(const void *buf, uint16_t len)
 {
     transport_rx((uint8_t *)buf, len);
     return len;
 }
 
-static size_t wwnrc_write_handler(void *buf, uint16_t len)
+static size_t wwnrc_write_handler(const void *buf, uint16_t len)
 {
     transport_rx((uint8_t *)buf, len);
     return len;

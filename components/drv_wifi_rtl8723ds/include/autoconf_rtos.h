@@ -433,6 +433,8 @@ extern unsigned int g_ap_sta_num;
 
 #define TIME_THRES	20
 
+#define CONFIG_PTG_REQUEST
+
 #define CONFIG_WOWLAN
 #define CONFIG_SUSPEND
 #define CONFIG_GPIO_WAKEUP

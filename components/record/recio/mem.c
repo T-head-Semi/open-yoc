@@ -55,7 +55,7 @@ static int mem_read(recio_t *io, uint8_t *buffer, int length, int timeoutms)
 {
     mem_conf_t *priv = (mem_conf_t *)io->private;
 
-    memcpy(buffer, (void *)priv->address, priv->size);
+    memcpy(buffer, (void *)((unsigned long)priv->address), priv->size);
     LOGD(TAG, "mem read:0x%x, %d", priv->address, priv->size);
     return priv->size;
 }

@@ -52,7 +52,7 @@ static struct ota_ctrl_t {
     uint16_t expect_packet_count;
     uint16_t recv_packet_count;
     uint8_t  retry_count;
-    aos_timer_t timer;
+    k_timer_t timer;
     ota_event_callback_t cb;
 } ota_ctrl;
 
@@ -135,7 +135,7 @@ static void ota_reset()
     ota_ctrl.expect_packet_count = 0;
     ota_ctrl.recv_packet_count = 0;
     ota_ctrl.retry_count = 0;
-    aos_timer_stop(&ota_ctrl.timer);
+    k_timer_stop(&ota_ctrl.timer);
     memset(&ota_rx, 0, sizeof(ota_rx));
 }
 
@@ -200,7 +200,7 @@ static inline int ota_recv_data(const uint8_t *data, uint16_t len)
     ota_rx.rx_len += cp_size;
 
     if (ota_rx.rx_len >= ota_rx.expect_len) {
-        aos_timer_stop(&ota_ctrl.timer);
+        k_timer_stop(&ota_ctrl.timer);
     }
 
     /* the last data */
@@ -421,9 +421,7 @@ static inline int ota_request(uint32_t offset)
     LOGI(TAG, "request %d", offset);
 
     ota_reset_rx();
-
-    aos_timer_change(&ota_ctrl.timer, ota_ctrl.timeout * 1000);
-    aos_timer_start(&ota_ctrl.timer);
+    k_timer_start(&ota_ctrl.timer, ota_ctrl.timeout * 1000);
     static uint8_t send_buf[6] = {0xff, 0x03, 0x00, 0x00, 0x00, 0xfe};
     send_buf[2] = offset >> 16 & 0xFF;
     send_buf[3] = offset >> 8 & 0xFF;
@@ -560,7 +558,7 @@ int ble_ota_init(ota_event_callback_t cb)
         ota_partition_info = hal_flash_get_info(ota_partition_handle);
     }
 
-    aos_timer_new_ext(&ota_ctrl.timer, ota_timeout, NULL, 1000, 0, 0);
+    k_timer_init(&ota_ctrl.timer, ota_timeout, NULL);
 
     ota_reset();
 

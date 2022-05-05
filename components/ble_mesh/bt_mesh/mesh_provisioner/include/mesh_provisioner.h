@@ -5,10 +5,14 @@
 #ifndef __MESH_PROVISIONER_H_
 #define __MESH_PROVISIONER_H_
 
+#include "aos/ble.h"
 
 #define DEVICE_NAME_MAX_LENGTH 28
 #define CID_NVAL 0xFFFF
-#define DEF_MAX_PROV_RETRY 3
+#define DEF_MAX_PROV_RETRY 5
+#define DEF_DEV_REPORT_TIMEOUT (500)//ms
+#define DEF_REPORT_DEV_SURVIVE_TIME (24000)//ms
+#define DEF_REPORT_QUEUE_LENGTH (25)
 
 
 typedef struct {
@@ -47,14 +51,26 @@ typedef struct {
 } uuid_filter_t;
 
 typedef struct {
-    uint16_t unicast_addr_local;
+    dev_addr_t *addr;
+    uint8_t     size;
+} mac_filter_t;
+
+
+typedef struct {
     uint16_t unicast_addr_start;
+    uint16_t unicast_addr_end;
     uint8_t  attention_time;
     provisioner_cb cb;
 } provisioner_config_t;
 
 typedef struct {
-    const struct bt_mesh_provisioner *provisioner;
+    klist_t    list;
+    dev_addr_t addr;
+} mac_filters_dev;
+
+
+typedef struct {
+    struct bt_mesh_provisioner *provisioner;
 } ble_mesh_provisioner_t;
 
 int ble_mesh_provisioner_init(provisioner_config_t *param);
@@ -64,6 +80,16 @@ int ble_mesh_provisioner_enable();
 int ble_mesh_provisioner_disable();
 
 int ble_mesh_provisioner_dev_filter(uint8_t enable, uuid_filter_t *filter);
+
+int ble_mesh_provisioner_mac_filter_enable();
+
+int ble_mesh_provisioner_mac_filter_disable();
+
+int ble_mesh_provisioner_mac_filter_clear();
+
+int ble_mesh_provisioner_mac_filter_dev_add(uint8_t           mac_size,dev_addr_t *mac);
+
+int ble_mesh_provisioner_mac_filter_dev_rm(uint8_t            mac_size,dev_addr_t *mac);
 
 int ble_mesh_provisioner_show_dev(uint8_t enable, uint32_t timeout);
 

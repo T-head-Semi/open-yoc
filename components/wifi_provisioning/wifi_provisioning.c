@@ -132,8 +132,8 @@ int wifi_prov_start(uint32_t method_id, wifi_prov_cb cb, uint32_t timeout_s)
     aos_assert(method_id);
     aos_assert(cb);
 
-    if (g_wifi_prov_started_method) {
-        /* already started */
+    if (g_wifi_prov_started_method & method_id) {
+        /* same method_id just once, different method_id should go on */
         return -1;
     }
 

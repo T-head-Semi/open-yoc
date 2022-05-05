@@ -74,6 +74,7 @@ int32_t ofc_Fetch(void *handle, char *buf, uint32_t buf_len, uint32_t timeout_s)
     char *port_ptr;
     char port_str[port_str_max_len+1];
     int8_t port_str_len = 0;
+    char retry = 0;
 
     if (host_ptr == NULL) {
         OTA_LOG_ERROR("Could not find host");

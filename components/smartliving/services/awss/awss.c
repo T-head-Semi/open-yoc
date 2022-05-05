@@ -204,7 +204,7 @@ int awss_config_press(void)
     awss_event_post(IOTX_AWSS_ENABLE);
 
     #ifdef DEV_STATEMACHINE_ENABLE
-    dev_awss_state_set(AWSS_PATTERN_DEV_AP_CONFIG, AWSS_STATE_START);
+    dev_awss_state_set(AWSS_PATTERN_SMART_CONFIG, AWSS_STATE_START);
     #endif
     
     if (press_timer == NULL) {

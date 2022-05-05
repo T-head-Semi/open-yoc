@@ -1,7 +1,7 @@
 
 ## 第一部分： 基础信息
 name: ble_mesh                                            # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.4.4                                     # <必选项> 组件版本号
+version: v7.4.10                                     # <必选项> 组件版本号
 description: ble_host and mesh stack                          # <必选项> 建议至少20字以上
 type: common                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
@@ -17,7 +17,7 @@ license: Apache license v2.0                        # <可选项> 源代码的�
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
 depends:
-  - ble_host: v7.4.4
+  - ble_host: v7.4.9
 
 ## 第三部分：板级信息
 # hw_info:                                 # 对 solution、board、chip 三个字段的改进，统称为 hw_info 字段
@@ -101,11 +101,14 @@ build_config:
     - bt_mesh/mesh_models/common/include
     - bt_mesh/mesh_models/sig_model/include
     - bt_mesh/mesh_models/vendor_model/include
+    - bt_mesh/mesh_lpm/include
+    - bt_mesh/mesh_lpm/sal/inc
   libs:
     - ctrl_relay_<cpu> ?<CONFIG_BT_MESH_CTRL_RELAY>
+    - ble_mesh_lib
   libpath:
     - bt_mesh/core/libs
-
+    - bt_mesh/core/libs/<cpu>
 # source_file:                             # <可选项> 指定参与编译的源代码文件，支持通配符，采用相对路径
 #   - src/*.c                              # 例：组件 src 目录下所有的扩展名为 c 的源代码文件
 source_file:
@@ -133,6 +136,7 @@ source_file:
   - bt_mesh/core/ref_impl/mesh_hal_sec.c
   - bt_mesh/core/ref_impl/mesh_event_port.c
   - bt_mesh/mesh_node/mesh_node.c
+  - bt_mesh/mesh_node/mesh_occ_auth.c  ?<CONFIG_MESH_OCC_AUTH>
   - bt_mesh/mesh_provisioner/mesh_provisioner.c
   - bt_mesh/mesh_provisioner/mesh_provisioner.c
   - bt_mesh/mesh_models/mesh_port/bt_mesh_event_port.c
@@ -147,6 +151,10 @@ source_file:
   - bt_mesh/mesh_models/vendor_model/vendor_model_srv.c    ?<CONFIG_BT_MESH_USE_SIG_MODEL>
   - bt_mesh/mesh_models/vendor_model/vendor_model_cli.c    ?<CONFIG_BT_MESH_USE_SIG_MODEL>
   - bt_mesh/mesh_models/common/mesh_model.c     ?<CONFIG_BT_MESH_USE_SIG_MODEL>
+  - bt_mesh/mesh_models/common/multi_flag.c     ?<CONFIG_BT_MESH_USE_SIG_MODEL>
+  - bt_shell/bt_mesh/shell.c ?<CONFIG_BT_SHELL>
+  - bt_mesh/mesh_lpm/*.c     ?<CONFIG_MESH_LPM>
+  - bt_mesh/mesh_lpm/sal/*.c   ?<CONFIG_MESH_LPM>
   - bt_shell/bt_mesh/shell.c ?<CONFIG_BT_MESH_SHELL>
 
 ## 第五部分：配置信息
@@ -165,6 +173,7 @@ def_config:                              # 组件的可配置项
    CONFIG_BT_BROADCASTER: 1
    CONFIG_BT_MESH_EVENT_CALLBACK: 1
    CONFIG_BT_MESH_DEBUG_USE_ID_ADDR: 1
+   CONFIG_BT_SCAN_WITH_IDENTITY: 1
 
 ## 第六部分：安装信息
 # install:

@@ -25,7 +25,9 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
+void wext_set_wowlan_wakeup_tcpport(unsigned char low_port,unsigned char high_port);
+void wext_set_lps_threshold(unsigned int lps_tx_th,unsigned int lps_rx_th,unsigned int lps_trx_th);
+void wext_enable_route_forward(int enable);
 int wext_get_ssid(const char *ifname, __u8 *ssid);
 int wext_set_ssid(const char *ifname, const __u8 *ssid, __u16 ssid_len);
 int wext_set_bssid(const char *ifname, const __u8 *bssid);

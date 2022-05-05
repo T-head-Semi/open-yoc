@@ -67,10 +67,12 @@ extern int inic_start(void);
 extern int inic_stop(void);
 #endif
 
+#define CACHE_LINE_ALIGN  64
+
 /******************************************************
  *                    Constants
  ******************************************************/
-//#define SCAN_USE_SEMAPHORE	0
+#define SCAN_USE_SEMAPHORE	0
 
 #define RTW_JOIN_TIMEOUT 15000
 
@@ -104,7 +106,7 @@ extern struct netif xnetif[NET_IF_NUM];
 struct skb_data {
     struct list_head list;
     // unsigned char buf[2132];
-	unsigned char buf[8690 + 8 * 1024 + 14] __attribute__((aligned(32)));
+	unsigned char buf[8690 + 8 * 1024 + 14] __attribute__((aligned(CACHE_LINE_ALIGN)));
     atomic_t ref;
 };
 
@@ -114,10 +116,10 @@ struct skb_buf {
 };
 
 int max_skb_buf_num = MAX_SKB_BUF_NUM;
-struct skb_data skb_data_pool[MAX_SKB_BUF_NUM] __attribute__ ((aligned(32)));
+struct skb_data skb_data_pool[MAX_SKB_BUF_NUM] __attribute__ ((aligned(CACHE_LINE_ALIGN)));
 
 int max_local_skb_num = MAX_LOCAL_SKB_NUM;
-struct skb_buf skb_pool[MAX_LOCAL_SKB_NUM] __attribute__ ((aligned(32)));
+struct skb_buf skb_pool[MAX_LOCAL_SKB_NUM] __attribute__ ((aligned(CACHE_LINE_ALIGN)));
 
 /******************************************************
  *               Variables Definitions
@@ -160,9 +162,6 @@ extern unsigned char dhcp_mode_sta;
 #endif
 /* The flag to check if wifi init is completed */
 static int _wifi_is_on = 0;
-#if CONFIG_AUTO_RECONNECT
-static int auto_reconnect_running;dd
-#endif
 /******************************************************
  *               Variables Definitions
  ******************************************************/
@@ -238,6 +237,7 @@ static int auto_reconnect_running;dd
 #define AUTO_RECONNECT_INTERVAL	5	// in sec
 #endif
 #endif
+int multi_scan = 0;
 
 /******************************************************
  *               Function Definitions
@@ -304,7 +304,7 @@ static int wifi_connect_local(rtw_network_info_t *pWifi)
 static int wifi_connect_bssid_local(rtw_network_info_t *pWifi)
 {
 	int ret = 0;
-	u8 bssid[12] = {0};
+	u8 bssid[16] = {0};
 	
 	if(is_promisc_enabled())
 		promisc_set(0, NULL, 0);
@@ -766,7 +766,9 @@ int wifi_connect_bssid(
 {
 	_sema join_semaphore;
 	rtw_result_t result = RTW_SUCCESS;
-
+    u8 wep_hex = 0;
+	u8 wep_pwd[14] = {0};
+	
 	if(rtw_join_status & JOIN_CONNECTING){
 		if(wifi_disconnect() < 0){
 			LOGD(TAG, "\nwifi_disconnect Operation failed!");
@@ -799,12 +801,44 @@ int wifi_connect_bssid(
              ( security_type == RTW_SECURITY_WPA_AES_PSK ) ||
              ( security_type == RTW_SECURITY_WPA2_AES_PSK ) ||
              ( security_type == RTW_SECURITY_WPA2_TKIP_PSK ) ||
-             ( security_type == RTW_SECURITY_WPA2_MIXED_PSK ) ) )||
-             (((password_len != 5)&& (password_len != 13))&&
-             ((security_type == RTW_SECURITY_WEP_PSK)||
-             (security_type ==RTW_SECURITY_WEP_SHARED ) ))) {
+             ( security_type == RTW_SECURITY_WPA2_MIXED_PSK ) ) )) {
 		return RTW_INVALID_KEY;
 	}
+
+	if ((security_type == RTW_SECURITY_WEP_PSK)||
+		(security_type ==RTW_SECURITY_WEP_SHARED)) {
+		if ((password_len != 5) && (password_len != 13) &&
+		    (password_len != 10)&& (password_len != 26)) {
+		    	error_flag = RTW_WRONG_PASSWORD;
+			return RTW_INVALID_KEY;
+		} else {
+
+			if(password_len == 10) {
+
+				u32 p[5] = {0};
+				u8 i = 0; 
+				sscanf((const char*)password, "%02x%02x%02x%02x%02x", &p[0], &p[1], &p[2], &p[3], &p[4]);
+				for(i=0; i< 5; i++)
+					wep_pwd[i] = (u8)p[i];
+				wep_pwd[5] = '\0';
+				password_len = 5;
+				wep_hex = 1;
+			} else if (password_len == 26) {
+				u32 p[13] = {0};
+				u8 i = 0;
+				sscanf((const char*)password, "%02x%02x%02x%02x%02x%02x%02x"\
+					 "%02x%02x%02x%02x%02x%02x", &p[0], &p[1], &p[2], &p[3], &p[4],\
+					  &p[5], &p[6], &p[7], &p[8], &p[9], &p[10], &p[11], &p[12]);
+				for(i=0; i< 13; i++)
+					wep_pwd[i] = (u8)p[i];
+				wep_pwd[13] = '\0';
+				password_len = 13;
+				wep_hex = 1;
+			}
+		}
+	}
+
+		
 	join_result->network_info.password_len = password_len;
 	if(password_len) {
 		/* add \0 to the end */
@@ -813,6 +847,11 @@ int wifi_connect_bssid(
 			return RTW_NOMEM;
 		}
 		rtw_memcpy(join_result->network_info.password, password, password_len);
+		
+		if (0 == wep_hex)
+			rtw_memcpy(join_result->network_info.password, password, password_len);
+		else
+			rtw_memcpy(join_result->network_info.password, wep_pwd, password_len);
 	}
 	
 		join_result->network_info.security_type = security_type;
@@ -1075,7 +1114,7 @@ int wifi_get_associated_client_list(void * client_list_buffer, uint16_t buffer_l
 	}
 
 	rtw_memset(buf, 0, sizeof(buf));
-	snprintf(buf, 25, "get_client_list %x", (uint32_t)client_list_buffer);
+	snprintf(buf, 25, "get_client_list %lx", (size_t)client_list_buffer);
 	ret = wext_private_command(ifname, buf, 0);
 
 	return ret;
@@ -1104,7 +1143,7 @@ int wifi_get_ap_info(rtw_bss_info_t * ap_info, rtw_security_t* security)
 	}
 
 	rtw_memset(buf, 0, sizeof(buf));
-	snprintf(buf, 24, "get_ap_info %x", (uint32_t)ap_info);
+	snprintf(buf, 24, "get_ap_info %lx", (size_t)ap_info);
 	ret = wext_private_command(ifname, buf, 0);
 
 	snprintf(buf, 24, "get_security");
@@ -1229,6 +1268,8 @@ int wifi_on(rtw_mode_t mode)
 	int devnum = 1;
 	static int event_init = 0;
 
+	// rltk_set_a2dp_case_wifi_slot_proportion(35);
+
 	/* tx power by rate */
 	// TXAGC codeword (H-byte->L-byte)={1M}
 	array_mp_8723d_phy_reg_pg[5] = 0x00003200;
@@ -1250,7 +1291,6 @@ int wifi_on(rtw_mode_t mode)
 	int tx_ampdu_agg_timeout_int = 100;
 	int tx_ampdu_agg_num_int = 0x8;
 
-	nr_xmitframe = max_skb_buf_num;
 	tx_ampdu_agg_timeout = tx_ampdu_agg_timeout_int;
 	tx_ampdu_agg_num = tx_ampdu_agg_num_int;
 	
@@ -1283,7 +1323,7 @@ int wifi_on(rtw_mode_t mode)
 		if(ret == 0) _wifi_is_on = 1;
 		device_mutex_unlock(RT_DEV_LOCK_WLAN);
 		if(ret <0){
-			LOGD(TAG, "ERROR: Start WIFI Failed!");
+			LOGE(TAG, "ERROR: Start WIFI Failed!");
 			rltk_wlan_deinit();
 			return ret;
 		}
@@ -1297,7 +1337,7 @@ int wifi_on(rtw_mode_t mode)
 		}
 
 		if(timeout == 0) {
-			LOGD(TAG, "ERROR: Init WIFI timeout!");
+			LOGE(TAG, "ERROR: Init WIFI timeout!");
 			break;
 		}
 
@@ -1323,6 +1363,14 @@ int wifi_on(rtw_mode_t mode)
 	inic_start();
 #endif
 	rtw_tx_agg_num = 8;
+
+	rltk_set_a2dp_case_wifi_slot_proportion(35);
+
+	u8 proportion;
+
+	rltk_get_a2dp_case_wifi_slot_proportion(&proportion);
+
+	LOGD(TAG, "a2dp_case_wifi_slot: %d", proportion);
 
 	return ret;
 }
@@ -1707,6 +1755,7 @@ void wifi_scan_done_hdl( char* buf, int buf_len, int flags, void* userdata)
 	return;
 }
 
+extern int wext_set_multiscan(const char *ifname, char *buf, __u16 buf_len, __u16 flags);
 //int rtk_wifi_scan(char *buf, int buf_len, xSemaphoreHandle * semaphore)
 int wifi_scan(rtw_scan_type_t                    scan_type,
 				  rtw_bss_type_t                     bss_type,
@@ -1717,7 +1766,10 @@ int wifi_scan(rtw_scan_type_t                    scan_type,
 	u16 flags = scan_type | (bss_type << 8);
 	if(result_ptr != NULL){
 		pscan_buf = (scan_buf_arg *)result_ptr;
-		ret = wext_set_scan(WLAN0_NAME, (char*)pscan_buf->buf, pscan_buf->buf_len, flags);
+		if(multi_scan)
+			ret = wext_set_multiscan(WLAN0_NAME, (char*)pscan_buf->buf, pscan_buf->buf_len, flags);
+		else
+			ret = wext_set_scan(WLAN0_NAME, (char*)pscan_buf->buf, pscan_buf->buf_len, flags);
 	}else{
 		wifi_reg_event_handler(WIFI_EVENT_SCAN_RESULT_REPORT, wifi_scan_each_report_hdl, NULL);
 		wifi_reg_event_handler(WIFI_EVENT_SCAN_DONE, wifi_scan_done_hdl, NULL);
@@ -1735,6 +1787,162 @@ int wifi_scan(rtw_scan_type_t                    scan_type,
 			wifi_unreg_event_handler(WIFI_EVENT_SCAN_DONE, wifi_scan_done_hdl);
 		}
 	}
+	return ret;
+}
+
+int aw_wifi_scan_networks_with_multissid(char *scan_resulst,int *scan_results_len,int scan_buflen,scan_ssid* Ssid,int num_ssid)
+{
+	int scan_cnt = 0, add_cnt = 0;
+	scan_buf_arg scan_buf;
+	int len = 0;
+	int i = 0;
+	int ret = -1;
+	scan_buf.buf_len = scan_buflen;
+	scan_buf.buf = (char*)rtw_malloc(scan_buf.buf_len);
+	if(!scan_buf.buf){
+		RTW_API_INFO("\n\rERROR: Can't malloc memory(%d)", scan_buf.buf_len);
+		return RTW_NOMEM;
+	}
+	(void)scan_cnt;
+	(void)add_cnt;
+
+	//set ssid
+	memset(scan_buf.buf, 0, scan_buf.buf_len);
+	memcpy(scan_buf.buf, &num_ssid, sizeof(int));
+	len += sizeof(int);
+	for(i =0;i<num_ssid;i++){
+		len += sizeof(int);
+		len += Ssid[i].ssidlength;
+	}
+	if(len>scan_buf.buf_len){
+		RTW_API_INFO("the scan ssid length is more scan_buf length:%d,%d\n",len,scan_buf.buf_len);
+		return RTW_ERROR;
+	}
+	len = sizeof(int);
+	for(i =0;i<num_ssid;i++){
+		memcpy(scan_buf.buf + len, &(Ssid[i].ssidlength), sizeof(int));
+		len += sizeof(int);
+		memcpy(scan_buf.buf + len, Ssid[i].ssid, Ssid[i].ssidlength);
+		len += Ssid[i].ssidlength;
+	}
+	//Scan channel
+	multi_scan = 1;
+	if((scan_cnt = wifi_scan(RTW_SCAN_TYPE_ACTIVE, RTW_BSS_TYPE_ANY, &scan_buf)) < 0){
+		RTW_API_INFO("\n\rERROR: wifi scan failed %d", scan_cnt);
+		ret = RTW_ERROR;
+	}else{
+		*scan_results_len = scan_buf.buf_len;
+		RTW_API_INFO("scan results len :%d",*scan_results_len);
+		memcpy(scan_resulst,scan_buf.buf,scan_buf.buf_len);
+		ret = RTW_SUCCESS;
+	}
+
+	if(scan_buf.buf)
+		rtw_free(scan_buf.buf);
+	multi_scan = 0;
+	return ret;
+}
+
+int wifi_scan_networks_with_multissid(int (results_handler)(char*buf, int buflen, char *ssid, void *user_data), 
+	OUT void* user_data, IN int scan_buflen, IN scan_ssid* Ssid ,IN int num_ssid)
+{
+	int scan_cnt = 0, add_cnt = 0;
+	scan_buf_arg scan_buf;
+	int len = 0;
+	int i = 0;
+	int ret;
+	scan_buf.buf_len = scan_buflen;
+	scan_buf.buf = (char*)rtw_malloc(scan_buf.buf_len);
+	if(!scan_buf.buf){
+		RTW_API_INFO("\n\rERROR: Can't malloc memory(%d)", scan_buf.buf_len);
+		return RTW_NOMEM;
+	}
+	//set ssid
+	memset(scan_buf.buf, 0, scan_buf.buf_len);
+	memcpy(scan_buf.buf, &num_ssid, sizeof(int));
+	len += sizeof(int);
+	for(i =0;i<num_ssid;i++){
+		len += sizeof(int);
+		len += Ssid[i].ssidlength;
+	}
+	if(len>scan_buf.buf_len){
+		RTW_API_INFO("\r\n the scan ssid length is more scan_buf length");
+		return RTW_ERROR;
+	}
+	len = sizeof(int);
+	for(i =0;i<num_ssid;i++){
+		memcpy(scan_buf.buf + len, &(Ssid[i].ssidlength), sizeof(int));
+		len += sizeof(int);
+		memcpy(scan_buf.buf + len, Ssid[i].ssid, Ssid[i].ssidlength);
+		len += Ssid[i].ssidlength;
+	}
+	//Scan channel
+	multi_scan = 1;
+	if((scan_cnt = (wifi_scan(RTW_SCAN_TYPE_ACTIVE, RTW_BSS_TYPE_ANY, &scan_buf))) < 0){
+		RTW_API_INFO("\n\rERROR: wifi scan failed");
+		ret = RTW_ERROR;
+	} else {
+		if(NULL == results_handler)
+		{
+			int plen = 0;
+			while(plen < scan_buf.buf_len){
+				int len, rssi, ssid_len, i, security_mode;
+				int wps_password_id;
+				char *mac, *ssid;
+				//u8 *security_mode;
+				RTW_API_INFO("\n\r");
+				// len
+				len = (int)*(scan_buf.buf + plen);
+				RTW_API_INFO("len = %d,\t", len);
+				// check end
+				if(len == 0) break;
+				// mac
+				mac = scan_buf.buf + plen + 1;
+				RTW_API_INFO("mac = ");
+				for(i=0; i<6; i++)
+					RTW_API_INFO("%02x ", (u8)*(mac+i));
+				RTW_API_INFO(",\t");
+				// rssi
+				rssi = *(int*)(scan_buf.buf + plen + 1 + 6);
+				RTW_API_INFO(" rssi = %d,\t", rssi);
+				// security_mode
+				security_mode = (int)*(scan_buf.buf + plen + 1 + 6 + 4);
+				switch (security_mode) {
+					case IW_ENCODE_ALG_NONE:
+						RTW_API_INFO("sec = open    ,\t");
+						break;
+					case IW_ENCODE_ALG_WEP:
+						RTW_API_INFO("sec = wep     ,\t");
+						break;
+					case IW_ENCODE_ALG_CCMP:
+						RTW_API_INFO("sec = wpa/wpa2,\t");
+						break;
+				}
+				// password id
+				wps_password_id = (int)*(scan_buf.buf + plen + 1 + 6 + 4 + 1);
+				RTW_API_INFO("wps password id = %d,\t", wps_password_id);
+				
+				RTW_API_INFO("channel = %d,\t", *(scan_buf.buf + plen + 1 + 6 + 4 + 1 + 1));
+				// ssid
+				ssid_len = len - 1 - 6 - 4 - 1 - 1 - 1;
+				ssid = scan_buf.buf + plen + 1 + 6 + 4 + 1 + 1 + 1;
+				RTW_API_INFO("ssid = ");
+				for(i=0; i<ssid_len; i++)
+					RTW_API_INFO("%c", *(ssid+i));
+				plen += len;
+				add_cnt++;
+			}
+
+			RTW_API_INFO("\n\rwifi_scan: add count = %d, scan count = %d", add_cnt, scan_cnt);
+		}
+		ret = RTW_SUCCESS;
+	}
+	if(results_handler)
+		//results_handler(scan_buf.buf, scan_buf.buf_len, ssid, user_data);
+		
+	if(scan_buf.buf)
+		rtw_free(scan_buf.buf);
+	multi_scan = 0;
 	return ret;
 }
 

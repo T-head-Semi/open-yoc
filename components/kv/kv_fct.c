@@ -66,7 +66,7 @@ static int kv_partition_erase(kv_t *kv, int pos, int size)
 }
 
 static int kv_partition_write(kv_t *kv, int pos, void *data, int size)
-{    
+{
     return partition_write(kv->handle, pos, data, size);
 }
 

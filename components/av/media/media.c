@@ -1144,11 +1144,11 @@ static int _evt_over_run(media_t *media, rpc_t *rpc)
 
 static int _evt_run(media_t *media, rpc_t *rpc)
 {
-    // int type = rpc_get_int(rpc);
-    // media_type_t *m = (media_type_t*)get_type(type);
+    event_param_t *param = (event_param_t *)rpc_get_buffer(rpc, NULL);
+    //FIXME: play start event upload before
 
-    // int vol_ret = m_vol_set(m, m->play_vol);
-    // LOGD(TAG,"play%d vol:%d vol_ret:%d\n",m->type, abs_to_per(m->play_vol), vol_ret);
+    aos_freep(&param->url);
+    aos_freep((char**)&param->data);
 
     return 0;
 }

@@ -12,6 +12,7 @@
 #include <misc/__assert.h>
 #include <atomic.h>
 #include <k_api.h>
+#include <aos/aos.h>
 #include <aos/debug.h>
 #include <ble_config.h>
 #include <ble_os_port.h>

@@ -89,6 +89,10 @@ int zconfig_get_data_len(void)
     uint8_t len;    /* total len, include len(1B) & crc(2B) */
     uint8_t score;
 
+    if (zconfig_data == NULL) {
+        return 0;   /* if zconfig_data buffer is invalid, return 0 */
+    }
+
     /* tods > fromds */
     if (zconfig_data->pkg[1][1].score > zconfig_data->pkg[0][1].score) {
         len = zconfig_data->pkg[1][1].len & PAYLOAD_BITS_MASK;
@@ -99,7 +103,7 @@ int zconfig_get_data_len(void)
     }
 
     if (len && score > score_mid) {
-        //awss_debug("zconfig_get_data_len = %d\r\n", len);
+        awss_debug("zconfig_get_data_len = %d", len);
         goto out;
     }
 
@@ -378,7 +382,9 @@ int zconfig_get_ssid_passwd(uint8_t tods)
         if (zconfig_is_utf8((const char *)zc_passwd, passwd_len) == 0) {
             void *mutex = zc_mutex;
             dump_awss_status(STATE_WIFI_PASSWD_DECODE_FAILED, "passwd err");
-            memset(zconfig_data, 0, sizeof(*zconfig_data));
+            if (zconfig_data != NULL) {
+                memset(zconfig_data, 0, sizeof(*zconfig_data));
+            }
             zc_mutex = mutex;
             awss_event_post(IOTX_AWSS_PASSWD_ERR);
             AWSS_UPDATE_STATIS(AWSS_STATIS_SM_IDX, AWSS_STATIS_TYPE_PASSWD_ERR);
@@ -395,7 +401,9 @@ int zconfig_get_ssid_passwd(uint8_t tods)
         strncpy((char *)zc_passwd, (const char *)tmp, ZC_MAX_PASSWD_LEN - 1);
 
         dump_awss_status(STATE_WIFI_BCAST_DEBUG, "encrypt:%d not support", passwd_encrypt);
-        memset(zconfig_data, 0, sizeof(*zconfig_data));
+        if (zconfig_data != NULL) {
+            memset(zconfig_data, 0, sizeof(*zconfig_data));
+        }
         zc_mutex = mutex;
         ret = STATE_WIFI_BCAST_DEBUG;
         goto exit;
@@ -452,8 +460,11 @@ int is_hint_frame(uint8_t encry, int len, uint8_t *bssid, uint8_t *src,
     if (encry > ZC_ENC_TYPE_MAX) {
         return 0;
     }
+    if (zconfig_data == NULL) {
+        return 0;
+    }
 
-    len -= zconfig_fixed_offset[encry][0] - 4;    /* dont't care about tkip-aes */
+    len -= zconfig_fixed_offset[encry][0];    /* dont't care about tkip-aes */
 
     for (i = 0; zconfig_hint_frame[i]; i++) {
         if (zconfig_hint_frame[i] == len) {
@@ -762,7 +773,9 @@ replace:
 
 clear:
     zc_pos_unsync = 0;
-    memset((uint8_t *)tmp(0), 0, sizeof(zconfig_data->tmp_pkg[0]));
+    if (zconfig_data != NULL) {
+        memset((uint8_t *)tmp(0), 0, sizeof(zconfig_data->tmp_pkg[0]));
+    }
     return ret;
 }
 
@@ -916,7 +929,7 @@ int awss_ieee80211_smartconfig_process(uint8_t *ieee80211, int len, int link_typ
                 if (len < 8) {      //IV + ICV + DATA >= 8
                     return ALINK_INVALID;
                 }
-                if (!(ieee80211[3] & 0x3F)) {
+                if (!(data[3] & 0x3F)) {
                     set_encry_type(encry, ZC_ENC_TYPE_WEP, bssid_mac, tods);//wep
                 } else if (data[3] & (1 << 5)) {//Extended IV
                     if (data[1] == ((data[0] | 0x20) & 0x7F)) { //tkip, WEPSeed  = (TSC1 | 0x20 ) & 0x7F

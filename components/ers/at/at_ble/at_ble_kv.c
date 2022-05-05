@@ -17,7 +17,7 @@ ad_data_t ad_def[2] = {
 uint8_t manu_data[6] = {0xA8, 0x01, 0x00, 0x01, 0x02, 0x03};
 
 ad_data_t sd_def[2] = {
-    {.type = AD_DATA_TYPE_NAME_COMPLETE, .data = (uint8_t *)SLAVE_DEVICE_NAME_DEF, .len = strlen(SLAVE_DEVICE_NAME_DEF)},
+    {.type = AD_DATA_TYPE_NAME_COMPLETE, .data = (uint8_t *)SLAVE_DEVICE_NAME_DEF, .len = 0},
     {.type = AD_DATA_TYPE_MANUFACTURER_DATA, .data = manu_data, .len = sizeof(manu_data)},
 };
 

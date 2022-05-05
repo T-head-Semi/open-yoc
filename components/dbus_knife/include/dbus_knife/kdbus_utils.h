@@ -8,7 +8,9 @@
 #include <dbus/dbus.h>
 #include "dbus_knife/common.h"
 
-__BEGIN_DECLS__
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief  get return value of int32 for dbus method-call
@@ -44,7 +46,9 @@ const char *kdbus_get_type_as_string(int type);
  */
 int kdbus_set_retval_basic(DBusConnection *conn, DBusMessage *msg, int type, void *val);
 
-__END_DECLS__
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __KDBUS_UTILS_H__ */
 

@@ -39,6 +39,10 @@ int awss_is_ready_clr_aplist(void)
 
 int awss_clear_aplist(void)
 {
+    if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null to clear");
+        return -1;
+    }
     memset(zconfig_aplist, 0, sizeof(struct ap_info) * MAX_APLIST_NUM);
 #if defined(AWSS_SUPPORT_ADHA) || defined(AWSS_SUPPORT_AHA)
     memset(adha_aplist, 0, sizeof(*adha_aplist));
@@ -80,6 +84,7 @@ int awss_init_ieee80211_aplist(void)
     }
     zconfig_aplist = (struct ap_info *)os_zalloc(sizeof(struct ap_info) * MAX_APLIST_NUM);
     if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null when init");
         return -1;
     }
     zconfig_aplist_num = 0;
@@ -100,6 +105,10 @@ int awss_deinit_ieee80211_aplist(void)
 struct ap_info *zconfig_get_apinfo(uint8_t *mac)
 {
     int i;
+    if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null when get");
+        return NULL;
+    }
 
     for (i = 1; i < zconfig_aplist_num; i++) {
         if (!memcmp(zconfig_aplist[i].mac, mac, ETH_ALEN)) {
@@ -114,6 +123,10 @@ struct ap_info *zconfig_get_apinfo_by_3_byte_mac(uint8_t *last_3_Byte_mac)
 {
     int i;
     uint8_t *local_mac;
+    if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null when get 3B");
+        return NULL;
+    }
 
     for (i = 1; i < zconfig_aplist_num; i++) {
         local_mac = (uint8_t *)(zconfig_aplist[i].mac) + 3;
@@ -128,6 +141,10 @@ struct ap_info *zconfig_get_apinfo_by_3_byte_mac(uint8_t *last_3_Byte_mac)
 struct ap_info *zconfig_get_apinfo_by_ssid(uint8_t *ssid)
 {
     int i;
+    if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null to get by ssid");
+        return NULL;
+    }
 
     for (i = 1; i < zconfig_aplist_num; i ++) {
         if (!strcmp((char *)zconfig_aplist[i].ssid, (char *)ssid)) {
@@ -143,7 +160,8 @@ struct ap_info *zconfig_get_apinfo_by_ssid_prefix(uint8_t *ssid_prefix)
 {
     int i;
     int len = strlen((const char *)ssid_prefix);
-    if (!len) {
+    if (!len || (zconfig_aplist == NULL)) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null or ssid prefix null");
         return NULL;
     }
 
@@ -176,7 +194,8 @@ struct ap_info *zconfig_get_apinfo_by_ssid_suffix(uint8_t *ssid_suffix)
 {
     int i;
     int len = strlen((const char *)ssid_suffix);
-    if (!len) {
+    if (!len || (zconfig_aplist == NULL)) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null or ssid suffix null");
         return NULL;
     }
 
@@ -243,6 +262,11 @@ int awss_save_apinfo(uint8_t *ssid, uint8_t *bssid, uint8_t channel, uint8_t aut
         pairwise_cipher = ZC_ENC_TYPE_AES;    //tods
     }
 
+    if (zconfig_aplist == NULL) {
+        dump_awss_status(STATE_WIFI_STATISTIC, "aplist null to save");
+        return -1;
+    }
+    
     /*
      * start from zconfig_aplist[1], leave [0] for temp use
      * if zconfig_aplist[] is full, always replace [0]

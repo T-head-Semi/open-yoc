@@ -9,6 +9,8 @@
 
 #if defined (AOS_COMP_DEBUG) && AOS_COMP_DEBUG
 #include "debug/dbg.h"
+extern uint32_t debug_task_id_now();
+extern void debug_cpu_stop(void);
 #endif
 
 #if (RHINO_CONFIG_MM_TLF > 0)
@@ -19,7 +21,7 @@ extern int           g_region_num;
 #if (RHINO_CONFIG_MM_TRACE_LVL > 0)
 
 volatile uint32_t g_kmm_bt = 0;
-int backtrace_now_get(char *pPC, int *pSP, int bt_space, void *trace[], int size, int offset);
+int backtrace_now_get(void *trace[], int size, int offset);
 
 void kmm_bt_disable(void)
 {
@@ -114,9 +116,12 @@ RHINO_INLINE k_mm_list_t *init_mm_region(void *regionaddr, size_t len)
 static int32_t size_to_level(size_t size)
 {
     size_t cnt;
+
+    /* Avoid misjudgment when malloc large memory on 64-bit platforms */
     if (size >= ((size_t)1 << 31)) {
         return -1;
     }
+
     cnt = 32 - krhino_clz32(size);
 
     if (cnt < MM_MIN_BIT) {
@@ -545,14 +550,14 @@ void  k_mm_free(k_mm_head *mmhead, void *ptr)
         /* step 2 : freeze other core */
         debug_cpu_stop();
         /* step 3 :printk(do not use printf, maybe malloc) log */
-        printk("WARNING, memory maybe double free!! 0x%x\r\n", (unsigned int)free_b);
+        printk("WARNING, memory maybe double free!! %p\r\n", free_b);
         /* setp 4 :dumpsys memory and then go to fatal error */
         kmm_error(KMM_ERROR_LOCKED);
     }
     if (free_b->dye != MM_DYE_USED) {
         //MM_CRITICAL_EXIT(mmhead, flags_cpsr);
         debug_cpu_stop();
-        printk("WARNING, memory maybe corrupt!! 0x%x\r\n", (unsigned int)free_b);
+        printk("WARNING, memory maybe corrupt!! %p\r\n", free_b);
         kmm_error(KMM_ERROR_LOCKED);
     }
     free_b->dye   = MM_DYE_FREE;
@@ -570,14 +575,14 @@ void  k_mm_free(k_mm_head *mmhead, void *ptr)
     if (next_b->dye != MM_DYE_FREE && next_b->dye != MM_DYE_USED) {
         //MM_CRITICAL_EXIT(mmhead, flags_cpsr);
         debug_cpu_stop();
-        printk("WARNING, memory overwritten!! 0x%x  0x%x\r\n", (unsigned int)free_b, (unsigned int)next_b);
+        printk("WARNING, memory overwritten!! %p  %p\r\n", free_b, next_b);
         kmm_error(KMM_ERROR_LOCKED);
     } else if (MM_LAST_BLK_MAGIC != next_b->owner) {
         k_mm_list_t *nnext_b = MM_GET_NEXT_BLK(next_b);
         if (nnext_b->dye != MM_DYE_FREE && nnext_b->dye != MM_DYE_USED) {
             debug_cpu_stop();
-            printk("WARNING, nnext memory overwritten!! 0x%x   0x%x  0x%x\r\n", (unsigned int)free_b, (unsigned int)next_b,
-                   (unsigned int)nnext_b);
+            printk("WARNING, nnext memory overwritten!! %p   %p  %p\r\n", free_b, next_b,
+                   nnext_b);
             kmm_error(KMM_ERROR_LOCKED);
         }
     }
@@ -783,7 +788,7 @@ void krhino_owner_attach(void *addr, size_t allocator)
 #if (RHINO_CONFIG_MM_TRACE_LVL > 0)
     if ((g_sys_stat == RHINO_RUNNING) &&
         (kmm_bt_check() == 0)) {
-        //backtrace_now_get(NULL, NULL, BACKTRACE_KSPACE, (void **) blk->trace, RHINO_CONFIG_MM_TRACE_LVL, 2);
+        backtrace_now_get((void **) blk->trace, RHINO_CONFIG_MM_TRACE_LVL, 2);
     } else {
         memset(blk->trace, 0, sizeof(blk->trace));
     }
@@ -815,7 +820,7 @@ void *krhino_mm_alloc(size_t size)
 
         freesize = g_kmm_head->free_size;
 
-        printf("WARNING, malloc failed!!!! need size:%d, but free size:%d\r\n", size, freesize);
+        printf("WARNING, malloc failed!!!! need size:%lu, but free size:%d\r\n", size, freesize);
 
         if (dumped) {
             return tmp;
@@ -865,7 +870,7 @@ void *krhino_mm_realloc(void *oldmem, size_t newsize)
     if (tmp == NULL && newsize != 0) {
 #if (RHINO_CONFIG_MM_DEBUG > 0)
         static int32_t reallocdumped;
-        printf("WARNING, realloc failed!!!! newsize : %d\r\n", newsize);
+        printf("WARNING, realloc failed!!!! newsize : %lu\r\n", newsize);
         if (reallocdumped) {
             return tmp;
         }

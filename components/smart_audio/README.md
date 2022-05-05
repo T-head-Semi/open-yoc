@@ -2,41 +2,46 @@
 
 在智能语音控制系统中，语音播放是一个多种操作混杂在一起的复杂场景。具体表现如下：
 
-* 声音来源：可能是本地或云端，未来也可以扩展到蓝牙等其他播放源
-* 声音类型：包括本地提示音，云端下发TTS（Text-To-Speech）,云端下发音乐链接等类型；每种声音类型的处理都略有不同。
+* 声音来源：可能是本地、云端，也可以是蓝牙音乐、蓝牙打电话等其他播放源
+* 声音类型：包括本地提示音, 云端下发TTS(Text-To-Speech), 云端下发音乐链接, 蓝牙播歌, 蓝牙打电话类型; 每种声音类型的处理都略有不同。
 * 行为多样：用户会发起多种播放控制请求，例如音量控制，暂停/继续播放，静音控制
 * 仲裁管理：当多个播放请求同时产生时，决定播放优先顺序
 
 因此需要一个播放器控制组件，在原始播放器的基础上进行更高层的抽象，一方面根据应用场景实现更复杂的逻辑控制，另一方面也对播放器接口进一步抽象，增加开发者的开发效率。
 
 ### 播控协议
-播控组件包括两种声音类型：
+播控组件包括多声音类型：
 
 * 系统音：包括系统提示音，以及云端的TTS（Text-To-Speech）声音
 * 音乐：包括本地/云端播放的歌曲
+* 蓝牙播歌：包括蓝牙播放的歌曲
+* 蓝牙打电话：包括接听、拨打电话
 
-系统音比音乐具有更高的优先级，体现在：
+smart audio 封装了控制层(smart_audio.c中以smtaudio_开头的接口), 加入至smart audio播控的播放类型必须实现以下属性, 由控制层调用播放类型的具体属性。
 
-* 正在播放音乐：如果此时要播放系统声音，会”打断“音乐（暂停音乐播放），优先播放系统声音；系统声音播放完成后，在根据情况决定是否恢复音乐播放；
-* 正在播放系统声音：如果此时要播放音乐，只能等系统声音播放完成后，才能播放音乐。音乐不能打断系统声音播放。
+* const char *name;                                             |音源名称
+* int         prio;                                             |音源优先级(数值越小，优先级越高，数值最小为0)
+* int         id;                                               |音源序号
+* dlist_t     node;                                             |音源链表节点
+* int         status;                                           |音源状态(实时更新的状态)
+* int (*init)(void);                                            |音源初始化
+* int (*deinit)(void);                                          |音源去初始化
+* int (*start)(const char *url, uint64_t seek_time, int resume);|开始播放音源
+* int (*pause)(void);                                           |暂停播放音源
+* int (*stop)(void);                                            |停止播放音源
+* int (*resume)(void);                                          |恢复播放音源
+* int (*vol_get)(void);                                         |获取目前音量
+* int (*vol_set)(int vol);                                      |设置音量
+* int (*vol_up)(int vol);                                       |升高音量
+* int (*vol_down)(int vol);                                     |降低音量
+* void (*callback)(int type, smtaudio_player_evtid_t evt_id);   |音源发生start、pause、stop等事件，需调用此callback告知播控
 
-对于同优先级的声音（系统音vs.系统音，音乐vs.音乐），新的声音会打断当前播放声音，并且被打断的声音没法恢复播放。
+每个播放类型均有优先级(prio)属性，模块中蓝牙打电话具有最高优先级(prio为0)，其次是系统音(prio为1), 最后是蓝牙音乐和网络音乐(prio为2) 具体体现在：
 
-播控组件定义了四种播放控制指令：
-
-* Play：开始播放
-* Stop：停止播放
-* Pause：暂停播放
-* Resume：恢复播放
-
-针对不同的声音类型，控制指令的行为也有所不同。如下表：
-
-|            | 系统音                                                       | 音乐                                                         |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **Play**   | 立即开始播放：<br>- 如果当前有系统声音正在播放，会打断正在播放的系统声音，被打断的系统声音不能恢复<br>- 如果当前有音乐正在播放，会打断正在播放的音乐，被打断的音乐看情况可以恢复 | - 如果当前有系统声音正在播放，不能打断，等系统声音播放完之后开始播放<br>- 如果当前有音乐正在播放，会打断正在播放的音乐，被打断的音乐不能恢复 |
-| **Stop**   | 停止播放                                                     | 停止播放                                                     |
-| **Pause**  | 不支持                                                       | 暂停播放                                                     |
-| **Resume** | 不支持                                                       | 恢复播放                                                     |
+* 要播放某种音源时，若高优先级音源正在播放，待播放的音源会暂时添加进 delay play list 中，待高优先级播放完毕后从 delay play list 中取出，然后进行播放。
+* 要播放某种音源时，若低优先级音源在播放，会打断正在播放的音源并将被打断的音源加入到 resume play list中，然后播放待播放的音源，播放完毕后从resume play lisy中取出音源，恢复其播放。
+* 正在播放音乐(蓝牙或在线音乐)：如果此时要播放系统声音，会”打断“音乐（暂停音乐播放），优先播放系统声音；系统声音播放完成后，在根据情况决定是否恢复音乐播放;
+* 对于同优先级的音源，新的音源会打断当前播放音源，并且被打断的音源没法恢复播放。
 
 ### 最低播放音量
 
@@ -64,8 +69,6 @@ yoc install smart_audio
 | smtaudio_mute | 进入/退出静音禁麦状态 |
 | smtaudio_start      | 开始播放一段音频      |
 | smtaudio_stop | 停止当前音频播放      |
-| smtaudio_set_config | 设置播控配置参数 |
-| smtaudio_get_config | 获取播控配置参数      |
 | smtaudio_set_speed | 设置播放速率 |
 | smtaudio_get_state | 查看当前播控状态 |
 | smtaudio_lpm | 进入/退出低功耗状态 |
@@ -74,13 +77,13 @@ yoc install smart_audio
 
 ### media_evt
 
-`typedef void (*media_evt)(int type, aui_player_evtid_t evt_id);`
+`typedef void (*audio_evt_t)(int type, smtaudio_player_evtid_t evt_id);`
 
 - 功能描述:
    - 播放器事件处理回调函数。
 
 - 参数:
-   - `type`: 音频类型，音乐或系统音。
+   - `type`: 音频类型
    - `evt_id`: 播放器事件
 
 - 返回值:
@@ -88,19 +91,13 @@ yoc install smart_audio
 
 ### smtaudio_init
 
-`int8_t smtaudio_init(size_t stack_size, media_evt_t media_evt, uint8_t min_vol, uint8_t *aef_conf, size_t aef_conf_size, float speed, int resample);`
+`int8_t smtaudio_init(audio_evt_t audio_evt_cb);`
 
 - 功能描述:
    - 初始化播控组件。
 
 - 参数:
-   - `stack_size`: 创建media任务时分配的堆栈空间大小。
-   - `media_evt`: 播放器事件处理回调函数。
-   - `min_vol`: 最小播放音量。
-   - `aef_conf`: 音效配置参数。
-   - `aef_conf_size`: 音效配置参数大小。
-   - `speed`: 初始播放速度。
-   - `resample`: 重采样率。
+   - `audio_evt_cb`: 向用户提供的播放事件回调函数。
 
 - 返回值:
    - 0: 初始化成功。
@@ -161,7 +158,7 @@ yoc install smart_audio
 `int8_t smtaudio_pause(void);`
 
 - 功能描述:
-   - 暂停当前音乐播放，对系统声音不生效（系统声不能被暂停）。
+   - 暂停当前播放。
 
 - 参数:
   - 无。
@@ -174,7 +171,7 @@ yoc install smart_audio
 `int8_t smtaudio_resume(void);`
 
 - 功能描述:
-   - 恢复被暂停的音乐，对系统声音不生效。如果当前没有音乐被暂停，则直接返回。
+   - 恢复被暂停的音乐，如果当前没有音乐被暂停，则直接返回。
 
 - 参数:
   - 无。
@@ -203,10 +200,10 @@ yoc install smart_audio
    - 开始播放一段音频。
 
 - 参数:
-   - `type`: 音频类型，音乐或系统音。
+   - `type`: 音频类型。
    - `url`：音频内容地址。
    - `seek_time`：播放起始位置，0表示从头播放。
-   - `resume`：播放结束后是否恢复播放被打断音乐（只对系统音有效）。
+   - `resume`：播放结束后是否恢复播放被打断音乐。
 
 - 返回值:
    - 0: 开始播放成功。
@@ -219,38 +216,11 @@ yoc install smart_audio
    - 停止当前音频播放。
 
 - 参数:
-   - `type`: 音频类型，音乐或系统音。
+   - `type`: 音频类型
 
 - 返回值:
    - 0: 停止播放成功。
    - -1: 停止播放失败。
-
-### smtaudio_set_config
-`int8_t smtaudio_set_config(aui_player_config_t *config);`
-
-- 功能描述:
-   - 设置播控配置参数。
-
-- 参数:
-   - `config`: 配置参数。
-
-- 返回值:
-   - 0: 设置成功。
-   - -1: 设置失败。
-
-### smtaudio_get_config
-`int8_t smtaudio_get_config(aui_player_config_t *config);`
-
-- 功能描述:
-   - 获取播控配置参数。
-
-- 参数:
-   - `config`: 配置参数。
-
-- 返回值:
-   - 0: 获取成功。
-   - -1: 获取失败。
-
 ### smtaudio_set_speed
 `int smtaudio_set_speed(float speed)`
 
@@ -280,7 +250,6 @@ yoc install smart_audio
 typedef enum {
     SMTAUDIO_STATE_PLAYING,      // 正在播放状态
     SMTAUDIO_STATE_PAUSE,        // 暂停状态
-    SMTAUDIO_STATE_ZERO_VOLUME,  // 零音量状态
     SMTAUDIO_STATE_MUTE,         // 静音禁麦状态，除了禁麦键外，其他按键和语音指令都不响应
     SMTAUDIO_STATE_STOP,         // 停止状态
     SMTAUDIO_STATE_NUM
@@ -304,30 +273,34 @@ typedef enum {
 
 ```c
 // 回调函数，会注册到播控组件中，用于接收播放事件
-static void media_evt(int type, aui_player_evtid_t evt_id)
+static void media_evt(int type, smtaudio_player_evtid_t evt_id)
 {
   switch (evt_id) {
-        case AUI_PLAYER_EVENT_START:
+        case SMTAUDIO_PLAYER_EVENT_START:
             /* 开始播放事件 */
             ...
             break;
-        case AUI_PLAYER_EVENT_ERROR:
+        case SMTAUDIO_PLAYER_EVENT_ERROR:
             /* 播放错误事件 */
             ...
             break;
-        case AUI_PLAYER_EVENT_FINISH:
-            /* 播放完成事件 */
+        case SMTAUDIO_PLAYER_EVENT_STOP:
+            /* 播放结束事件 */
             ...
             break;
-        case AUI_PLAYER_EVENT_RESUME:
+        case SMTAUDIO_PLAYER_EVENT_PAUSE:
+            /* 播放暂停事件 */
+            ...
+            break;
+        case SMTAUDIO_PLAYER_EVENT_RESUME:
             /* 恢复播放事件 */
             ...
             break;
-        case AUI_PLAYER_EVENT_UNDER_RUN:
+        case SMTAUDIO_PLAYER_EVENT_UNDER_RUN:
             /* 播放缓冲数据不足事件 */
             ...
             break;
-        case AUI_PLAYER_EVENT_OVER_RUN:
+        case SMTAUDIO_PLAYER_EVENT_OVER_RUN:
             /* 播放缓冲数据溢出事件 */
             ...
             break;
@@ -340,7 +313,7 @@ void main()
 {
     ...;
     /* 初始化播控组件 */
-    smtaudio_init(4 * 1024, media_evt, 0,  (uint8_t *)eqcfg, eqcfg_size, 1.0f, 44100);
+    smtaudio_init(media_evt);
     ...
     /* 使用系统声音播放网络流 */
     smtaudio_start(MEDIA_SYSTEM,

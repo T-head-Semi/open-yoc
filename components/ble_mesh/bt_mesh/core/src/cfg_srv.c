@@ -44,6 +44,8 @@
 
 #define CONFIG_ENABLE_MESH_KEY_DUMP 0
 
+#define CID_NVAL 0xFFFF
+
 static struct bt_mesh_cfg_srv *conf;
 
 
@@ -70,10 +72,10 @@ struct bt_mesh_cfg_srv g_cfg_srv = {
 #endif
     .default_ttl = 7,
 
-    /* 3 transmissions with 20ms interval */
-    .net_transmit = BT_MESH_TRANSMIT(2, 20),
+    /* 7 transmissions with 20ms interval */
+    .net_transmit = BT_MESH_TRANSMIT(6, 20),
     /* 3 transmissions with 60ms interval */
-    .relay_retransmit = BT_MESH_TRANSMIT(2, 60),
+    .relay_retransmit = BT_MESH_TRANSMIT(2, 20),
 };
 
 struct bt_mesh_cfg_srv* get_cfg_srv()
@@ -296,10 +298,11 @@ static u8_t _mod_pub_set(struct bt_mesh_model *model, u16_t pub_addr,
 		return STATUS_FEAT_NOT_SUPP;
 	}
 
+#if 0
 	if (!model->pub->update && period) {
 		return STATUS_NVAL_PUB_PARAM;
 	}
-
+#endif
 	if (pub_addr == BT_MESH_ADDR_UNASSIGNED) {
 		if (model->pub->addr == BT_MESH_ADDR_UNASSIGNED) {
 			return STATUS_SUCCESS;
@@ -432,6 +435,48 @@ struct bt_mesh_app_key *bt_mesh_app_key_alloc(u16_t app_idx)
 	return NULL;
 }
 
+#ifdef CONFIG_GENIE_MESH_ENABLE
+s8_t genie_mesh_setup(u16_t key_app_idx)
+{
+	struct bt_mesh_elem *elem;
+	struct bt_mesh_model *mod;
+	u8_t elem_cnt, i, j, status;
+	u16_t primary_addr;
+
+	elem_cnt = bt_mesh_elem_count();
+	primary_addr = bt_mesh_primary_addr();
+
+	BT_DBG("start elem %d primary addr %04x", elem_cnt, primary_addr);
+	for (i = 0; i < elem_cnt; i++)
+	{
+		elem = bt_mesh_elem_find(primary_addr + i);
+		if (!elem)
+		{
+			BT_ERR("can not find elem for addr %d", primary_addr + i);
+			return -1;
+		}
+
+		for (j = 0; j < elem->model_count; j++)
+		{
+			mod = bt_mesh_model_find(elem, elem->models[j].id);
+			status = mod_bind(mod, key_app_idx);
+			BT_DBG(">>>model %04x app_key[%02x]<<<", elem->models[j].id, status);
+		}
+
+		for (j = 0; j < elem->vnd_model_count; j++)
+		{
+			mod = bt_mesh_model_find_vnd(elem, elem->vnd_models[j].vnd.company, elem->vnd_models[j].vnd.id);
+			status = mod_bind(mod, key_app_idx);
+			BT_DBG(">>>model %04x %04x app_key[%02x]<<<",
+				   elem->vnd_models[j].vnd.company, elem->vnd_models[j].vnd.id, status);
+		}
+	}
+
+	(void)status;
+	return 0;
+}
+#endif
+
 static u8_t app_key_set(u16_t net_idx, u16_t app_idx, const u8_t val[16],
 			bool update)
 {
@@ -523,51 +568,11 @@ static u8_t app_key_set(u16_t net_idx, u16_t app_idx, const u8_t val[16],
 		bt_mesh_store_app_key(key, 0);
 	}
 
+#ifdef CONFIG_GENIE_MESH_ENABLE
+	genie_mesh_setup(app_idx);
+#endif
 	return STATUS_SUCCESS;
 }
-
-#ifdef CONFIG_GENIE_MESH_ENABLE
-s8_t genie_mesh_setup(void)
-{
-    struct bt_mesh_elem *elem;
-    struct bt_mesh_model *mod;
-    u8_t elem_cnt, i, j, status;
-    u16_t primary_addr;
-    u16_t key_app_idx = 0;
-
-    elem_cnt = bt_mesh_elem_count();
-    primary_addr = bt_mesh_primary_addr();
-
-    BT_DBG("start elem %d primary addr %04x", elem_cnt, primary_addr);
-    for (i = 0; i < elem_cnt; i++)
-    {
-        elem = bt_mesh_elem_find(primary_addr + i);
-        if (!elem)
-        {
-            BT_ERR("can not find elem for addr %d", primary_addr + i);
-            return -1;
-        }
-
-        for (j = 0; j < elem->model_count; j++)
-        {
-            mod = bt_mesh_model_find(elem, elem->models[j].id);
-            status = mod_bind(mod, key_app_idx);
-            BT_DBG(">>>model %04x app_key[%02x]<<<", elem->models[j].id, status);
-        }
-
-        for (j = 0; j < elem->vnd_model_count; j++)
-        {
-            mod = bt_mesh_model_find_vnd(elem, elem->vnd_models[j].vnd.company, elem->vnd_models[j].vnd.id);
-            status = mod_bind(mod, key_app_idx);
-            BT_DBG(">>>model %04x %04x app_key[%02x]<<<",
-                   elem->vnd_models[j].vnd.company, elem->vnd_models[j].vnd.id, status);
-        }
-    }
-
-    (void)status;
-    return 0;
-}
-#endif
 
 static void app_key_add(struct bt_mesh_model *model,
 			struct bt_mesh_msg_ctx *ctx,
@@ -1526,6 +1531,9 @@ static void mod_sub_add(struct bt_mesh_model *model,
 	u8_t *mod_id;
 	u8_t status;
 	bool vnd;
+#ifdef CONFIG_GENIE_MESH_ENABLE
+	int i = 0;
+#endif
 
 	elem_addr = net_buf_simple_pull_le16(buf);
 	if (!BT_MESH_ADDR_IS_UNICAST(elem_addr)) {
@@ -1553,10 +1561,31 @@ static void mod_sub_add(struct bt_mesh_model *model,
 		goto send_status;
 	}
 
+/*
+[Genie begin] changed by lgy at 2021-08-02
+*/
+#ifdef CONFIG_GENIE_MESH_ENABLE
+	for (i = 0; i < elem->model_count; i++)
+	{
+		mod = bt_mesh_model_find(elem, elem->models[i].id);
+		if (mod)
+		{
+			status = bt_mesh_mod_sub_add(mod, sub_addr);
+			if (status != STATUS_SUCCESS)
+			{
+				break;
+			}
+		}
+	}
+#else
 	status = bt_mesh_mod_sub_add(mod, sub_addr);
+#endif
+/*
+[Genie end] changed by lgy at 2021-08-02
+*/
 
 send_status:
-#ifdef CONFIG_GENIE_MESH_GLP
+#if   defined(CONFIG_GENIE_MESH_GLP) || defined(CONFIG_MESH_LPM)
     k_sleep(1300);
 #endif
 	send_mod_sub_status(model, ctx, status, elem_addr, sub_addr,
@@ -1574,6 +1603,9 @@ static void mod_sub_del(struct bt_mesh_model *model,
 	u16_t *match;
 	u8_t status;
 	bool vnd;
+#ifdef CONFIG_GENIE_MESH_ENABLE
+	int i = 0;
+#endif
 
 	elem_addr = net_buf_simple_pull_le16(buf);
 	if (!BT_MESH_ADDR_IS_UNICAST(elem_addr)) {
@@ -1615,18 +1647,46 @@ static void mod_sub_del(struct bt_mesh_model *model,
 		bt_mesh_lpn_group_del(&sub_addr, 1);
 	}
 
+/*
+[Genie begin] changed by lgy at 2021-08-02
+*/
+#ifdef CONFIG_GENIE_MESH_ENABLE
+	for (i = 0; i < elem->model_count; i++)
+	{
+		mod = bt_mesh_model_find(elem, elem->models[i].id);
+		if (mod)
+		{
+			match = bt_mesh_model_find_group(mod, sub_addr);
+			if (match)
+			{
+				*match = BT_MESH_ADDR_UNASSIGNED;
+
+				if (IS_ENABLED(CONFIG_BT_SETTINGS))
+				{
+					bt_mesh_store_mod_sub(mod);
+				}
+			}
+		}
+	}
+#else
 	match = bt_mesh_model_find_group(mod, sub_addr);
-	if (match) {
+	if (match)
+	{
 		*match = BT_MESH_ADDR_UNASSIGNED;
 
-		if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		if (IS_ENABLED(CONFIG_BT_SETTINGS))
+		{
 			bt_mesh_store_mod_sub(mod);
 		}
 	}
+#endif
+	/*
+[Genie end] changed by lgy at 2021-08-02
+*/
 
 send_status:
 
-#ifdef CONFIG_GENIE_MESH_GLP
+#if   defined(CONFIG_GENIE_MESH_GLP) || defined(CONFIG_MESH_LPM)
     k_sleep(1300);
 #endif
 
@@ -1703,10 +1763,86 @@ send_status:
 			    mod_id, vnd);
 }
 
+
+
+int bt_mesh_mod_sublist_overwrite(struct net_buf_simple *buf)
+{
+	u16_t elem_addr, model_idx, cid, sub_addr;
+	struct bt_mesh_model *mod;
+	struct bt_mesh_elem *elem;
+	u8_t status;
+
+	elem_addr = net_buf_simple_pull_le16(buf);
+	if (!BT_MESH_ADDR_IS_UNICAST(elem_addr)) {
+		BT_WARN("Prohibited element address");
+		status = STATUS_INVALID_ADDRESS;
+		goto send_status;
+	}
+
+    elem = bt_mesh_elem_find(elem_addr);
+	if (!elem) {
+		mod = NULL;
+		status = STATUS_INVALID_ADDRESS;
+		goto send_status;
+	}
+
+    model_idx = net_buf_simple_pull_le16(buf);
+	cid = net_buf_simple_pull_le16(buf);
+
+	if(cid == CID_NVAL) {
+		mod = bt_mesh_model_find(elem, model_idx);
+	} else {
+        mod = bt_mesh_model_find_vnd(elem, cid, model_idx);
+	}
+
+	if (!mod) {
+		status = STATUS_INVALID_MODEL;
+		goto send_status;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)) {
+		bt_mesh_lpn_group_del(mod->groups, ARRAY_SIZE(mod->groups));
+	}
+
+	mod_sub_list_clear(mod);
+
+
+    u8_t group_size = ARRAY_SIZE(mod->groups);
+	if(group_size < buf->len / 2) {
+       status = STATUS_INSUFF_RESOURCES;
+	   goto send_status;
+	}
+
+	u8_t i = 0;
+	while(buf->len >= 2) {
+      sub_addr  = net_buf_simple_pull_le16(buf);
+      if (!BT_MESH_ADDR_IS_GROUP(sub_addr)) {
+		 status = STATUS_INVALID_ADDRESS;
+		 goto send_status;
+	  }
+      mod->groups[i] = sub_addr;
+	  i++;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+	  bt_mesh_store_mod_sub(mod);
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)) {
+	  bt_mesh_lpn_group_add(sub_addr);
+	}
+
+   return 0;
+send_status:
+
+ return status;
+}
+
 static void mod_sub_del_all(struct bt_mesh_model *model,
 			    struct bt_mesh_msg_ctx *ctx,
 			    struct net_buf_simple *buf)
 {
+    uint16_t sub_addr;
 	struct bt_mesh_model *mod;
 	struct bt_mesh_elem *elem;
 	u16_t elem_addr;
@@ -1719,6 +1855,9 @@ static void mod_sub_del_all(struct bt_mesh_model *model,
 		BT_WARN("Prohibited element address");
 		return;
 	}
+
+	sub_addr = net_buf_simple_pull_le16(buf);
+	(void)sub_addr;
 
 	BT_DBG("elem_addr 0x%04x", elem_addr);
 
@@ -2823,6 +2962,38 @@ static void node_reset(struct bt_mesh_model *model,
 	}
 }
 
+
+int node_report_rst_status(uint16_t netkey_idx,uint16_t unicast_addr,struct bt_mesh_send_cb *cb)
+{
+    struct bt_mesh_msg_ctx ctx = {0};
+   /* Needed size: opcode (2 bytes) + msg + MIC */
+	NET_BUF_SIMPLE_DEFINE(msg, 2 + 0 + 4);
+
+	struct bt_mesh_model *cfg_srv_model;
+    extern struct bt_mesh_model *ble_mesh_model_find(uint16_t elem_idx, uint16_t mod_idx, uint16_t CID);
+    /* Find Generic cfg Client Model in device primary element */
+    cfg_srv_model = ble_mesh_model_find(0, BT_MESH_MODEL_ID_CFG_SRV, 0xFFFF);
+
+    if (!cfg_srv_model) {
+        printf("Not Support!\r\n");
+        return -1;
+    }
+
+	bt_mesh_model_msg_init(&msg, OP_NODE_RESET_STATUS);
+
+	ctx.addr = unicast_addr;
+    ctx.net_idx = netkey_idx;
+    ctx.app_idx = BT_MESH_KEY_DEV;
+    ctx.send_ttl = bt_mesh_default_ttl_get();
+    ctx.send_rel = 1;
+
+	if (bt_mesh_model_send(cfg_srv_model, &ctx, &msg, cb, NULL)) {
+		printf("Unable to send Node Reset Status\r\n");
+		return -1;
+	}
+    return 0;
+}
+
 static void send_friend_status(struct bt_mesh_model *model,
 			       struct bt_mesh_msg_ctx *ctx)
 {
@@ -3492,7 +3663,7 @@ int bt_mesh_cfg_srv_init(struct bt_mesh_model *model, bool primary)
 
 /*[Genie begin] add by wenbing.cwb at 2021-01-21*/
 #ifdef CONFIG_BT_MESH_CTRL_RELAY
-	ctrl_relay_init(model);
+	ctrl_relay_init();
 #endif
 /*[Genie end] add by wenbing.cwb at 2021-01-21*/
 
@@ -3599,6 +3770,8 @@ u8_t bt_mesh_net_transmit_get(void)
 
 	return 0;
 }
+
+
 
 u8_t bt_mesh_relay_get(void)
 {
@@ -3787,6 +3960,21 @@ u8_t bt_mesh_mod_sub_add(struct bt_mesh_model *model, u16_t sub_addr)
 
 send_status:
 	return status;
+}
+
+
+u8_t bt_mesh_mod_sub_del(struct bt_mesh_model *model, u16_t sub_addr)
+{
+    u16_t *match;
+	match = bt_mesh_model_find_group(model, sub_addr);
+	if (match) {
+		*match = BT_MESH_ADDR_UNASSIGNED;
+
+		if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+			bt_mesh_store_mod_sub(model);
+		}
+	}
+   return STATUS_SUCCESS;
 }
 
 u8_t bt_mesh_mod_pub_set(struct bt_mesh_model *model, u16_t pub_addr)

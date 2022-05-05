@@ -63,8 +63,8 @@ int otalib_GetFirmwareVarlenPara(const char *json_doc,
                                  size_t json_doc_len,
                                  const char *key,
                                  char **dest);
-int otalib_GetParams(const char *json_doc, uint32_t json_len, char **url, char **version, char *md5,
-                     uint32_t *file_size);
+int otalib_GetParams(const char *json_doc, uint32_t json_len, char **url, char **version, char **sign,
+                     char **signMethod, uint32_t *file_size);
 int otalib_GetConfigParams(const char *json_doc, uint32_t json_len, char **configId, uint32_t *configSize, char **sign,
                            char **signMethod, char **url, char **getType);
 int otalib_GenInfoMsg(char *buf, size_t buf_len, uint32_t id, const char *version);

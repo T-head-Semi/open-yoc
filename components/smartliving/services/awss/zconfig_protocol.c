@@ -169,6 +169,7 @@ uint8_t zconfig_callback_over(uint8_t *ssid, uint8_t *passwd, uint8_t *bssid, ui
 
     zconfig_finished = 1;
 
+    // will be called in destroy
     //os_awss_close_monitor();
 
     return 0;
@@ -176,6 +177,10 @@ uint8_t zconfig_callback_over(uint8_t *ssid, uint8_t *passwd, uint8_t *bssid, ui
 
 void zconfig_set_state(uint8_t state, uint8_t tods, uint8_t channel)
 {
+    if (zconfig_data == NULL) {
+        return;
+    }
+    
     /* state change callback */
     switch (state) {
         case STATE_CHN_SCANNING:
@@ -306,10 +311,13 @@ void zconfig_destroy(void)
 {
     if (zconfig_data) {
         if (zc_mutex) {
+            awss_debug("zc_mutex to free");
             os_mutex_destroy(zc_mutex);
         }
+        awss_debug("zconfig data to free");
         os_free((void *)zconfig_data);
         zconfig_data = NULL;
+        awss_debug("zconfig data released");
     }
 }
 

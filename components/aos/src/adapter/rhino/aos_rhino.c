@@ -1243,7 +1243,7 @@ void aos_task_show_info(void)
                task_array[i]->tick_remain,
                debug_task_cpu_usage_get(task_array[i]) / 100.0);
 #else
-        printf(" %p   %8d %8d   %2d%% %8lld\n",
+        printf(" %p   %8d %8d   %2d%% %8lu\n",
                task_array[i]->task_stack_base,
                strack_size,
                strack_size - min_free,

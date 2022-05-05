@@ -23,7 +23,7 @@
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_ATT)
 #define LOG_MODULE_NAME bt_att
 #include "common/log.h"
-
+#include <common/common.h>
 #include "hci_core.h"
 #include "conn_internal.h"
 #include "l2cap_internal.h"
@@ -68,7 +68,7 @@ NET_BUF_POOL_DEFINE(prep_pool, CONFIG_BT_ATT_PREPARE_COUNT, BT_ATT_MTU,
 
 // K_MEM_SLAB_DEFINE(req_slab, sizeof(struct bt_att_req),
 //		  CONFIG_BT_ATT_TX_MAX, 16);
-struct bt_att_req req_slab[CONFIG_BT_ATT_TX_MAX];
+struct bt_att_req req_slab[CONFIG_BT_ATT_TX_MAX] = {0};
 #define k_mem_slab_alloc(slab, ptr, max_num)				\
         {													\
 			for (int i = 0; i < max_num; ++i) {				\
@@ -101,7 +101,11 @@ struct bt_att_chan {
 	ATOMIC_DEFINE(flags, ATT_NUM_FLAGS);
 	struct bt_att_req	*req;
 	struct k_delayed_work	timeout_work;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_t                tx_sem;
+#else
 	struct k_sem            tx_sem;
+#endif
 	void (*sent)(struct bt_att_chan *chan);
 	sys_snode_t		node;
 	bool used;
@@ -125,11 +129,11 @@ struct bt_att {
 //		  CONFIG_BT_MAX_CONN, 16);
 // K_MEM_SLAB_DEFINE(chan_slab, sizeof(struct bt_att_chan),
 // 		  CONFIG_BT_MAX_CONN * ATT_CHAN_MAX, 16);
-struct bt_att att_slab[CONFIG_BT_MAX_CONN];
+struct bt_att att_slab[CONFIG_BT_MAX_CONN] = {0};
 #define k_mem_slab_alloc_att(att) k_mem_slab_alloc(att_slab, att, CONFIG_BT_MAX_CONN)
-struct bt_att_chan chan_slab[CONFIG_BT_MAX_CONN * ATT_CHAN_MAX];
+struct bt_att_chan chan_slab[CONFIG_BT_MAX_CONN * ATT_CHAN_MAX]= {0};
 #define k_mem_slab_alloc_chan(chan) k_mem_slab_alloc(chan_slab, chan, CONFIG_BT_MAX_CONN * ATT_CHAN_MAX)
-static struct bt_att_req cancel;
+static struct bt_att_req cancel= {0};
 
 static void att_req_destroy(struct bt_att_req *req)
 {
@@ -232,7 +236,11 @@ static void bt_att_sent(struct bt_l2cap_chan *ch)
 		return;
 	}
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_inc(&chan->tx_sem);
+#else
 	k_sem_give(&chan->tx_sem);
+#endif
 }
 
 static void chan_cfm_sent(struct bt_att_chan *chan)
@@ -301,7 +309,9 @@ struct net_buf *bt_att_chan_create_pdu(struct bt_att_chan *chan, u8_t op,
 	}
 
 	if (!buf) {
-		BT_ERR("Unable to allocate buffer for op 0x%02x", op);
+#if !(defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE)
+		BT_ERR("Unable to allocate buffer for op 0x%02x\n", op);
+#endif
 		return NULL;
 	}
 
@@ -327,12 +337,16 @@ static int bt_att_chan_send(struct bt_att_chan *chan, struct net_buf *buf,
 	BT_DBG("chan %p flags %u code 0x%02x", chan, atomic_get(chan->flags),
 	       hdr->code);
 	(void)hdr;
-	/* Don't use tx_sem if caller has set it own callback */
-	if (!cb) {
-		if (k_sem_take(&chan->tx_sem, K_NO_WAIT) < 0) {
-			return -EAGAIN;
-		}
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	if (atomic_get(&chan->tx_sem) <= 0) {
+		return -EAGAIN;
 	}
+	atomic_dec(&chan->tx_sem);
+#else
+	if (k_sem_take(&chan->tx_sem, K_NO_WAIT) < 0) {
+		return -EAGAIN;
+	}
+#endif
 
 	return chan_send(chan, buf, cb);
 }
@@ -438,9 +452,16 @@ static int bt_att_chan_req_send(struct bt_att_chan *chan,
 		return -EMSGSIZE;
 	}
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	if (atomic_get(&chan->tx_sem) <= 0) {
+		return -EAGAIN;
+	}
+	atomic_dec(&chan->tx_sem);
+#else
 	if (k_sem_take(&chan->tx_sem, K_NO_WAIT) < 0) {
 		return -EAGAIN;
 	}
+#endif
 
 	BT_DBG("chan %p req %p len %zu", chan, req,
 	       net_buf_frags_len(req->buf));
@@ -455,7 +476,11 @@ static int bt_att_chan_req_send(struct bt_att_chan *chan,
 	if (err < 0) {
 		net_buf_unref(req->buf);
 		req->buf = NULL;
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+		atomic_inc(&chan->tx_sem);
+#else
 		k_sem_give(&chan->tx_sem);
+#endif
 		chan->req = NULL;
 	}
 
@@ -2449,7 +2474,11 @@ static void att_chan_detach(struct bt_att_chan *chan)
 
 	/* Ensure that any waiters are woken up */
 	for (i = 0; i < CONFIG_BT_ATT_TX_MAX; i++) {
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+		atomic_inc(&chan->tx_sem);
+#else
 		k_sem_give(&chan->tx_sem);
+#endif
 	}
 
 	if (chan->req) {
@@ -2487,7 +2516,8 @@ static void att_timeout(struct k_work *work)
 	att_reset(att);
 
 	/* Consider the channel disconnected */
-	bt_gatt_disconnected(ch->chan.conn);
+	//bt_gatt_disconnected(ch->chan.conn);
+	bt_hci_disconnect(bt_conn_index(ch->chan.conn), BT_HCI_ERR_REMOTE_USER_TERM_CONN);
 	ch->chan.conn = NULL;
 }
 
@@ -2633,7 +2663,12 @@ static void bt_att_released(struct bt_l2cap_chan *ch)
 	BT_DBG("chan %p", chan);
 
 	// k_mem_slab_free(&chan_slab, (void **)&chan);
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_set(&chan->tx_sem, 0);
+#else
 	k_sem_delete(&chan->tx_sem);
+#endif
+
 	chan->used = 0;
 	chan = NULL;
 }
@@ -2677,7 +2712,12 @@ static struct bt_att_chan *att_chan_new(struct bt_att *att, atomic_val_t flags)
 
 	// (void)memset(chan, 0, sizeof(*chan));
 	chan->chan.chan.ops = &ops;
+
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+	atomic_set(&chan->tx_sem, CONFIG_BT_ATT_TX_MAX);
+#else
 	k_sem_init(&chan->tx_sem, CONFIG_BT_ATT_TX_MAX, CONFIG_BT_ATT_TX_MAX);
+#endif
 	atomic_set(chan->flags, flags);
 	chan->att = att;
 
@@ -2805,7 +2845,9 @@ static void bt_eatt_init(void)
 
 void bt_att_init(void)
 {
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
 	bt_l2cap_le_fixed_chan_register(&att_fixed_chan);
+#endif
 	bt_gatt_init();
 
 #if CONFIG_BT_ATT_PREPARE_COUNT > 0

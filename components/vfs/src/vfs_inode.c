@@ -415,7 +415,7 @@ int32_t vfs_inode_list(vfs_list_type_t type)
     return VFS_OK;
 }
 
-uint32_t vfs_get_match_dev_node(const char *name, char *match_name)
+uint32_t vfs_get_match_dev_node(const char *name, char *match_name, int match_name_buf_len)
 {
     int32_t  idx;
     uint32_t match_count = 0;
@@ -444,7 +444,8 @@ uint32_t vfs_get_match_dev_node(const char *name, char *match_name)
     if (1 == match_count) {
         strncpy(match_name,
                 g_vfs_nodes[match_idx].i_name + strlen("/dev/"),
-                strlen(g_vfs_nodes[match_idx].i_name + strlen("/dev/")));
+                match_name_buf_len);
+        match_name[match_name_buf_len - 1] = '\0';
     }
 
     return match_count;
@@ -463,14 +464,10 @@ int vfs_inode_get_names(const char *path, char names[][64], uint32_t* size)
         if (g_vfs_nodes[idx].type == VFS_TYPE_FS_DEV &&
             strncmp(path, g_vfs_nodes[idx].i_name, strlen(path)) == 0) {
             memset(names[index], 0, 64);
-            len = strlen(g_vfs_nodes[idx].i_name) + 1;
-            if (len > 64) {
-                strncpy(names[index], g_vfs_nodes[idx].i_name, 63);
-                names[index][63] = '\0';
-                index++;
-            } else {
-                strncpy(names[index++], g_vfs_nodes[idx].i_name, len);
-            }
+            len = strlen(g_vfs_nodes[idx].i_name) + 1 > 64 ? 64 : strlen(g_vfs_nodes[idx].i_name) + 1;
+            strncpy(names[index], g_vfs_nodes[idx].i_name, len);
+            names[index][len - 1] = '\0';
+            index++;
         }
     }
     *size = index;

@@ -21,7 +21,7 @@ static int sl_dev_ap_start(wifi_prov_cb cb);
 static int sl_smartconfig_start(wifi_prov_cb cb);
 static void sl_dev_ap_stop();
 static void sl_smartconfig_stop();
-#if (defined CONFIG_WIFI_PROV_BLE) && CONFIG_WIFI_PROV_BLE
+#if (((defined CONFIG_WIFI_PROV_BLE) && CONFIG_WIFI_PROV_BLE) || (defined CONFIG_WIFI_PROV_BREEZE) && CONFIG_WIFI_PROV_BREEZE)
 static int sl_bleconfig_start(wifi_prov_cb cb);
 static void sl_bleconfig_stop();
 #endif
@@ -53,6 +53,13 @@ static wifi_prov_t awss_ble_priv = {
 };
 #endif
 
+#if (defined CONFIG_WIFI_PROV_BREEZE) && CONFIG_WIFI_PROV_BREEZE		
+static wifi_prov_t awss_ble_breeze = {		
+    .name        = "sl_ble_breeze",		
+    .start       = sl_bleconfig_start,		
+    .stop        = sl_bleconfig_stop,		
+};		
+#endif
 
 static void linkkit_start(void *arg)
 {
@@ -81,7 +88,7 @@ static void linkkit_start(void *arg)
     /* post reply doesn't need */
     post_reply_need = 0;
     IOT_Ioctl(IOTX_IOCTL_RECV_EVENT_REPLY, (void *)&post_reply_need);
-
+    
     /* Create Master Device Resources */
     master_devid = IOT_Linkkit_Open(IOTX_LINKKIT_DEV_TYPE_MASTER, &master_meta_info);
     if (master_devid < 0) {
@@ -123,6 +130,7 @@ static int sl_prov_cb(int success, char *ssid, char *password, int timeout)
 
     if (success) {
         wifi_prov_result_t res;
+        memset(&res, 0, sizeof(wifi_prov_result_t));
         strncpy(res.ssid, ssid, sizeof(res.ssid) - 1);
         strncpy(res.password, password, sizeof(res.password) - 1);
 
@@ -202,12 +210,13 @@ static void sl_dev_ap_stop()
 /**
     User starts the smartconfig process
 */
-#if (defined CONFIG_WIFI_PROV_BLE) && CONFIG_WIFI_PROV_BLE
+#if (((defined CONFIG_WIFI_PROV_BLE) && CONFIG_WIFI_PROV_BLE) || (defined CONFIG_WIFI_PROV_BREEZE) && CONFIG_WIFI_PROV_BREEZE)
 static int sl_bleconfig_start(wifi_prov_cb cb)
 {
     int ret;
 
     LOGD(TAG, "call ble config start");
+    
     extern int combo_net_init(wifi_prov_cb cb);
     ret = combo_net_init(cb);
     return ret;
@@ -232,6 +241,9 @@ int wifi_prov_sl_register()
 #if (defined CONFIG_WIFI_PROV_BLE) && CONFIG_WIFI_PROV_BLE
     wifi_prov_method_register(&awss_ble_priv);
 #endif
+#if (defined CONFIG_WIFI_PROV_BREEZE) && CONFIG_WIFI_PROV_BREEZE		
+    wifi_prov_method_register(&awss_ble_breeze);		
+#endif
 
     return 0;
 }
@@ -255,7 +267,7 @@ void wifi_prov_sl_start_report()
     linkkit_running = 1;
     linkkit_quit = 0;
 
-    aos_task_new_ext(&tsk, "linkkit", linkkit_start, NULL, 1024*6, AOS_DEFAULT_APP_PRI);
+    //aos_task_new_ext(&tsk, "linkkit", linkkit_start, NULL, 1024*6, AOS_DEFAULT_APP_PRI);
 }
 
 void wifi_prov_sl_stop_report()

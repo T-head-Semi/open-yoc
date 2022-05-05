@@ -19,6 +19,22 @@ extern "C" {
 uint8_t g_aes_random[RANDOM_MAX_LEN] = {0};
 uint8_t g_token_type = TOKEN_TYPE_INVALID;
 
+#ifndef CONFIG_BLDTIME_MUTE_DBGLOG
+void _dump_hex(uint8_t *data, int len, int tab_num)
+{
+    int i;
+    for (i = 0; i < len; i++) {
+        HAL_Printf("%02x ", data[i]);
+
+        if (!((i + 1) % tab_num)) {
+            HAL_Printf("\r\n");
+        }
+    }
+
+    HAL_Printf("\r\n");
+}
+#endif
+
 int awss_set_token(uint8_t token[RANDOM_MAX_LEN], bind_token_type_t token_type)
 {
     char rand_str[RANDOM_MAX_LEN * 2 + 1] = {0};
@@ -53,7 +69,9 @@ int awss_get_token(uint8_t token_buf[], int token_buf_len, bind_token_type_t *p_
     if (i >= sizeof(g_aes_random)) { // g_aes_random needs to be initialed
         produce_random(g_aes_random, sizeof(g_aes_random));
         awss_debug("produce random:");
-        zconfig_dump_hex((uint8_t *)g_aes_random, RANDOM_MAX_LEN, 24);
+        #ifndef CONFIG_BLDTIME_MUTE_DBGLOG
+        _dump_hex((uint8_t *)g_aes_random, RANDOM_MAX_LEN, 24);
+        #endif
     }
 
     utils_hex_to_str(g_aes_random, RANDOM_MAX_LEN, token_str, sizeof(token_str));

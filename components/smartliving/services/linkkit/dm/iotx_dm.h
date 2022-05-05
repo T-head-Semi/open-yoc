@@ -92,6 +92,8 @@ typedef enum {
     IOTX_DM_EVENT_DSLTEMPLATE_GET_REPLY,
     IOTX_DM_EVENT_COMBINE_LOGIN_REPLY,
     IOTX_DM_EVENT_COMBINE_LOGOUT_REPLY,
+    IOTX_DM_EVENT_COMBINE_BATCH_LOGIN_REPLY,
+    IOTX_DM_EVENT_COMBINE_BATCH_LOGOUT_REPLY,
     IOTX_DM_EVENT_MODEL_UP_RAW_REPLY,
     IOTX_DM_EVENT_LEGACY_THING_CREATED,
     IOTX_DM_EVENT_COTA_NEW_CONFIG,
@@ -237,6 +239,7 @@ int iotx_dm_get_triple_by_devid(_IN_ int devid,
                                 _OU_ char **device_name,
                                 _OU_ char **device_secret);
 #endif
+int iotx_dm_get_subdev_triples_by_devid(_IN_ int devid, iotx_linkkit_dev_meta_info_t *p_subdev);
 int iotx_dm_subdev_query(_IN_ char product_key[IOTX_PRODUCT_KEY_LEN + 1],
                          _IN_ char device_name[IOTX_DEVICE_NAME_LEN + 1],
                          _OU_ int *devid);
@@ -249,8 +252,9 @@ int iotx_dm_subdev_unregister(_IN_ int devid);
 int iotx_dm_subdev_topo_add(_IN_ int devid);
 int iotx_dm_subdev_topo_del(_IN_ int devid);
 int iotx_dm_subdev_reset(_IN_ int devid);
-int iotx_dm_subdev_login(_IN_ int devid);
-int iotx_dm_subdev_logout(_IN_ int devid);
+
+int iotx_dm_subdev_batch_login(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total);
+int iotx_dm_subdev_batch_logout(iotx_linkkit_dev_meta_info_t *subdev_list, int subdev_total);
 
 int iotx_dm_subdev_connect(_IN_ int devid, _IN_ iotx_linkkit_dev_meta_info_t *subdev_list, _IN_ int subdev_total);
 int iotx_dm_multi_subdev_connect(_IN_ int devid, _IN_ iotx_linkkit_dev_meta_info_t *subdev_list, _IN_ int subdev_total);

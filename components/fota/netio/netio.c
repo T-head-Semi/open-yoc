@@ -1,12 +1,12 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#include <stdio.h>
 #include <string.h>
-#include <aos/aos.h>
 #include <aos/list.h>
 #include <aos/kernel.h>
 #include <yoc/netio.h>
+#include <ulog/ulog.h>
 
 #define TAG "fota"
 typedef struct fota_netio_list {

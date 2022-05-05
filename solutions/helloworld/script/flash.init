@@ -1,14 +1,1 @@
-#reset
-set $psr=0xc0000000
-
-##Load mtb
-download ihex verify=yes $(ProjectPath)generated/imtb.hex
-
-download ihex verify=yes $(ProjectPath)generated/tee.hex
-
-##Load bootloader binary
-download ihex verify=yes $(ProjectPath)generated/boot.hex
-
-##Load yoc binary
-#will download by elf, no need to run
-download ihex verify=yes $(ProjectPath)generated/prim.hex
+download ihex verify=no $(ProjectPath)/generated/total_image.hex

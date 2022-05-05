@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2019-2020 Alibaba Group Holding Limited
  */
-
+#ifdef AOS_COMP_CLI
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -748,3 +748,5 @@ void cli_reg_cmd_mkfatfs(void)
     aos_cli_register_command(&cmd_info);
 }
 #endif
+
+#endif /* AOS_COMP_CLI */

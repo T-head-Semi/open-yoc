@@ -18,12 +18,14 @@
 #define HEADER_SIZE 4
 #define AES_BLK_SIZE 16
 
-#define IS_ENC(data) ((data[0] & 0x10) != 0)
-#define MSG_ID(data) (data[0] & 0xf)
-#define CMD_TYPE(data) (data[1])
-#define TOTAL_FRAME(data) ((data[2] >> 4) & 0x0f)
-#define FRAME_SEQ(data) (data[2] & 0x0f)
-#define FRAME_LEN(data) (data[3])
+// Transport package header information
+#define MSG_VER(data)                      ((data[0] >> 5) & 0x07)
+#define IS_ENC(data)                       ((data[0] & 0x10) != 0)
+#define MSG_ID(data)                       (data[0] & 0x0f)
+#define CMD_TYPE(data)                     (data[1])
+#define TOTAL_FRAME(data)                  ((data[2] >> 4) & 0x0f)
+#define FRAME_SEQ(data)                    (data[2] & 0x0f)
+#define FRAME_LEN(data)                    (data[3])
 
 #if BZ_ENABLE_AUTH
 extern bool g_dn_complete;
@@ -34,7 +36,7 @@ struct rx_cmd_post_t rx_cmd_post;
 #if defined(CONFIG_BREEZE_RX_THREAD)
 
 #ifndef CONFIG_BREEZE_RX_STACK_SIZE
-#define CONFIG_BREEZE_RX_STACK_SIZE (5 * 512)
+#define CONFIG_BREEZE_RX_STACK_SIZE (7 * 512)
 #endif
 
 #ifndef CONFIG_BREEZE_RX_THREAD_PRI
@@ -88,12 +90,14 @@ static void on_rx_timeout(void *arg1, void *arg2)
 }
 
 static bool is_valid_rx_command(uint8_t cmd) {
-    if (cmd == BZ_CMD_CTRL ||
-        cmd == BZ_CMD_QUERY ||
+    if (cmd == BZ_CMD_REQUEST ||
+        cmd == BZ_CMD_CONFIRM ||
+        cmd == BZ_CMD_CTRL ||
+        cmd == BZ_CMD_MANU_REQ ||
         cmd == BZ_CMD_EXT_DOWN ||
-        cmd == BZ_CMD_AUTH_REQ ||
-        cmd == BZ_CMD_AUTH_CFM ||
-        cmd == BZ_CMD_AUTH_REKEY ||
+        cmd == BZ_CMD_AUTH_SET_RAND ||
+        cmd == BZ_CMD_AUTH_RESULT_IND ||
+        cmd == BZ_CMD_AUTH_BIND_IND ||
         cmd == BZ_CMD_OTA_VER_REQ ||
         cmd == BZ_CMD_OTA_REQ ||
         cmd == BZ_CMD_OTA_SIZE ||
@@ -105,13 +109,14 @@ static bool is_valid_rx_command(uint8_t cmd) {
 }
 
 static bool is_valid_tx_command(uint8_t cmd) {
-    if (cmd == BZ_CMD_STATUS ||
-        cmd == BZ_CMD_REPLY ||
+    if (cmd == BZ_CMD_REPORT ||
+        cmd == BZ_CMD_RESPONSE ||
+        cmd == BZ_CMD_INDICATE ||
+        cmd == BZ_CMD_MANU_RESP ||
         cmd == BZ_CMD_EXT_UP ||
-        cmd == BZ_CMD_AUTH_RAND ||
-        cmd == BZ_CMD_AUTH_RSP ||
-        cmd == BZ_CMD_AUTH_KEY ||
-        cmd == BZ_CMD_AUTH_REKEY_RSP ||
+        cmd == BZ_CMD_AUTH_RPT_CIPHER ||
+        cmd == BZ_CMD_AUTH_RESULT_CFM ||
+        cmd == BZ_CMD_AUTH_BIND_CFM ||
         cmd == BZ_CMD_OTA_VER_RSP ||
         cmd == BZ_CMD_OTA_RSP ||
         cmd == BZ_CMD_OTA_PUB_SIZE ||
@@ -126,7 +131,7 @@ static bool is_valid_tx_command(uint8_t cmd) {
 static void do_encrypt(uint8_t *data, uint16_t len)
 {
     uint16_t bytes_to_pad, blk_num = len >> 4;
-    //uint8_t *decrypt_buf;
+    uint8_t *decrypt_buf;
     uint8_t encrypt_data[BZ_FRAME_SIZE_MAX];
     if(len > BZ_FRAME_SIZE_MAX){
         BREEZE_ERR("[BZ encry] data PDU length exceed");
@@ -135,38 +140,46 @@ static void do_encrypt(uint8_t *data, uint16_t len)
 
     bytes_to_pad = (AES_BLK_SIZE - len % AES_BLK_SIZE) % AES_BLK_SIZE;
     if (bytes_to_pad) {
-        memset(data + len, 0, bytes_to_pad);
-        g_transport.tx.zeroes_padded = bytes_to_pad;
+        memset(data + len, bytes_to_pad, bytes_to_pad);
+        g_transport.tx.pad_len = bytes_to_pad;
         blk_num++;
         g_transport.tx.buff[3] += bytes_to_pad;
     }
     BREEZE_VERBOSE("aes bf:%d", blk_num);
-    hex_byte_dump_verbose(data, len, 24);
+    hex_byte_dump_verbose(data, len + bytes_to_pad, 24);
     ais_aes128_cbc_encrypt(g_transport.p_aes_ctx, data, blk_num, encrypt_data);
     memcpy(data, encrypt_data, blk_num << 4);
     BREEZE_VERBOSE("aes af:");
     hex_byte_dump_verbose(encrypt_data, blk_num << 4, 24);
 }
 
-static void do_decrypt(uint8_t *data, uint16_t len)
+static void do_decrypt(uint8_t *data, uint16_t *len)
 {
-    uint16_t blk_num = len >> 4;
-    //uint8_t *buffer;
+    uint16_t blk_num = *len >> 4;
+    uint8_t *buffer;
+    int pad_len;
     uint8_t decrypt_data[BZ_FRAME_SIZE_MAX];
-    if(len > BZ_FRAME_SIZE_MAX){
+    if(*len > BZ_FRAME_SIZE_MAX){
         BREEZE_ERR("[BZ decry] data PDU length exceed");
         return;
     }
 
     ais_aes128_cbc_decrypt(g_transport.p_aes_ctx, data, blk_num, decrypt_data);
-    memcpy(data, decrypt_data, len);
+    pad_len = (int)decrypt_data[*len - 1];
+
+	if (pad_len < 1 || pad_len > 16) {
+        BREEZE_ERR("[BZ decry] pad len 1<-<16");
+    } else {
+        *len -= pad_len;
+    }
+    memcpy(data, decrypt_data, *len);
 }
 
 static uint32_t build_packet(uint8_t *data, uint16_t len)
 {
     uint32_t ret = BZ_SUCCESS;
 
-    g_transport.tx.zeroes_padded = 0;
+    g_transport.tx.pad_len = 0;
     g_transport.tx.buff[0] = ((BZ_TRANSPORT_VER & 0x7) << 5) |
                              ((g_transport.tx.encrypted & 0x1) << 4) |
                              (g_transport.tx.msg_id & 0xF);
@@ -174,6 +187,8 @@ static uint32_t build_packet(uint8_t *data, uint16_t len)
     g_transport.tx.buff[2] = ((g_transport.tx.total_frame & 0x0F) << 4) |
                              (g_transport.tx.frame_seq & 0x0F);
     g_transport.tx.buff[3] = len;
+
+    BREEZE_DEBUG("frame len (%d)", g_transport.tx.buff[3]);
 
     /* Payload */
     if (len != 0) {
@@ -186,10 +201,11 @@ static uint32_t build_packet(uint8_t *data, uint16_t len)
     if(g_dn_complete == false){
         g_transport.tx.buff[0] &= (~(0x01 <<4));
     }
-
+    /*
     if (g_dn_complete == true){
         g_transport.tx.buff[3] = len;
     }
+    */
 #else
     g_transport.tx.buff[0] &= (~(0x01 <<4));
 #endif
@@ -210,21 +226,18 @@ static ret_code_t send_fragment(void)
 {
     ret_code_t ret = BZ_SUCCESS;
     uint16_t len, pkt_len, bytes_left;
-    uint16_t pkt_payload_len = g_transport.max_pkt_size - HEADER_SIZE;
+    uint16_t payload_max_len = g_transport.max_pkt_size - HEADER_SIZE;
     uint16_t pkt_sent = 0;
 
     bytes_left = tx_bytes_left();
     if (g_transport.tx.encrypted != 0) {
-        if (g_transport.tx.cmd == BZ_CMD_AUTH_KEY)
-            pkt_payload_len = AES_BLK_SIZE;
-        else
-            pkt_payload_len &= ~(AES_BLK_SIZE - 1);
+        payload_max_len &= ~(AES_BLK_SIZE - 1);
     }
 
     do {
-        len = MIN(bytes_left, pkt_payload_len);
+        len = MIN(bytes_left, payload_max_len);
         build_packet(g_transport.tx.data + g_transport.tx.bytes_sent, len);
-        pkt_len = len + g_transport.tx.zeroes_padded + HEADER_SIZE;
+        pkt_len = len + g_transport.tx.pad_len + HEADER_SIZE;
         if (g_transport.tx.active_func == ble_ais_send_indication)
             aos_mutex_lock(g_transport.tx.mutex_indicate_done, 1000);
         ret = g_transport.tx.active_func(g_transport.tx.buff, pkt_len);
@@ -244,7 +257,7 @@ static ret_code_t send_fragment(void)
     }  while (bytes_left > 0);
 
     if ((bytes_left != 0) && (g_transport.timeout != 0)) {
-        os_timer_start(&g_transport.tx.timer);
+        bz_os_timer_start(&g_transport.tx.timer);
     }
     if (g_transport.tx.active_func == ble_ais_send_notification) {
         transport_txdone(pkt_sent);
@@ -258,7 +271,7 @@ static void trans_rx_dispatcher(void)
         return;
     }
 
-    if((g_transport.rx.cmd & BZ_CMD_TYPE_MASK) == BZ_CMD_AUTH){
+    if((g_transport.rx.cmd & BZ_CMD_TYPE_MASK) == BZ_CMD_TYPE_AUTH){
 #if BZ_ENABLE_AUTH
         auth_rx_command(g_transport.rx.cmd, g_transport.rx.buff, g_transport.rx.bytes_received);
 #endif
@@ -320,31 +333,29 @@ void transport_reset(void)
 ret_code_t transport_tx(uint8_t tx_type, uint8_t cmd,
                         uint8_t const *const p_data, uint16_t length)
 {
-    uint16_t pkt_payload_len;
+    uint16_t payload_max_len;
 
     if(cmd != BZ_CMD_ERR){
-        if (p_data == NULL && length != 0) {
+        // Parameters check
+        if (p_data == NULL) {
             return BZ_ENULL;
         }
-        if((length > BZ_MAX_PAYLOAD_SIZE) || (length == 0)){
+        if((length == 0) || (length > BZ_MAX_PAYLOAD_SIZE)){
             return BZ_EDATASIZE;
         }
     }
 
     if (g_transport.p_key != NULL &&
-        (cmd == BZ_CMD_STATUS || cmd == BZ_CMD_REPLY || cmd == BZ_CMD_EXT_UP ||
-        ((cmd & BZ_CMD_TYPE_MASK) == BZ_CMD_AUTH && ((cmd != BZ_CMD_AUTH_RAND) && (cmd != BZ_CMD_AUTH_REKEY_RSP))))) {
+        (cmd == BZ_CMD_REPORT || cmd == BZ_CMD_RESPONSE || cmd == BZ_CMD_INDICATE
+         || cmd == BZ_CMD_MANU_RESP || cmd == BZ_CMD_EXT_UP || cmd == BZ_CMD_ERR
+         || cmd == BZ_CMD_AUTH_RPT_CIPHER)) {
+        // When device authed, ble-key should be used to encrypt payload in some of the scenes
         g_transport.tx.encrypted = 1;
-#ifdef EN_LONG_MTU
-        pkt_payload_len = g_transport.max_pkt_size - HEADER_SIZE;
-#else
-        pkt_payload_len = (g_transport.max_pkt_size - HEADER_SIZE) & ~(AES_BLK_SIZE - 1);
-#endif
-        if (cmd == BZ_CMD_AUTH_KEY)
-            pkt_payload_len = AES_BLK_SIZE;
+        payload_max_len = (g_transport.max_pkt_size - HEADER_SIZE) & ~(AES_BLK_SIZE - 1);
+        BREEZE_VERBOSE("payload_max_len %d", payload_max_len);
     } else {
         g_transport.tx.encrypted = 0;
-        pkt_payload_len = g_transport.max_pkt_size - HEADER_SIZE;
+        payload_max_len = g_transport.max_pkt_size - HEADER_SIZE;
     }
     BREEZE_VERBOSE("tx_encrypted %d", g_transport.tx.encrypted);
 
@@ -361,16 +372,18 @@ ret_code_t transport_tx(uint8_t tx_type, uint8_t cmd,
     g_transport.tx.pkt_req = 0;
     g_transport.tx.pkt_cfm = 0;
 
-    if (cmd == BZ_CMD_REPLY || cmd == BZ_CMD_EXT_UP) {
+    if (cmd == BZ_CMD_RESPONSE || cmd == BZ_CMD_MANU_RESP || cmd == BZ_CMD_EXT_UP) {
         g_transport.tx.msg_id = g_transport.rx.msg_id;
-    } else if (cmd == BZ_CMD_STATUS) {
+    } else if (cmd == BZ_CMD_REPORT || cmd == BZ_CMD_INDICATE) {
         g_transport.tx.msg_id = 0;
+    } else {
+        BREEZE_ERR("tx.msg_id not set, use default %d", g_transport.tx.msg_id);
     }
     BREEZE_VERBOSE("tx.msg_id %d", g_transport.tx.msg_id);
 
     if(p_data != NULL && length != 0){
-        g_transport.tx.total_frame = length / pkt_payload_len;
-        if (g_transport.tx.total_frame * pkt_payload_len == length && length != 0) {
+        g_transport.tx.total_frame = length / payload_max_len;
+        if (g_transport.tx.total_frame * payload_max_len == length && length != 0) {
             g_transport.tx.total_frame--;
         }
     }
@@ -473,7 +486,7 @@ void transport_rx(uint8_t *p_data, uint16_t length)
     buff_left = RX_BUFF_LEN - g_transport.rx.bytes_received;
     if ((len = MIN(buff_left, FRAME_LEN(p_data))) > 0) {
         if (IS_ENC(p_data) != 0) {
-            do_decrypt(p_data + HEADER_SIZE, length - HEADER_SIZE);
+            do_decrypt(p_data + HEADER_SIZE, &len);
         }
         memcpy(g_transport.rx.buff + g_transport.rx.bytes_received, p_data + HEADER_SIZE, len);
         g_transport.rx.bytes_received += len;
@@ -487,14 +500,14 @@ void transport_rx(uint8_t *p_data, uint16_t length)
 #endif
     } else {
         if (g_transport.timeout != 0) {
-            os_timer_start(&g_transport.rx.timer);
+            bz_os_timer_start(&g_transport.rx.timer);
         }
     }
 }
 
 void transport_txdone(uint16_t pkt_sent)
 {
-    //uint32_t err_code = BZ_SUCCESS;
+    uint32_t err_code = BZ_SUCCESS;
     uint16_t bytes_left;
 
     g_transport.tx.pkt_cfm += pkt_sent;
@@ -520,7 +533,7 @@ void transport_txdone(uint16_t pkt_sent)
 
 uint32_t transport_update_key(uint8_t *key)
 {
-    char *iv = "0123456789ABCDEF";
+    char *iv = "123aqwed#*$!(4ju";
 
     g_transport.p_key = key;
     if (g_transport.p_aes_ctx) {
@@ -528,7 +541,7 @@ uint32_t transport_update_key(uint8_t *key)
         g_transport.p_aes_ctx = NULL;
     }
 
-    g_transport.p_aes_ctx = ais_aes128_init(g_transport.p_key, (uint8_t *)iv);
+    g_transport.p_aes_ctx = ais_aes128_init(g_transport.p_key, iv);
     BREEZE_VERBOSE("aes key update");
     hex_byte_dump_verbose(g_transport.p_key, 16, 24);
     return BZ_SUCCESS;

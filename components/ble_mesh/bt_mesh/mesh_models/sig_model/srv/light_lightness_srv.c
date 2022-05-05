@@ -110,7 +110,7 @@ static void _light_lightness_status(struct bt_mesh_model *model,
     LOGD(TAG, "Success!!!");
 }
 
-static E_MESH_ERROR_TYPE _light_lightness_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static E_MESH_ERROR_TYPE _light_lightness_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     u16_t lightness = 0;
     u8_t tid = 0;
@@ -146,8 +146,8 @@ static E_MESH_ERROR_TYPE _light_lightness_analyze(struct bt_mesh_model *model, u
         return MESH_SET_TRANSTION_ERROR;
     }
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) tid(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -176,8 +176,9 @@ static E_MESH_ERROR_TYPE _light_lightness_analyze(struct bt_mesh_model *model, u
         }
     } else {
         elem->state.lightness_actual[T_CUR] = elem->state.lightness_actual[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = NULL;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHTNESS_SET, (void *)&message);
@@ -199,7 +200,7 @@ static void _light_lightness_set(struct bt_mesh_model *model,
                                  struct bt_mesh_msg_ctx *ctx,
                                  struct net_buf_simple *buf)
 {
-    if (_light_lightness_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_analyze(model, ctx, buf) == MESH_SUCCESS) {
         _light_lightness_status(model, ctx, 1);
     }
 }
@@ -209,7 +210,7 @@ static void _light_lightness_set_unack(struct bt_mesh_model *model,
                                        struct net_buf_simple *buf)
 {
 
-    if (_light_lightness_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_analyze(model, ctx, buf) == MESH_SUCCESS) {
     }
 }
 
@@ -274,7 +275,7 @@ static void _light_lightness_linear_status(struct bt_mesh_model *model, struct b
  * 4. <done> bind operation in genie_event
  * 5. <done> send event to genie_event
  * */
-static E_MESH_ERROR_TYPE _light_lightness_linear_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static E_MESH_ERROR_TYPE _light_lightness_linear_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     u16_t linear = 0;
     u8_t tid = 0;
@@ -300,8 +301,8 @@ static E_MESH_ERROR_TYPE _light_lightness_linear_analyze(struct bt_mesh_model *m
 
     tid = net_buf_simple_pull_u8(buf);
 
-    if (mesh_check_tid(src_addr, tid) != MESH_SUCCESS) {
-        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) TID(0x%02x)", src_addr, tid);
+    if (mesh_check_tid(ctx->addr, tid) != MESH_SUCCESS) {
+        LOGE(TAG, "MESH_TID_REPEAT src_addr(0x%04x) TID(0x%02x)", ctx->addr, tid);
         return MESH_TID_REPEAT;
     }
 
@@ -340,8 +341,9 @@ static E_MESH_ERROR_TYPE _light_lightness_linear_analyze(struct bt_mesh_model *m
         }
     } else {
         elem->state.lightness_linear[T_CUR] = elem->state.lightness_linear[T_TAR];
-        model_message message;
-        message.source_addr = src_addr;
+        model_message message = {0};
+		message.trans = ctx->trans;
+        message.source_addr = ctx->addr;
         message.status_data = NULL;
         message.user_data = elem;
         model_event(BT_MESH_MODEL_LIGHTNESS_LINEAR_SET, (void *)&message);
@@ -370,7 +372,7 @@ static void _light_lightness_linear_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_light_lightness_linear_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_linear_analyze(model, ctx, buf) == MESH_SUCCESS) {
         _light_lightness_linear_status(model, ctx, 1);
     }
 }
@@ -385,7 +387,7 @@ static void _light_lightness_linear_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_light_lightness_linear_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_linear_analyze(model, ctx, buf) == MESH_SUCCESS) {
 #if 0 // Ethan
         pub_need = lightness_linear_action(model);
 
@@ -508,7 +510,7 @@ static void _light_lightness_range_get(struct bt_mesh_model *model,
  *
  * */
 //light lightness setup server
-static E_MESH_ERROR_TYPE _light_lightness_default_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static E_MESH_ERROR_TYPE _light_lightness_default_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     S_ELEM_STATE *elem = NULL;
     S_MESH_POWERUP *mesh_powerup = NULL;
@@ -538,8 +540,9 @@ static E_MESH_ERROR_TYPE _light_lightness_default_analyze(struct bt_mesh_model *
     mesh_powerup->lightness_actual_default = default_temp;
     LOGD(TAG, "default_actual(0x%04x)", mesh_powerup->lightness_actual_default);
 
-    model_message message;
-    message.source_addr = src_addr;
+    model_message message = {0};
+	message.trans = ctx->trans;
+    message.source_addr = ctx->addr;
     message.status_data = NULL;
     message.user_data = elem;
     model_event(BT_MESH_MODEL_LIGHTNESS_DEF_SET, (void *)&message);
@@ -553,7 +556,7 @@ static void _light_lightness_default_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_light_lightness_default_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_default_analyze(model, ctx, buf) == MESH_SUCCESS) {
         _light_lightness_defatult_status(model, ctx);
     }
 }
@@ -564,10 +567,10 @@ static void _light_lightness_default_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    _light_lightness_default_analyze(model, ctx->addr, buf);
+    _light_lightness_default_analyze(model, ctx, buf);
 }
 
-static E_MESH_ERROR_TYPE _light_lightness_range_analyze(struct bt_mesh_model *model, u16_t src_addr, struct net_buf_simple *buf)
+static E_MESH_ERROR_TYPE _light_lightness_range_analyze(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 {
     u16_t min = 0;
     u16_t max = 0;
@@ -600,8 +603,9 @@ static E_MESH_ERROR_TYPE _light_lightness_range_analyze(struct bt_mesh_model *mo
     LOGD(TAG, "min_actual(0x%04x) max_actual(0x%04x)",
          mesh_powerup->lightness_range.range_min, mesh_powerup->lightness_range.range_max);
 
-    model_message message;
-    message.source_addr = src_addr;
+    model_message message = {0};
+	message.trans = ctx->trans;
+    message.source_addr = ctx->addr;
     message.status_data = NULL;
     message.user_data = elem;
     model_event(BT_MESH_MODEL_LIGHTNESS_RANGE_SET, (void *)&message);
@@ -620,7 +624,7 @@ static void _light_lightness_range_set(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    if (_light_lightness_range_analyze(model, ctx->addr, buf) == MESH_SUCCESS) {
+    if (_light_lightness_range_analyze(model, ctx, buf) == MESH_SUCCESS) {
         _light_lightness_range_status(model, ctx);
     }
 }
@@ -631,7 +635,7 @@ static void _light_lightness_range_set_unack(struct bt_mesh_model *model,
 {
     LOGD(TAG, "");
 
-    _light_lightness_range_analyze(model, ctx->addr, buf);
+    _light_lightness_range_analyze(model, ctx, buf);
 }
 
 

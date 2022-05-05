@@ -13,32 +13,46 @@
 #include "bzopt.h"
 
 /* Breeze Bluetooth and Device specified definition */
-#define BZ_BT_MAC_LEN                             6
+#define IOTB_MAC_LEN                              6
 #define BZ_DEV_PRODUCT_KEY_LEN                    11
 #define BZ_DEV_PRODUCT_SECRET_LEN                 16
 #define BZ_DEV_MAX_DEVICE_NAME_LEN                32
-#define BZ_DEV_DEVICE_SECRET_LEN                  32
+#define IOTB_DEVICE_SECRET_LEN                    32
 #define BZ_DEV_RANDOM_LEN                         16
 
 /* Breeze core profile specified definition */
 #define BZ_CMD_TYPE_MASK                          0xf0
 
-#define BZ_CMD_CTRL                               0x0
-#define BZ_CMD_STATUS                             0x1
-#define BZ_CMD_QUERY                              0x2
-#define BZ_CMD_REPLY                              0x3
-#define BZ_CMD_EXT_DOWN                           0xd
-#define BZ_CMD_EXT_UP                             0xe
-#define BZ_CMD_ERR                                0xf
+#define BZ_CMD_REPORT                             0x1          // peer<-dev, no need to ack
+#define BZ_CMD_REQUEST                            0x2          // peer->dev, need 0x3 response
+#define BZ_CMD_RESPONSE                           0x3          // peer<-dev, ack to 0x2
+#define BZ_CMD_INDICATE                           0x4          // peer<-dev, need 0x5 confirm
+#define BZ_CMD_CONFIRM                            0x5          // peer->dev, ack to 0x4
+#define BZ_CMD_CTRL                               0x6          // peer->dev, no need to ack
+#define BZ_CMD_MANU_REQ                           0x7          // peer->dev, need 0x8 Manufacturer Specific Data response
+#define BZ_CMD_MANU_RESP                          0x8          // peer<-dev, ack to 0x7
+#define BZ_CMD_EXT_DOWN                           0xd          // peer->dev, internal extension request, need ack
+#define BZ_CMD_EXT_UP                             0xe          // peer<-dev, internal extension response
+#define BZ_CMD_ERR                                0xf          // peer<-dev, report exception
 
-#define BZ_CMD_AUTH                               0x10
+#define BZ_CMD_TYPE_AUTH                          0x10
+#define BZ_CMD_AUTH_SET_RAND                      0x10         // peer->dev, auth random
+#define BZ_CMD_AUTH_RPT_CIPHER                    0x11         // peer<-dev, auth cipher
+#define BZ_CMD_AUTH_RESULT_IND                    0x12         // peer->dev, auth result indicate
+#define BZ_CMD_AUTH_RESULT_CFM                    0x13         // peer<-dev, auth result confirm
+#define BZ_CMD_AUTH_BIND_IND                      0x14         // peer->dev, bind result indicate
+#define BZ_CMD_AUTH_BIND_CFM                      0x15         // peer<-dev, bind result confirm
+
+#define BZ_CMD_TYPE_AUTH                          0x10
 #define BZ_CMD_AUTH_RAND                          0x11
 #define BZ_CMD_AUTH_REQ                           0x12
 #define BZ_CMD_AUTH_RSP                           0x13
 #define BZ_CMD_AUTH_CFM                           0x14
 #define BZ_CMD_AUTH_KEY                           0x15
+
 #define BZ_CMD_AUTH_REKEY                         0x16
 #define BZ_CMD_AUTH_REKEY_RSP                     0x17
+
 
 #define BZ_CMD_TYPE_OTA                           0x20
 #define BZ_CMD_OTA_VER_REQ                        0x20
@@ -86,7 +100,7 @@ typedef uint8_t ret_code_t;
 #define ALI_ERROR_SRC_TRANSPORT_SEND              0x18
 
 #define BZ_AUTH_ERR                               0x20
-#define ALI_ERROR_SRC_AUTH_SEND_RSP               0x20
+#define IOTB_ERROR_AUTH_CIPHER_RPT                0x20
 #define ALI_ERROR_SRC_AUTH_PROC_TIMER_0           0x21
 #define ALI_ERROR_SRC_AUTH_PROC_TIMER_1           0x22
 #define ALI_ERROR_SRC_AUTH_PROC_TIMER_2           0x23

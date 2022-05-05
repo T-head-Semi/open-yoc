@@ -117,7 +117,10 @@ int h5_mp_send_cmd(uint16_t opcode, uint8_t *data, uint32_t len, uint8_t *resp_d
     send_cmd->send_len  = len + HCI_COMMAND_PREAMBLE_SIZE;
     send_cmd->opcode    = opcode;
     send_cmd->resp_data = resp_data;
-    send_cmd->resp_len  = *resp_len;
+
+    if (resp_len != NULL) {
+        send_cmd->resp_len  = *resp_len;
+    }
 
     h5_send(send_cmd);
 
@@ -125,7 +128,9 @@ int h5_mp_send_cmd(uint16_t opcode, uint8_t *data, uint32_t len, uint8_t *resp_d
 
     aos_check(!ret, EIO);
 
-    *resp_len = send_cmd->resp_len;
+    if (resp_len != NULL) {
+        *resp_len = send_cmd->resp_len;
+    }
 
     free(command);
     return err;
@@ -288,14 +293,24 @@ static void hci_bt_mp_test(char *wbuf, int wbuf_len, int argc, char **argv)
 
     cmd_data.status = 1;
 
-    printf("%02X ", resp_len);
-
     h5_mp_send_cmd(opcode, param, parameter_size, resp, &resp_len);
-
-    for (i = 0 ; i < resp_len; i ++) {
+#if 1
+    printf("%02X ", resp_len);
+     for (i = 0 ; i < resp_len; i ++) {
 
         printf("%02X ", resp[i]);
     }
+#else
+    printf("success:%d ", resp[5]);
+    printf("opcode: %04x ", *(uint16_t*)(resp + 3));
+    printf("length: %d ", resp_len - 6);
+    printf("param: ");
+
+    for (i = 6 ; i < resp_len; i ++) {
+
+        printf("%02X ", resp[i]);
+    }
+#endif
 
     printf("\n");
 

@@ -921,10 +921,10 @@ REPLY:
     memset(reply_payload, '\0', REPLAY_PAYLOAD_LEN);
     if (code == 200)
     {
-        char pk[PRODUCT_KEY_LEN];
-        char dn[DEVICE_NAME_LEN];
-        char ps[PRODUCT_SECRET_LEN];
-        char ds[DEVICE_SECRET_LEN];
+        char pk[PRODUCT_KEY_LEN + 1];
+        char dn[DEVICE_NAME_LEN + 1];
+        char ps[PRODUCT_SECRET_LEN + 1];
+        char ds[DEVICE_SECRET_LEN + 1];
 
         HAL_GetProductKey(pk);
         HAL_GetProductSecret(ps);

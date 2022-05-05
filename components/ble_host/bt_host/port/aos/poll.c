@@ -41,7 +41,6 @@ void k_poll_event_init(struct k_poll_event *event, u32_t type, int mode,
     __ASSERT(type < (1 << _POLL_NUM_TYPES), "invalid type\n");
     __ASSERT(obj, "must provide an object\n");
 
-    event->poller = NULL;
     /* event->tag is left uninitialized: the user will set it if needed */
     event->type   = type;
     event->state  = K_POLL_STATE_NOT_READY;
@@ -52,7 +51,6 @@ void k_poll_event_init(struct k_poll_event *event, u32_t type, int mode,
 
 static inline void set_event_state(struct k_poll_event *event, u32_t state)
 {
-    event->poller = NULL;
     event->state |= state;
 }
 
@@ -114,35 +112,31 @@ static inline int is_condition_met(struct k_poll_event *event, u32_t *state)
     return 0;
 }
 
-static inline void add_event(sys_dlist_t *events, struct k_poll_event *event,
-                             struct _poller *poller)
+static inline void add_event(sys_dlist_t *events, struct k_poll_event *event)
 {
     sys_dlist_append(events, &event->_node);
 }
 
 /* must be called with interrupts locked */
-static inline int register_event(struct k_poll_event *event,
-                                 struct _poller *     poller)
+static inline int register_event(struct k_poll_event *event)
 {
     switch (event->type) {
         case K_POLL_TYPE_DATA_AVAILABLE:
             __ASSERT(event->queue, "invalid queue\n");
-            add_event(&event->queue->poll_events, event, poller);
+            add_event(&event->queue->poll_events, event);
             break;
         case K_POLL_TYPE_SIGNAL:
             __ASSERT(event->signal, "invalid poll signal\n");
-            add_event(&event->signal->poll_events, event, poller);
+            add_event(&event->signal->poll_events, event);
             break;
         case K_POLL_TYPE_DATA_RECV:
             __ASSERT(event->queue, "invalid queue\n");
-            add_event(&event->signal->poll_events, event, poller);
+            add_event(&event->signal->poll_events, event);
             break;
         default:
             __ASSERT(0, "invalid event type\n");
             break;
     }
-
-    event->poller = poller;
 
     return 0;
 }
@@ -150,8 +144,6 @@ static inline int register_event(struct k_poll_event *event,
 /* must be called with interrupts locked */
 static inline void clear_event_registration(struct k_poll_event *event)
 {
-    event->poller = NULL;
-
     switch (event->type) {
         case K_POLL_TYPE_DATA_AVAILABLE:
             __ASSERT(event->queue, "invalid queue\n");
@@ -197,7 +189,7 @@ static bool polling_events(struct k_poll_event *events, int num_events,
             set_event_state(&events[ii], state);
             polling = false;
         } else if (timeout != K_NO_WAIT && polling) {
-            register_event(&events[ii], NULL);
+            register_event(&events[ii]);
             ++(*last_registered);
         }
         irq_unlock(key);
@@ -279,3 +271,11 @@ void k_poll_signal_raise(struct k_poll_signal *signal, int result)
     _handle_obj_poll_events(&signal->poll_events, K_POLL_STATE_SIGNALED);
 }
 
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && CONFIG_BT_HOST_OPTIMIZE
+void k_poll_signal_data_recv(struct k_poll_signal *signal, int result)
+{
+    signal->result = result;
+	signal->signaled = 1U;
+    _handle_obj_poll_events(&signal->poll_events, K_POLL_STATE_DATA_RECV);
+}
+#endif

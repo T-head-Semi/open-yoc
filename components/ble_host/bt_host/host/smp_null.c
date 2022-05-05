@@ -22,7 +22,7 @@
 #if !defined(CONFIG_BT_SMP)
 #define LOG_MODULE_NAME bt_smp
 #include "common/log.h"
-
+#include <common/common.h>
 #include "hci_core.h"
 #include "conn_internal.h"
 #include "l2cap_internal.h"
@@ -98,8 +98,9 @@ BT_L2CAP_CHANNEL_DEFINE(smp_fixed_chan, BT_L2CAP_CID_SMP, bt_smp_accept, NULL);
 
 int bt_smp_init(void)
 {
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
 	bt_l2cap_le_fixed_chan_register(&smp_fixed_chan);
-
+#endif
 	return 0;
 }
 #endif

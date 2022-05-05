@@ -12,7 +12,7 @@
 #ifdef CONFIG_BT
 
 #ifndef CONFIG_NET_BUF_USER_DATA_SIZE
-#define CONFIG_NET_BUF_USER_DATA_SIZE 4
+#define CONFIG_NET_BUF_USER_DATA_SIZE sizeof(void*)
 #endif
 
 #ifndef CONFIG_BT_HCI
@@ -112,18 +112,16 @@
 
 /* Number of buffers available for HCI commands. */
 #ifndef CONFIG_BT_HCI_CMD_COUNT
+#if defined(CONFIG_BT_HOST_OPTIMIZE) && (CONFIG_BT_HOST_OPTIMIZE)
+#define CONFIG_BT_HCI_CMD_COUNT 10
+#else
 #define CONFIG_BT_HCI_CMD_COUNT 2
+#endif
 #endif
 
 /* Number of buffers available for incoming ACL packets or HCI events from the controller. */
 #ifndef CONFIG_BT_RX_BUF_COUNT
-#ifdef CONFIG_BT_RECV_IS_RX_THREAD
 #define CONFIG_BT_RX_BUF_COUNT 3
-#elif defined(CONFIG_BT_MESH)
-#define CONFIG_BT_RX_BUF_COUNT 20
-#else
-#define CONFIG_BT_RX_BUF_COUNT 3
-#endif
 #endif
 
 /* Number of discardable event buffers. */
@@ -171,7 +169,7 @@
 
 /* Stack size needed for executing bt_send with specified driver */
 #ifndef CONFIG_BT_HCI_TX_STACK_SIZE
-#define CONFIG_BT_HCI_TX_STACK_SIZE 1536
+#define CONFIG_BT_HCI_TX_STACK_SIZE 2048
 #endif
 
 /* Stack size needed for executing bt_send with specified driver */
@@ -253,7 +251,7 @@
 
 /* Number of buffers available for outgoing L2CAP packets. */
 #ifndef CONFIG_BT_L2CAP_TX_BUF_COUNT
-#define CONFIG_BT_L2CAP_TX_BUF_COUNT 3
+#define CONFIG_BT_L2CAP_TX_BUF_COUNT 4
 #endif
 
 /* Maximum number of queued outgoing ATT PDUs. */
@@ -582,7 +580,7 @@
 #endif
 
 #ifndef CONFIG_BT_TINYCRYPT_ECC
-#define CONFIG_BT_TINYCRYPT_ECC 1
+#define CONFIG_BT_TINYCRYPT_ECC 0
 #endif
 
 #ifdef CONFIG_BT_DEBUG
@@ -631,6 +629,11 @@
 
 #ifndef CONFIG_BT_SHELL
 //#define CONFIG_BT_SHELL 1
+#endif
+
+#ifdef CONFIG_BT_EXT_ADV
+/* for ext adv, max adv data size 251 + head 4 + hci head 4 + HCI Reserved 4, align 4 */
+#define CONFIG_CMD_BUF_TX_SIZE (264)
 #endif
 
 #endif //CONFIG_BT_HCI

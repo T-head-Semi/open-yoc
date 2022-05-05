@@ -37,7 +37,7 @@ extern "C" {
 #define REGISTRAR_INQ_RPT_TIME      (500)      // start report duration(ms) when new enr in queue
 #define REGISTRAR_CHECH_START_TIME  (500)      // start check duration(ms) when checkin rx from cloud
 #ifdef AWSS_REGISTRAR_LOWPOWER_EN
-#define REGISTRAR_SUSTAIN_TIME  (10 * 60)   // 10 min
+#define REGISTRAR_SUSTAIN_TIME  (15 * 60)   // 10->15 min
 #endif
 
 static registrar_enr_record_t registrar_enr_list[MAX_ENROLLEE_NUM];

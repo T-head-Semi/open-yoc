@@ -26,7 +26,7 @@
 #include "beacon.h"
 #include "foundation.h"
 
-#define UNPROVISIONED_INTERVAL     K_SECONDS(5)
+#define UNPROVISIONED_INTERVAL     K_SECONDS(2)
 #define PROVISIONED_INTERVAL       K_SECONDS(10)
 
 /* 3 transmissions, 20ms interval */
@@ -153,7 +153,7 @@ static int secure_beacon_send(void)
 		/*[Genie begin] add by lgy at 2021-01-19*/
 		if (time_diff < K_SECONDS(600))
 		{
-#ifdef CONFIG_GENIE_MESH_GLP
+#if    defined(CONFIG_GENIE_MESH_GLP) || defined(CONFIG_MESH_LPM)
 			if (time_diff < K_SECONDS(30))
 #else
 			if (time_diff < BEACON_THRESHOLD(sub))
@@ -165,8 +165,7 @@ static int secure_beacon_send(void)
 /*[Genie end] add by lgy at 2021-01-19*/
 #endif
 
-		buf = bt_mesh_adv_create(BT_MESH_ADV_BEACON, PROV_XMIT,
-					 K_NO_WAIT);
+		buf = bt_mesh_adv_create(BT_MESH_ADV_BEACON, PROV_XMIT, K_NO_WAIT);
 		if (!buf) {
 			BT_ERR("Unable to allocate beacon buffer");
 			return -ENOBUFS;
@@ -217,8 +216,7 @@ static int unprovisioned_beacon_send(void)
 	if (prov->uri) {
 		size_t len;
 
-		buf = bt_mesh_adv_create(BT_MESH_ADV_URI, UNPROV_XMIT,
-					 K_NO_WAIT);
+		buf = bt_mesh_adv_create(BT_MESH_ADV_URI, UNPROV_XMIT, K_NO_WAIT);
 		if (!buf) {
 			BT_ERR("Unable to allocate URI buffer");
 			return -ENOBUFS;

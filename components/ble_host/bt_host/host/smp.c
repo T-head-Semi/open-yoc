@@ -25,7 +25,7 @@
 #include <bluetooth/conn.h>
 #include <bluetooth/buf.h>
 
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 #include <tinycrypt/constants.h>
 #include <tinycrypt/aes.h>
 #include <tinycrypt/utils.h>
@@ -36,7 +36,7 @@
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_SMP)
 #define LOG_MODULE_NAME bt_smp
 #include "common/log.h"
-
+#include <common/common.h>
 #include "hci_core.h"
 #include "ecc.h"
 #include "keys.h"
@@ -238,7 +238,7 @@ static const u8_t gen_method_sc[5 /* remote */][5 /* local */] = {
 	  PASSKEY_CONFIRM },
 };
 #endif /* !CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY */
-
+#if defined(CONFIG_BT_ECC)
 static const u8_t sc_debug_public_key[64] = {
 	0xe6, 0x9d, 0x35, 0x0e, 0x48, 0x01, 0x03, 0xcc, 0xdb, 0xfd, 0xf4, 0xac,
 	0x11, 0x91, 0xf4, 0xef, 0xb9, 0xa5, 0xf9, 0xe9, 0xa7, 0x83, 0x2c, 0x5e,
@@ -247,7 +247,7 @@ static const u8_t sc_debug_public_key[64] = {
 	0x5c, 0x15, 0x52, 0x5a, 0xbf, 0x9a, 0x32, 0x63, 0x6d, 0xeb, 0x2a, 0x65,
 	0x49, 0x9c, 0x80, 0xdc
 };
-
+#endif
 #if defined(CONFIG_BT_BREDR)
 /* SMP over BR/EDR channel specific context */
 struct bt_smp_br {
@@ -495,7 +495,7 @@ static struct net_buf *smp_create_pdu(struct bt_smp *smp, u8_t op, size_t len)
 static int bt_smp_aes_cmac(const u8_t *key, const u8_t *in, size_t len,
 			   u8_t *out)
 {
-#if !defined(CONFIG_BT_USE_HCI_API)
+#if !(defined(CONFIG_BT_USE_HCI_API) && CONFIG_BT_USE_HCI_API)
 	struct tc_aes_key_sched_struct sched;
 	struct tc_cmac_struct state;
 
@@ -781,7 +781,7 @@ static bool update_keys_check(struct bt_smp *smp)
 
 	return true;
 }
-
+#if defined(CONFIG_BT_ECC)
 static bool update_debug_keys_check(struct bt_smp *smp)
 {
 	struct bt_conn *conn = smp->chan.chan.conn;
@@ -801,7 +801,7 @@ static bool update_debug_keys_check(struct bt_smp *smp)
 
 	return true;
 }
-
+#endif
 #if defined(CONFIG_BT_PRIVACY) || defined(CONFIG_BT_SIGNING) || \
 	!defined(CONFIG_BT_SMP_SC_PAIR_ONLY)
 /* For TX callbacks */
@@ -3388,7 +3388,7 @@ static u8_t compute_and_check_and_send_slave_dhcheck(struct bt_smp *smp)
 	return 0;
 }
 #endif /* CONFIG_BT_PERIPHERAL */
-
+#if defined(CONFIG_BT_ECC)
 static void bt_smp_dhkey_ready(const u8_t *dhkey)
 {
 	struct bt_smp *smp = NULL;
@@ -3449,7 +3449,7 @@ static void bt_smp_dhkey_ready(const u8_t *dhkey)
 #endif /* CONFIG_BT_PERIPHERAL */
 	}
 }
-
+#endif
 static u8_t sc_smp_check_confirm(struct bt_smp *smp)
 {
 	u8_t cfm[16];
@@ -3946,7 +3946,7 @@ static u8_t smp_security_request(struct bt_smp *smp, struct net_buf *buf)
 	return BT_SMP_ERR_CMD_NOTSUPP;
 }
 #endif /* CONFIG_BT_CENTRAL */
-
+#if defined(CONFIG_BT_ECC)
 static u8_t generate_dhkey(struct bt_smp *smp)
 {
 	if (IS_ENABLED(CONFIG_BT_SMP_OOB_LEGACY_PAIR_ONLY)) {
@@ -4215,6 +4215,7 @@ static u8_t smp_dhkey_check(struct bt_smp *smp, struct net_buf *buf)
 
 	return 0;
 }
+#endif
 
 static const struct {
 	u8_t  (*func)(struct bt_smp *smp, struct net_buf *buf);
@@ -4291,7 +4292,7 @@ static int bt_smp_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 
 	return 0;
 }
-
+#if defined(CONFIG_BT_ECC)
 static void bt_smp_pkey_ready(const u8_t *pkey)
 {
 	int i;
@@ -4335,7 +4336,7 @@ static void bt_smp_pkey_ready(const u8_t *pkey)
 #endif /* CONFIG_BT_PERIPHERAL */
 	}
 }
-
+#endif
 static void bt_smp_connected(struct bt_l2cap_chan *chan)
 {
 	struct bt_smp *smp = CONTAINER_OF(chan, struct bt_smp, chan);
@@ -5541,6 +5542,10 @@ static bool le_sc_supported(void)
 		return false;
 	}
 
+	if (!IS_ENABLED(CONFIG_BT_ECC)) {
+		return false;
+	}
+
 	return BT_CMD_TEST(bt_dev.supported_commands, 34, 1) &&
 	       BT_CMD_TEST(bt_dev.supported_commands, 34, 2);
 }
@@ -5571,8 +5576,10 @@ int bt_smp_init(void)
 	}
 
 	BT_DBG("LE SC %s", sc_supported ? "enabled" : "disabled");
+#if !(defined(CONFIG_BT_L2CAP_FIXED_CHAN) && CONFIG_BT_L2CAP_FIXED_CHAN)
     extern void bt_l2cap_le_fixed_chan_register(struct bt_l2cap_fixed_chan *chan);
 	bt_l2cap_le_fixed_chan_register(&smp_fixed_chan);
+#endif
 #if defined(CONFIG_BT_BREDR)
 	/* Register BR/EDR channel only if BR/EDR SC is supported */
 	if (br_sc_supported()) {

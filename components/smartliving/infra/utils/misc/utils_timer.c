@@ -33,19 +33,15 @@ uint32_t utils_time_spend(iotx_time_t *start)
 
 uint32_t iotx_time_left(iotx_time_t *end)
 {
-    uint32_t now, res;
+    uint32_t now;
 
     if (!end) {
         return 0;
     }
 
-    if (utils_time_is_expired(end)) {
-        return 0;
-    }
-
     now = HAL_UptimeMs();
-    res = end->time - now;
-    return res;
+
+    return ((now - end->time) < (UINT32_MAX / 2))?0:(end->time - now);
 }
 
 uint32_t utils_time_is_expired(iotx_time_t *timer)

@@ -12,7 +12,6 @@ extern "C" {
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "k_api.h"
 #include "vfs.h"
 
 #define DT_UNKNOWN 0

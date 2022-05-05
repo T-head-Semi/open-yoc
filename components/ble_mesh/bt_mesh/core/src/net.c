@@ -47,6 +47,10 @@
 #include "mesh_event_port.h"
 #endif
 
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+#include "ext_net.h"
+#endif
+
 /* Minimum valid Mesh Network PDU length. The Network headers
  * themselves take up 9 bytes. After that there is a minumum of 1 byte
  * payload for both CTL=1 and CTL=0 PDUs (smallest OpCode is 1 byte). CTL=1
@@ -119,7 +123,7 @@ struct bt_mesh_net bt_mesh = {
 // #endif
 };
 
-static u32_t dup_cache[4];
+static u32_t dup_cache[40];
 static int   dup_cache_next;
 
 static bool check_dup(struct net_buf_simple *data)
@@ -172,6 +176,13 @@ static bool msg_cache_match(struct bt_mesh_net_rx *rx,
 	msg_cache_next %= ARRAY_SIZE(msg_cache);
 
 	return false;
+}
+
+
+void bt_mesh_net_msg_cache_clear()
+{
+	(void)memset(msg_cache, 0, sizeof(msg_cache));
+	msg_cache_next = 0U;
 }
 
 struct bt_mesh_subnet *bt_mesh_subnet_get(u16_t net_idx)
@@ -758,7 +769,7 @@ u32_t bt_mesh_next_seq(void)
 }
 
 int bt_mesh_net_resend(struct bt_mesh_subnet *sub, struct net_buf *buf,
-		       bool new_key, const struct bt_mesh_send_cb *cb,
+		       bool new_key, u16_t tx_dst, const struct bt_mesh_send_cb *cb,
 		       void *cb_data)
 {
 	const u8_t *enc, *priv;
@@ -812,6 +823,27 @@ int bt_mesh_net_resend(struct bt_mesh_subnet *sub, struct net_buf *buf,
 		return err;
 	}
 
+	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY)) {
+		if (bt_mesh_proxy_relay(&buf->b, tx_dst) &&
+		    BT_MESH_ADDR_IS_UNICAST(tx_dst)) {
+			/* Notify completion if this only went
+			 * through the Mesh Proxy.
+			 */
+			if (cb) {
+				if (cb->start) {
+					cb->start(0, 0, cb_data);
+				}
+
+				if (cb->end) {
+					cb->end(0, cb_data);
+				}
+			}
+
+			err = 0;
+			return err;
+		}
+	}
+
 	bt_mesh_adv_send(buf, cb, cb_data);
 
 	if (!atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS) &&
@@ -827,10 +859,23 @@ int bt_mesh_net_resend(struct bt_mesh_subnet *sub, struct net_buf *buf,
 static void bt_mesh_net_local(struct k_work *work)
 {
 	struct net_buf *buf;
-
+    enum bt_mesh_net_if net_if_old = 0;
 	while ((buf = net_buf_slist_get(&bt_mesh.local_queue))) {
-		BT_DBG("len %u: %s", buf->len, bt_hex(buf->data, buf->len));
-		bt_mesh_net_recv(&buf->b, 0, BT_MESH_NET_IF_LOCAL);
+		BT_DBG("len %u: %s %d", buf->len, bt_hex(buf->data, buf->len),BT_MESH_ADV(buf)->trans);
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+			if(BT_MESH_ADV(buf)->trans == NET_TRANS_EXT_ADV_1M) {
+				net_if_old =  BT_MESH_NET_IF_EXT_ADV_1M;
+			}else if(BT_MESH_ADV(buf)->trans == NET_TRANS_EXT_ADV_2M) {
+				net_if_old = BT_MESH_NET_IF_EXT_ADV_2M;
+			}else if(BT_MESH_ADV(buf)->trans == NET_TRANS_EXT_ADV_CODED ){
+				net_if_old = BT_MESH_NET_IF_EXT_ADV_CODED;
+			} else {
+				net_if_old = BT_MESH_NET_IF_ADV;
+			}
+#else
+		net_if_old =  BT_MESH_NET_IF_LOCAL;
+#endif
+		bt_mesh_net_recv_local(&buf->b, 0, net_if_old);
 		net_buf_unref(buf);
 	}
 }
@@ -936,6 +981,7 @@ int bt_mesh_net_send(struct bt_mesh_net_tx *tx, struct net_buf *buf,
 		}
 	}
 #endif
+
 	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY) &&
 	    tx->ctx->send_ttl != 1) {
 		if (bt_mesh_proxy_relay(&buf->b, tx->ctx->addr) &&
@@ -966,7 +1012,7 @@ int bt_mesh_net_send(struct bt_mesh_net_tx *tx, struct net_buf *buf,
 		}
 		net_buf_slist_put(&bt_mesh.local_queue, net_buf_ref(buf));
 		if (cb && cb->end) {
-			cb->end(0, cb_data);
+		   cb->end(0, cb_data);
 		}
 		k_work_submit(&bt_mesh.local_work);
 	} else if (tx->ctx->send_ttl != 1) {
@@ -982,6 +1028,103 @@ done:
 	net_buf_unref(buf);
 	return err;
 }
+
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+extern int ext_frag_buffer( struct net_buf *buf, uint8_t frag, uint16_t dst_addr, const struct bt_mesh_send_cb *cb, void *cb_data);
+
+int bt_mesh_ext_net_send(struct bt_mesh_net_tx *tx, struct net_buf *buf, uint8_t frag,
+                         const struct bt_mesh_send_cb *cb, void *cb_data)
+{
+
+    int err;
+
+    BT_DBG("Payload len %u: %s", buf->len, bt_hex(buf->data, buf->len));
+    BT_DBG("Seq 0x%06x", bt_mesh.seq);
+
+    if (tx->ctx->send_ttl == BT_MESH_TTL_DEFAULT) {
+        tx->ctx->send_ttl = bt_mesh_default_ttl_get();
+    }
+
+    err = bt_mesh_net_encode(tx, &buf->b, false);
+    if (err) {
+        goto done;
+    }
+
+    /* Deliver to GATT Proxy Clients if necessary. Mesh spec 3.4.5.2:
+     * "The output filter of the interface connected to advertising or
+     * GATT bearers shall drop all messages with TTL value set to 1."
+     */
+#ifdef CONFIG_BT_MESH_PROVISIONER
+    if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY) && bt_mesh_is_provisioner_en()) {
+        if (0 == provisioner_proxy_pdu_send(&buf->b)) {
+            goto done;
+        }
+    }
+#endif
+    if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY) &&
+        tx->ctx->send_ttl != 1) {
+        if (bt_mesh_proxy_relay(&buf->b, tx->ctx->addr) &&
+            BT_MESH_ADDR_IS_UNICAST(tx->ctx->addr)) {
+            /* Notify completion if this only went
+             * through the Mesh Proxy.
+             */
+            if (cb) {
+                if (cb->start) {
+                    cb->start(0, 0, cb_data);
+                }
+
+                if (cb->end) {
+                    cb->end(0, cb_data);
+                }
+            }
+
+            err = 0;
+            goto done;
+        }
+    }
+
+    /* Deliver to local network interface if necessary */
+    if (bt_mesh_fixed_group_match(tx->ctx->addr) ||
+        bt_mesh_elem_find(tx->ctx->addr)) {
+        if (cb && cb->start) {
+            cb->start(0, 0, cb_data);
+        }
+        net_buf_slist_put(&bt_mesh.local_queue, net_buf_ref(buf));
+        if (cb && cb->end) {
+            cb->end(0, cb_data);
+        }
+        k_work_submit(&bt_mesh.local_work);
+    } else if (tx->ctx->send_ttl != 1) {
+        /* Deliver to to the advertising network interface. Mesh spec
+         * 3.4.5.2: "The output filter of the interface connected to
+         * advertising or GATT bearers shall drop all messages with
+         * TTL value set to 1."
+         */
+        if(frag == EXT_NET_TRANS_COMPLETE) {
+			k_sched_disable();
+            bt_mesh_adv_send(buf, cb, cb_data);
+		    k_sched_enable();
+            goto done;
+        } else {
+            err = ext_frag_buffer(buf, frag, tx->ctx->addr, cb, cb_data);
+            if(err == -ENOMEM) {
+				k_sched_disable();
+                bt_mesh_adv_send(buf, cb, cb_data);
+			    k_sched_enable();
+                goto done;
+            } else {
+                goto exit;
+            }
+        }
+    }
+done:
+    net_buf_unref(buf);
+exit:
+    return err;
+
+}
+
+#endif
 
 static bool auth_match(struct bt_mesh_subnet_keys *keys,
 		       const u8_t net_id[8], u8_t flags,
@@ -1053,7 +1196,16 @@ static int net_decrypt(struct bt_mesh_subnet *sub, const u8_t *enc,
 		return -ENOENT;
 	}
 
-	if (rx->net_if == BT_MESH_NET_IF_ADV && msg_cache_match(rx, buf)) {
+	/*[Genie begin] add by wenbing.cwb at 2021-08-04*/
+	#ifdef CONFIG_BT_MESH_NPS_OPT
+	if ((rx->net_if == BT_MESH_NET_IF_ADV || rx->net_if == BT_MESH_NET_IF_PROXY) && msg_cache_match(rx, buf))
+	#elif defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+    if ((rx->net_if == BT_MESH_NET_IF_ADV || rx->net_if == BT_MESH_NET_IF_EXT_ADV_1M || rx->net_if == BT_MESH_NET_IF_EXT_ADV_2M || rx->net_if == BT_MESH_NET_IF_EXT_ADV_CODED) && msg_cache_match(rx, buf))
+	#else
+	if (rx->net_if == BT_MESH_NET_IF_ADV && msg_cache_match(rx, buf))
+	#endif
+	/*[Genie end] add by wenbing.cwb at 2021-08-04*/
+	{
 		BT_DBG("Duplicate found in Network Message Cache");
 		return -EALREADY;
 	}
@@ -1179,6 +1331,10 @@ static bool relay_to_adv(enum bt_mesh_net_if net_if)
 	case BT_MESH_NET_IF_LOCAL:
 		return true;
 	case BT_MESH_NET_IF_ADV:
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	case BT_MESH_NET_IF_EXT_ADV_1M:
+	case BT_MESH_NET_IF_EXT_ADV_2M:
+#endif
 		return (bt_mesh_relay_get() == BT_MESH_RELAY_ENABLED);
 	case BT_MESH_NET_IF_PROXY:
 		return (bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED);
@@ -1188,7 +1344,7 @@ static bool relay_to_adv(enum bt_mesh_net_if net_if)
 }
 
 static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
-			      struct bt_mesh_net_rx *rx)
+			      struct bt_mesh_net_rx *rx, enum bt_mesh_net_if net_if_old)
 {
 	const u8_t *enc, *priv;
 	struct net_buf *buf;
@@ -1209,6 +1365,7 @@ static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 			return;
 		}
 	}
+
 
 	if (rx->net_if == BT_MESH_NET_IF_ADV &&
 	    bt_mesh_relay_get() != BT_MESH_RELAY_ENABLED &&
@@ -1231,20 +1388,54 @@ static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 		BT_DBG("TTL %u CTL %u dst 0x%04x packet ", rx->ctx.recv_ttl, rx->ctl,rx->ctx.recv_dst);
 	}
 #else
-	BT_DBG("TTL %u CTL %u dst 0x%04x packet ", rx->ctx.recv_ttl, rx->ctl,rx->ctx.recv_dst);
+	BT_DBG("TTL %u CTL %u dst 0x%04x packet", rx->ctx.recv_ttl, rx->ctl,rx->ctx.recv_dst);
 #endif
 
 	/* The Relay Retransmit state is only applied to adv-adv relaying.
 	 * Anything else (like GATT to adv, or locally originated packets)
 	 * use the Network Transmit state.
 	 */
-	if (rx->net_if == BT_MESH_NET_IF_ADV) {
+
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	if (rx->net_if == BT_MESH_NET_IF_ADV ||  \
+		rx->net_if == BT_MESH_NET_IF_EXT_ADV_1M || \
+		rx->net_if == BT_MESH_NET_IF_EXT_ADV_2M || \
+		rx->net_if == BT_MESH_NET_IF_EXT_ADV_CODED) {
+#else
+	if(rx->net_if == BT_MESH_NET_IF_ADV) {
+#endif
 		transmit = bt_mesh_relay_retransmit_get();
 	} else {
 		transmit = bt_mesh_net_transmit_get();
 	}
 
-	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, transmit, K_NO_WAIT);
+#if defined(CONFIG_BT_MESH_EXT_ADV)	&& CONFIG_BT_MESH_EXT_ADV > 0
+	u8_t trans = 0;
+	if(rx->net_if == BT_MESH_NET_IF_EXT_ADV_1M || net_if_old == BT_MESH_NET_IF_EXT_ADV_1M) {
+        trans = NET_TRANS_EXT_ADV_1M;
+	}else if(rx->net_if == BT_MESH_NET_IF_EXT_ADV_2M || net_if_old == BT_MESH_NET_IF_EXT_ADV_2M){
+        trans = NET_TRANS_EXT_ADV_2M;
+	}else if(rx->net_if == BT_MESH_NET_IF_EXT_ADV_CODED || net_if_old == BT_MESH_NET_IF_EXT_ADV_CODED){
+        trans = NET_TRANS_EXT_ADV_CODED;
+    } else {
+        trans = NET_TRANS_LEGACY;
+	}
+#endif
+
+
+#if defined(CONFIG_BT_MESH_RELAY_ADV_BUF_COUNT) && CONFIG_BT_MESH_RELAY_ADV_BUF_COUNT > 0
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+	buf = bt_mesh_ext_relay_adv_create(BT_MESH_ADV_DATA, transmit, trans, 1, K_NO_WAIT);
+#else
+    buf = bt_mesh_relay_adv_create(BT_MESH_ADV_DATA, transmit, K_NO_WAIT);
+#endif
+#else
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+	buf = bt_mesh_ext_adv_create(BT_MESH_ADV_DATA, transmit, trans, 1, K_NO_WAIT);
+#else
+    buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, transmit, K_NO_WAIT);
+#endif
+#endif
 	if (!buf) {
 /*[Genie begin] add by wenbing.cwb at 2021-01-21*/
         BT_ERR("[%u]Out of relay buffers, Payload: %s", k_uptime_get_32(), bt_hex(sbuf->data, sbuf->len));
@@ -1319,10 +1510,15 @@ int bt_mesh_net_decode(struct net_buf_simple *data, enum bt_mesh_net_if net_if,
 		return -EINVAL;
 	}
 
-	if (net_if == BT_MESH_NET_IF_ADV && check_dup(data)) {
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+	if ((net_if == BT_MESH_NET_IF_ADV || net_if == BT_MESH_NET_IF_EXT_ADV_1M || net_if == BT_MESH_NET_IF_EXT_ADV_2M || net_if == BT_MESH_NET_IF_EXT_ADV_CODED )&& check_dup(data)) {
 		return -EINVAL;
 	}
-
+#else
+    if (net_if == BT_MESH_NET_IF_ADV && check_dup(data)) {
+        return -EINVAL;
+	}
+#endif
 	BT_DBG("%u bytes: %s", data->len, bt_hex(data->data, data->len));
 
 	rx->net_if = net_if;
@@ -1366,35 +1562,64 @@ int bt_mesh_net_decode(struct net_buf_simple *data, enum bt_mesh_net_if net_if,
 		return -EBADMSG;
 	}
 
-	BT_DBG("src 0x%04x dst 0x%04x ttl %u", rx->ctx.addr, rx->ctx.recv_dst,
-	       rx->ctx.recv_ttl);
+	BT_DBG("src 0x%04x dst 0x%04x ttl %u %d", rx->ctx.addr, rx->ctx.recv_dst,
+	       rx->ctx.recv_ttl,buf->len);
 	BT_DBG("PDU: %s", bt_hex(buf->data, buf->len));
 
 	return 0;
 }
 
-#ifdef CONFIG_GENIE_MESH_ENABLE
-static bool bt_mesh_net_rx_stat = false;
+
+bool bt_mesh_net_rx_stat = false;
 bool bt_mesh_net_is_rx(void)
 {
 	return bt_mesh_net_rx_stat;
 }
-#endif
 
-void bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
-		      enum bt_mesh_net_if net_if)
+
+static void _bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
+          enum bt_mesh_net_if net_if, enum bt_mesh_net_if net_if_old)
 {
-	struct bt_mesh_net_rx rx = { .rssi = rssi };
-	struct net_buf_simple_state state;
+  struct bt_mesh_net_rx rx = { .net_if = net_if ,.rssi = rssi };
+  struct net_buf_simple_state state;
 
-	BT_DBG("rssi %d net_if %u, len %d", rssi, net_if, data->len);
+  BT_DBG("rssi %d net_if %u,net_if_old %u len %d", rssi, net_if,net_if_old, data->len);
 
+#if defined(CONFIG_BT_MESH_EXT_ADV) && CONFIG_BT_MESH_EXT_ADV > 0
+	if((net_if == BT_MESH_NET_IF_EXT_ADV_1M || net_if == BT_MESH_NET_IF_EXT_ADV_2M || net_if == BT_MESH_NET_IF_EXT_ADV_CODED || net_if == BT_MESH_NET_IF_LOCAL)){
+		if (net_if == BT_MESH_NET_IF_EXT_ADV_1M || net_if_old == BT_MESH_NET_IF_EXT_ADV_1M)
+		{
+			rx.ctx.trans = NET_TRANS_EXT_ADV_1M;
+		}
+		else if (net_if == BT_MESH_NET_IF_EXT_ADV_2M || net_if_old == BT_MESH_NET_IF_EXT_ADV_2M)
+		{
+			rx.ctx.trans = NET_TRANS_EXT_ADV_2M;
+		}
+		else if (net_if == BT_MESH_NET_IF_EXT_ADV_CODED || net_if_old == BT_MESH_NET_IF_EXT_ADV_CODED)
+		{
+			rx.ctx.trans = NET_TRANS_EXT_ADV_CODED;
+		}
+
+		if (data->len > BT_MESH_NET_MAX_EXT_PDU_LEN) {
+			BT_ERR("Net PDU is too long %d(%d)", data->len, BT_MESH_NET_MAX_EXT_PDU_LEN);
+			return;
+		}
+	} else if (data->len > BT_MESH_NET_MAX_EXT_PDU_LEN) {
+		BT_ERR("Net PDU is too long %d(%d)", data->len, BT_MESH_NET_MAX_EXT_PDU_LEN);
+		return;
+	}
+#else
 	if (data->len > BT_MESH_NET_MAX_PDU_LEN) {
 		BT_ERR("Net PDU is too long %d(%d)", data->len, BT_MESH_NET_MAX_PDU_LEN);
 		return;
 	}
+#endif
 
+#if defined(CONFIG_BT_MESH_EXT_ADV)  && CONFIG_BT_MESH_EXT_ADV > 0
+	NET_BUF_SIMPLE_DEFINE(buf,BT_MESH_NET_MAX_EXT_PDU_LEN);
+#else
 	NET_BUF_SIMPLE_DEFINE(buf,BT_MESH_NET_MAX_PDU_LEN);
+#endif
 
 #if defined(CONFIG_BT_MESH_RELAY_SRC_DBG)
 	if(BT_MESH_NET_IF_ADV == net_if){
@@ -1406,13 +1631,9 @@ void bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
 		return;
 	}
 
-#ifdef CONFIG_GENIE_MESH_ENABLE
 	bt_mesh_net_rx_stat = true;
-#endif
 	if (bt_mesh_net_decode(data, net_if, &rx, &buf)) {
-#ifdef CONFIG_GENIE_MESH_ENABLE
 		bt_mesh_net_rx_stat = false;
-#endif
 		return;
 	}
 
@@ -1435,12 +1656,27 @@ void bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
 	if (!BT_MESH_ADDR_IS_UNICAST(rx.ctx.recv_dst) ||
 	    (!rx.local_match && !rx.friend_match)) {
 		net_buf_simple_restore(&buf, &state);
-		bt_mesh_net_relay(&buf, &rx);
+		bt_mesh_net_relay(&buf, &rx, net_if_old);
 	}
-#ifdef CONFIG_GENIE_MESH_ENABLE
+
 	bt_mesh_net_rx_stat = false;
-#endif
+
 }
+
+
+void bt_mesh_net_recv(struct net_buf_simple *data, s8_t rssi,
+          enum bt_mesh_net_if net_if)
+{
+	_bt_mesh_net_recv(data, rssi, net_if, net_if);
+}
+
+void bt_mesh_net_recv_local(struct net_buf_simple *data, s8_t rssi,
+          enum bt_mesh_net_if net_if_old)
+{
+	_bt_mesh_net_recv(data, rssi, BT_MESH_NET_IF_LOCAL, net_if_old);
+}
+
+
 
 static void ivu_refresh(struct k_work *work)
 {

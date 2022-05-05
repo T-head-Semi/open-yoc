@@ -34,12 +34,13 @@ struct sdio_func_tuple {
 };
 #endif
 
+
 /*
  * SDIO function devices
  */
-struct sdio_func {
-	struct mmc_card		*card;		/* the card this device belongs to */
-	void	(*irq_handler)(struct sdio_func *); /* IRQ callback */
+struct rtl_sdio_func {
+	struct rtl_mmc_card		*card;		/* the card this device belongs to */
+	void	(*irq_handler)(struct rtl_sdio_func *); /* IRQ callback */
 
 	unsigned	int	max_blksize;	/* maximum block size */ //add
 	unsigned	int	cur_blksize;	/* current block size */	 //add
@@ -60,7 +61,7 @@ struct sdio_func {
 	void *drv_priv;
 };
 
-struct sdio_cccr {
+struct rtl_sdio_cccr {
 	unsigned int		sdio_vsn;
 	unsigned int		sd_vsn;
 	unsigned int		multi_block:1;
@@ -71,18 +72,18 @@ struct sdio_cccr {
 	unsigned int		disable_cd:1;
 };
 
-struct sdio_cis {
+struct rtl_sdio_cis {
 	unsigned short		vendor;
 	unsigned short		device;
 	unsigned short		blksize;
 	unsigned int		max_dtr;
 };
 
-struct mmc_card {
-	struct mmc_host		*host;		/* the host this device belongs to */
-	struct sdio_cccr		cccr;		/* common card info */
-	struct sdio_cis		cis;		/* common tuple info */ //add
-	struct sdio_func	*sdio_func[7]; /* SDIO functions (devices) *///add
+struct rtl_mmc_card {
+	struct rtl_mmc_card		*host;		/* the host this device belongs to */
+	struct rtl_sdio_cccr		cccr;		/* common card info */
+	struct rtl_sdio_cis		cis;		/* common tuple info */ //add
+	struct rtl_sdio_func	*rtl_sdio_func[7]; /* SDIO functions (devices) *///add
 	unsigned int		sdio_funcs;	/* number of SDIO functions *///add
 
 	unsigned int			rca;			/* relative card address of device */

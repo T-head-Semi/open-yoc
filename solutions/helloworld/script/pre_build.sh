@@ -1,10 +1,5 @@
 #!/bin/sh
 
-#Parse from yaml
+MK_GENERATED_PATH=generated
 
-CUR_BOARD_PATH=$BOARD_PATH
-
-echo $CUR_BOARD_PATH
-
-./$CUR_BOARD_PATH/script/pre_build.sh
-
+mkdir -p $MK_GENERATED_PATH

@@ -601,7 +601,7 @@ static char* str_replace(char *orig, const char *rep, const char *with) {
 static unsigned int parse_uint(const char* str, int* errcode) {
     char* endptr;
     errno = 0;
-    long int l = strtol(str, &endptr, 0);
+    long int l = strtol(str, &endptr, 10);
     if (errno == ERANGE || *endptr != '\0' || l < 0 || l > INT_MAX) {
         *errcode = 1;
         return 0;
@@ -942,7 +942,11 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
     }
 
     fields = split_str(expression, ' ', &len);
+#ifdef AIOT_DEVICE_TIMER_ENABLE
+    if (len != 7) {
+#else
     if (len != 6) {
+#endif
         *error = "Invalid number of fields, expression must consist of 6 fields";
         goto return_res;
     }
@@ -963,6 +967,10 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
     if (*error) goto return_res;
 
     set_days_of_week(fields[5], target->days_of_week, error);
+#ifdef AIOT_DEVICE_TIMER_ENABLE
+    if (fields[5][0] == '?' || fields[5][0] == '*')
+        target->days_of_week[0] = 0;
+#endif
     if (*error) goto return_res;
 
     goto return_res;

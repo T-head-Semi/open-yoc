@@ -80,6 +80,9 @@ extern struct bt_mesh_cfg_srv g_cfg_srv;
 u8_t bt_mesh_mod_bind(struct bt_mesh_model *model, u16_t key_idx);
 u8_t bt_mesh_mod_sub_add(struct bt_mesh_model *model, u16_t sub_addr);
 u8_t bt_mesh_mod_pub_set(struct bt_mesh_model *model, u16_t pub_addr);
+#ifdef CONFIG_GENIE_MESH_ENABLE
+s8_t genie_mesh_setup(u16_t key_app_idx);
+#endif
 
 #ifdef __cplusplus
 }

@@ -299,7 +299,7 @@ int bt_mesh_suspend(bool force)
 
 
 	err = bt_mesh_scan_disable();
-	if (err) {
+	if (err && err != -EALREADY) {
 		BT_WARN("Disabling scanning failed (err %d)", err);
 		return err;
 	}
@@ -342,7 +342,7 @@ int bt_mesh_resume(void)
 	}
 
 	err = bt_mesh_scan_enable();
-	if (err) {
+	if (err && err != -EALREADY) {
 		BT_WARN("Re-enabling scanning failed (err %d)", err);
 		return err;
 	}
@@ -357,6 +357,90 @@ int bt_mesh_resume(void)
 
 	return err;
 }
+
+
+#ifdef  CONFIG_MESH_LPM
+int bt_mesh_suspend_lpm(bool force)
+{
+	int err;
+
+
+	if (!atomic_test_bit(bt_mesh.flags, BT_MESH_VALID)) {
+		return -EINVAL;
+	}
+
+	if (atomic_test_bit(bt_mesh.flags, BT_MESH_SUSPENDED)) {
+		return -EALREADY;
+	}
+
+     extern bool bt_mesh_net_is_rx(void);
+    if (force == false)
+    {
+        if (!bt_mesh_is_provisioned())
+        {
+            BT_INFO("unprov stat no suspend");
+            return -1;
+        }
+        if (bt_mesh_net_is_rx())
+        {
+            BT_INFO("rx stat no suspend");
+            return -2;
+        }
+        // TODO: if in tx process
+    }
+
+
+	err = bt_mesh_scan_disable();
+	if (err && err != -EALREADY) {
+		BT_WARN("Disabling scanning failed (err %d)", err);
+		return err;
+	}
+
+	bt_mesh_hb_pub_disable();
+
+	if (bt_mesh_beacon_get() == BT_MESH_BEACON_ENABLED) {
+		bt_mesh_beacon_disable();
+	}
+
+	bt_mesh_model_foreach(model_suspend, NULL);
+
+	atomic_set_bit(bt_mesh.flags, BT_MESH_SUSPENDED);
+
+	return 0;
+}
+
+
+int bt_mesh_resume_lpm(uint8_t scan_enable)
+{
+	int err = 0;
+
+	if (!atomic_test_bit(bt_mesh.flags, BT_MESH_VALID)) {
+		return -EINVAL;
+	}
+
+	if (!atomic_test_bit(bt_mesh.flags, BT_MESH_SUSPENDED)) {
+		return -EALREADY;
+	}
+
+	if(scan_enable) {
+     err = bt_mesh_scan_enable();
+	 if (err) {
+		BT_WARN("Re-enabling scanning failed (err %d)", err);
+		return err;
+	  }
+	}
+
+	if (bt_mesh_beacon_get() == BT_MESH_BEACON_ENABLED) {
+		bt_mesh_beacon_enable();
+	}
+
+	bt_mesh_model_foreach(model_resume, NULL);
+
+	atomic_clear_bit(bt_mesh.flags, BT_MESH_SUSPENDED);
+
+	return err;
+}
+#endif
 
 #ifdef CONFIG_BT_MESH_PROVISIONER
 
@@ -443,9 +527,11 @@ int bt_mesh_vnd_adv_set_cb(void (*cb)(const struct adv_addr_t *addr, s8_t rssi,u
     return bt_mesh_adv_vnd_scan_register((vendor_beacon_cb)cb);
 }
 
+
+
 int bt_mesh_init(const struct bt_mesh_prov *prov,
 				const struct bt_mesh_comp *comp,
-				const struct bt_mesh_provisioner *provisioner)
+				struct bt_mesh_provisioner *provisioner)
 {
 	int err;
 
@@ -488,7 +574,10 @@ int bt_mesh_init(const struct bt_mesh_prov *prov,
 	if (err) {
 		return err;
 	}
-
+#if	defined(CONFIG_BT_MESH_PROVISIONER) && (CONFIG_BT_MESH_PROVISIONER)
+	provisioner_prov_node_reset();
+    provisioner_mesh_node_reset();
+#endif
 	err = bt_mesh_comp_register(comp);
 	if (err) {
 		return err;
@@ -502,9 +591,11 @@ int bt_mesh_init(const struct bt_mesh_prov *prov,
 	}
 
 #ifdef CONFIG_BT_MESH_PROVISIONER
-	err = provisioner_prov_init(provisioner);
-	if (err) {
-		return err;
+	if(provisioner) {
+		err = provisioner_prov_init(provisioner);
+			if (err) {
+			return err;
+		}
 	}
 #endif
 
@@ -515,7 +606,9 @@ int bt_mesh_init(const struct bt_mesh_prov *prov,
 
 	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY)) {
 #ifdef CONFIG_BT_MESH_PROVISIONER
+	if(provisioner){
 		provisioner_proxy_init();
+	}
 #endif
 		bt_mesh_proxy_init();
 	}

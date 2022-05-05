@@ -774,7 +774,7 @@ _dbus_read (int               fd,
     }
   else
     {
-#if (CONFIG_KERNEL_RTOS && 1)
+#if (CONFIG_KERNEL_RTOS && 0)
   if (bytes_read > 0) {
 	  int i, rc = 0, cnt = bytes_read * 3;
 	  char *tdata = malloc(cnt);
@@ -830,7 +830,7 @@ _dbus_write (int               fd,
   if (bytes_written < 0 && errno == EINTR)
     goto again;
 
-#if (CONFIG_KERNEL_RTOS && 1)
+#if (CONFIG_KERNEL_RTOS && 0)
   if (bytes_written > 0) {
 	  int i, rc = 0, cnt = bytes_written * 3;
 	  char *tdata = malloc(cnt);
@@ -919,6 +919,19 @@ _dbus_write_two (int               fd,
   }
 #else /* HAVE_WRITEV */
   {
+#if CONFIG_KERNEL_RTOS
+	  {
+		  int ret;
+		  char *tdata = malloc(len1 + len2);
+
+		  memcpy(tdata, _dbus_string_get_const_data_len (buffer1, start1, len1), len1);
+		  memcpy(tdata + len1, _dbus_string_get_const_data_len (buffer2, start2, len2), len2);
+		  ret = send (fd, tdata, len1 + len2, 0);
+		  free(tdata);
+
+		  return ret;
+	  }
+#else
     int ret1, ret2;
 
     ret1 = _dbus_write (fd, buffer1, start1, len1);
@@ -932,6 +945,7 @@ _dbus_write_two (int               fd,
       }
     else
       return ret1;
+#endif
   }
 #endif /* !HAVE_WRITEV */
 }

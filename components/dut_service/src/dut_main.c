@@ -1,6 +1,12 @@
 /*
- * Copyright (C) 2019-2020 Alibaba Group Holding Limited
+ * Copyright (C) 2019-2022 Alibaba Group Holding Limited
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <stdio.h>
+#include <stdarg.h>
+
 #include <aos/hal/uart.h>
 #include <aos/hal/wdg.h>
 #include <aos/aos.h>
@@ -15,7 +21,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define AT_OUTPUT_TERMINATION  "\r\n"
-#define DUT_CMD_MAX_ARGS       10
+#define DUT_CMD_MAX_ARGS       15
 #define DUT_CMD_MAX_ARG_LEN    40
 
 typedef struct cmd_list {
@@ -32,6 +38,8 @@ struct dut_service {
 };
 
 static struct dut_service dut_svr;
+static char argv[DUT_CMD_MAX_ARGS][DUT_CMD_MAX_ARG_LEN] = {0};
+static char *argqv[DUT_CMD_MAX_ARGS] = {0};
 
 #define dut_svr_lock()   (aos_mutex_lock(&dut_svr.lock, AOS_WAIT_FOREVER))
 #define dut_svr_unlock() (aos_mutex_unlock(&dut_svr.lock))
@@ -129,6 +137,10 @@ static void cmd_parse_func(int type, int argc, char **argv)
     int err = 0;
     cmd_list_t *node;
 
+    if (argc > DUT_CMD_MAX_ARGS) {
+        dut_at_send("+CME ERROR, ARGS OVERFLOW");
+        return;
+    }
     dut_svr_lock();
 
     slist_for_each_entry(&dut_svr.cmd_lists, node, cmd_list_t, next) {
@@ -163,10 +175,13 @@ __attribute__((unused)) static int is_at_cmd(char *data)
 
 static void dut_test_at(char data[])
 {
-    char argv[DUT_CMD_MAX_ARGS][DUT_CMD_MAX_ARG_LEN] = {0};
     char *hcc;
-    char *argqv[DUT_CMD_MAX_ARGS] = {0};
-    int ustype  = at_cmd_type(data);
+    int ustype  = 0;
+
+	memset((void *)argv, 0, sizeof(argv));
+	memset((void *)argqv, 0, sizeof(argqv));
+
+	ustype = at_cmd_type(data);
     argv[0][0] = 'A';
     argv[0][1] = 'T';
     argv[0][2] = '\0';

@@ -19,6 +19,7 @@
 
 
 #define AT_STATUS_OK                                 (0)
+#define AT_ERR_MESH_AT_INIT_FAILD                   (-11)
 #define AT_ERR_MESH_AT_NOT_INIT                     (-12)
 #define AT_ERR_MESH_RST_FAILD                       (-13)
 #define AT_ERR_MESH_KV_UNLOAD                       (-14)
@@ -48,6 +49,21 @@
 #define AT_ERR_MESH_ADD_PUB_ADDR_FAILD              (-38)
 #define AT_ERR_MESH_AUTO_CONFIG_FAILD               (-39)
 #define AT_ERR_MESH_TX_FAILED                       (-40)
+#define AT_ERR_MESH_ENABLE_MAC_FILTER_FAILD         (-41)
+#define AT_ERR_MESH_DISABLE_MAC_FILTER_FAILD        (-42)
+#define AT_ERR_MESH_ADD_MAC_FILTER_DEV_FAILD        (-43)
+#define AT_ERR_MESH_DEL_MAC_FILTER_DEV_FAILD        (-44)
+#define AT_ERR_MESH_CLR_MAC_FILTER_DEV_FAILD        (-45)
+#define AT_ERR_MESH_GET_DEVKEY_FAILD                (-46)
+#define AT_ERR_MESH_PROVISIONER_CONFIG_FAILD        (-47)
+#define AT_ERR_MESH_PROVISIONER_GET_CONFIG_FAILD    (-48)
+#define AT_ERR_MESH_PROVISIONER_AUTO_PROV_FAILD     (-49)
+#define AT_ERR_MESH_PROVISIONER_ENABLE_FAILD        (-50)
+#define AT_ERR_MESH_PROVISIONER_DISABLE_FAILD       (-51)
+#define AT_ERR_MESH_PROVISIONER_SET_LPM_FLAG_FAIL   (-52)
+#define AT_ERR_MESH_GET_VERSION_FAIL                (-53)
+#define AT_ERR_MESH_OVERWRITE_SUB_LIST_FAIL         (-54)
+
 
 
 
@@ -58,15 +74,11 @@
 #define DEV_NAME "AT_MESH_PROVISIONER"
 
 #define DEF_AUTO_ADD_APPKEY_ONOFF (1)
-#define DEF_DEV_REPORT_TIMEOUT (1000)//ms
 #define DEF_FOUND_DEV_TIMEOUT (0)//s
-#define DEF_REPORT_DEV_SURVIVE_TIME (12000)//ms
 
 #define DEF_AUTO_CONFIG_TIMEOUT_MIN (5) //s
 #define DEF_AUTO_CONFIG_TIMEOUT DEF_AUTO_CONFIG_TIMEOUT_MIN
 
-#define DEF_UNICAST_ADDR_AUTO_CONFIG_RETRY (5)//s
-#define DEF_GROUP_ADDR_AUTO_CONFIG_RETRY  (20)//s
 #define DEF_ATTENTION_TIMEOUT (15)//s
 #define DEF_PUB_SET_TTL (3)
 #define DEF_PUB_SET_PERIOD (0)
@@ -75,11 +87,14 @@
 #define DEF_PUB_SET_APPKEY_IDX (0)
 
 #define DEF_SEND_APPKEY_IDX (0)
-#define DEF_TRS_MAX_LENGTH  (44)
-#define AUTOCONFIG_DST_SUB_ADDR   0xF000
-#define AUTOCONFIG_DST_PUB_ADDR   0XF001
-#define AUTOCONFIG_LOCAL_SUB_ADDR 0xF001
-#define AUTOCONFIG_LOCAL_PUB_ADDR 0xF000
+#if defined(CONFIG_BT_MESH_EXT_ADV)  && CONFIG_BT_MESH_EXT_ADV > 0
+#define DEF_TRS_MAX_LENGTH  410
+#else
+#define DEF_TRS_MAX_LENGTH  88
+#endif
+
+#define AUTOCONFIG_DST_SUB_ADDR   CONFIG_MESH_AUTOCONFIG_DST_SUB_ADDR
+#define AUTOCONFIG_DST_PUB_ADDR   CONFIG_MESH_AUTOCONFIG_DST_PUB_ADDR
 
 
 typedef enum {
@@ -90,7 +105,7 @@ typedef enum {
 } oob_type_en;
 
 
-
+#define DEF_NODE_ROLE (NODE|PROVISIONER)
 
 typedef void (*at_mesh_cb)(uint32_t event, void *p_arg);
 

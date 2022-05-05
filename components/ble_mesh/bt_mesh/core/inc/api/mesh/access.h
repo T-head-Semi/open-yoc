@@ -129,6 +129,9 @@ struct bt_mesh_elem {
 #define BT_MESH_MODEL_ID_LIGHT_LC_SRV              0x130f
 #define BT_MESH_MODEL_ID_LIGHT_LC_SETUPSRV         0x1310
 #define BT_MESH_MODEL_ID_LIGHT_LC_CLI              0x1311
+#define BT_MESH_MODEL_ID_BLOB_CLI                  0x1312
+#define BT_MESH_MODEL_ID_BLOB_SRV                  0x1313
+
 
 /** Message sending context. */
 struct bt_mesh_msg_ctx {
@@ -153,6 +156,12 @@ struct bt_mesh_msg_ctx {
 
 	/** TTL, or BT_MESH_TTL_DEFAULT for default TTL. */
 	u8_t  send_ttl;
+
+    /*trans bearer,Legacy default*/
+	u8_t  trans;
+
+	/*transmission count & interval, set 0 use dafault value */
+	u8_t net_transmit;
 };
 
 struct bt_mesh_model_op {
@@ -433,6 +442,8 @@ u16_t bt_mesh_model_get_appkey_id(struct bt_mesh_elem *elem,  struct bt_mesh_mod
 
 /* Find local element based on element id */
 struct bt_mesh_elem *bt_mesh_elem_find_by_id(u8_t id);
+
+uint8_t bt_mesh_elem_find_id(struct bt_mesh_elem *p_elem);
 
 /** Node Composition */
 struct bt_mesh_comp {

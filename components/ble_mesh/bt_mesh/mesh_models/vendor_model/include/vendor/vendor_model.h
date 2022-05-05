@@ -12,22 +12,25 @@
 #define BT_MESH_MODEL_VND_MODEL_SRV 0x0000
 #define BT_MESH_MODEL_VND_MODEL_CLI 0x0001
 
-
+#define VENDOR_OP_ATTR_TRANS_MSG         0xCF
+#define VENDOR_OP_ATTR_TRANS_INDICATE    0xCE
+#define VENDOR_OP_ATTR_TRANS_ACK         0xCD
 #define VENDOR_OP_ATTR_GET_STATUS        0xD0
 #define VENDOR_OP_ATTR_SET_ACK           0xD1
 #define VENDOR_OP_ATTR_SET_UNACK         0xD2
 #define VENDOR_OP_ATTR_STATUS            0xD3
-#define VENDOR_OP_ATTR_TRANS_MSG         0xCF
-#define VENDOR_OP_ATTR_TRANS_INDICATE    0xCE
-#define VENDOR_OP_ATTR_TRANS_ACK         0xCD
+#define VENDOR_OP_ATTR_INDICATE          0xD4
+#define VENDOR_OP_ATTR_CONFIRM           0xD5
 #define VENDOR_OP_ATTR_MESH_AUTOCONFIG   0xD6
 #define VENDOR_OP_ATTR_MESH_AUTOCONFIG_GET   0xD7
 #define VENDOR_OP_ATTR_MESH_AUTOCONFIG_STATUS 0xD8
-
-#define VENDOR_OP_ATTR_INDICATE          0xD4
-#define VENDOR_OP_ATTR_CONFIRM           0xD5
 #define VENDOR_OP_ATTR_INDICATE_TG       0xDE
 #define VENDOR_OP_ATTR_CONFIRM_TG        0xDF
+
+#define ATTR_TYPE_REPORT_VERSION         0xFF01
+#define ATTR_TYPE_OVERWRITE_SUBLIST      0xFF02
+#define ATTR_TYPE_REPORT_OTA_CRC         0xFF03
+
 
 
 #define ONOFF_T           0x0100
@@ -36,6 +39,9 @@
 #define VENDOR_MODEL_MSG_DFT_RETRY_TIMES 5
 #define VENDOR_MODEL_MSG_MAX_RETRY_TIMES 10
 #define VENDOR_MODEL_MSG_RETRY_PERIOD 500
+
+#define  DEF_VERSION_REPORT_RETRY 5
+#define  DEF_VERSION_REPORT_ADDR  0xF001
 
 /**
  * p_elem: pointer to the element which the messsage want to be sent to
@@ -59,6 +65,8 @@ typedef struct _vnd_model_msg {
     uint16_t appkey_idx;
     uint16_t dst_addr;
     uint16_t len;
+	uint8_t  trans;
+	uint8_t  net_transmit;
     uint8_t  retry;
     uint8_t  retry_period;
     uint8_t  opid;

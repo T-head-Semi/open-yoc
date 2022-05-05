@@ -7,6 +7,8 @@
 #ifndef _DM_FOTA_H_
 #define _DM_FOTA_H_
 
+#define DM_FOTA_TASK_STACK_SIZE (4096)
+
 typedef struct {
     int is_report_new_config;
 } dm_fota_ctx_t;

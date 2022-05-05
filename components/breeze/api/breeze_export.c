@@ -12,7 +12,6 @@
 #include "breeze_hal_ble.h"
 #include "breeze_hal_os.h"
 #include "bzopt.h"
-#include "bz_utils.h"
 
 static dev_status_changed_cb m_status_handler;
 static set_dev_status_cb m_ctrl_handler;
@@ -41,7 +40,7 @@ static void notify_status(breeze_event_t event)
 
 static void event_handler(ali_event_t *p_event)
 {
-    //uint32_t err_code;
+    uint32_t err_code;
     bool b_notify_upper = false;
 #if BZ_ENABLE_OTA
     breeze_otainfo_t m_disc_evt;
@@ -102,7 +101,7 @@ static void event_handler(ali_event_t *p_event)
             if(p_event->rx_data.p_data != NULL){
                 struct rx_cmd_post_t *r_cmd  = (struct rx_cmd_post_t*) p_event->rx_data.p_data;
                 uint8_t cmd = r_cmd ->cmd;	
-                if(cmd == BZ_CMD_QUERY){
+                if(cmd == BZ_CMD_REQUEST){
                     if (m_query_handler != NULL) {
                         m_query_handler(r_cmd->p_rx_buf, r_cmd->buf_sz);
                     }
@@ -126,7 +125,7 @@ static void event_handler(ali_event_t *p_event)
         case BZ_EVENT_APINFO:
 #if BZ_ENABLE_COMBO_NET
             if(m_apinfo_handler != NULL){
-                m_apinfo_handler((breeze_apinfo_t *)p_event->rx_data.p_data);
+                m_apinfo_handler(p_event->rx_data.p_data);
 	        }
 #endif
             break;
@@ -234,14 +233,14 @@ int breeze_end(void)
 uint32_t breeze_post(uint8_t *buffer, uint32_t length)
 {
     BREEZE_DEBUG("breeze_post");
-    return transport_tx(TX_INDICATION, BZ_CMD_STATUS, buffer, length);
+    return transport_tx(TX_INDICATION, BZ_CMD_REPORT, buffer, length);
 }
 
 
 uint32_t breeze_post_fast(uint8_t *buffer, uint32_t length)
 {
     BREEZE_DEBUG("breeze_post_fast");
-    return transport_tx(TX_NOTIFICATION, BZ_CMD_STATUS, buffer, length);
+    return transport_tx(TX_NOTIFICATION, BZ_CMD_REPORT, buffer, length);
 }
 
 uint32_t breeze_post_ext(uint8_t cmd, uint8_t *buffer, uint32_t length)
@@ -252,7 +251,7 @@ uint32_t breeze_post_ext(uint8_t cmd, uint8_t *buffer, uint32_t length)
     }
 
     if (cmd == 0) {
-        cmd = BZ_CMD_STATUS;
+        cmd = BZ_CMD_REPORT;
     }
     return transport_tx(TX_INDICATION, cmd, buffer, length);
 }
@@ -265,7 +264,7 @@ uint32_t breeze_post_ext_fast(uint8_t cmd, uint8_t *buffer, uint32_t length)
     }
 
     if (cmd == 0) {
-        cmd = BZ_CMD_STATUS;
+        cmd = BZ_CMD_REPORT;
     }
     return transport_tx(TX_NOTIFICATION, cmd, buffer, length);
 }
@@ -303,11 +302,6 @@ void breeze_restart_advertising()
         BREEZE_ERR("%s %d fail", __func__, __LINE__);
         return;
     }
-#ifdef CONFIG_SEC_PER_PK_TO_DN
-    if(get_auth_update_status()){
-        adv_data.vdata.data[BZ_FMSK_SECURITY_Pos] |= (1<<BZ_FMSK_SECRET_TYPE_Pos);
-    }
-#endif
 
     if (user_adv.len > 0) {
         size = sizeof(adv_data.vdata.data) - adv_data.vdata.len;
@@ -324,7 +318,7 @@ void breeze_restart_advertising()
     ble_advertising_start(&adv_data);
 }
 
-int breeze_start_advertising(uint8_t sub_type, uint8_t sec_type, uint8_t bind_state)
+int breeze_start_advertising(uint8_t bind_state, uint8_t awss_flag)
 {
     uint32_t size;
     ais_adv_init_t adv_data = {
@@ -332,7 +326,7 @@ int breeze_start_advertising(uint8_t sub_type, uint8_t sec_type, uint8_t bind_st
         .name = { .ntype = AIS_ADV_NAME_FULL, .name = BZ_BT_DEVICE_NAME },
     };
     
-    core_create_bz_adv_data(sub_type, sec_type, bind_state);
+    core_create_bz_adv_data(bind_state, awss_flag);
 
     adv_data.vdata.len = sizeof(adv_data.vdata.data);
     if (core_get_bz_adv_data(adv_data.vdata.data, &(adv_data.vdata.len))) {

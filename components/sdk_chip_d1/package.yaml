@@ -1,8 +1,8 @@
 
 ## 第一部分： 基础信息
-name: sdk_chip_d1                                        # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
-version: v7.5.0                                    # <必选项> 组件版本号
-description: the sdk chip for d1                  # <必选项> 建议至少20字以上
+name: sdk_chip_d1                                # <必选项> 包名称 （符合C语言变量命名规则），长度少于等于64字节
+version: v7.5.1                                  # <必选项> 组件版本号
+description: the sdk chip for d1                 # <必选项> 建议至少20字以上
 type: sdk                                        # <必选项> 组件类型，为：solution, chip, board, common, sdk
 
 ## 第二部分：依赖信息
@@ -12,29 +12,6 @@ type: sdk                                        # <必选项> 组件类型，�
 #   - minilibc: v7.2.0
 #   - aos: >=v7.2.0
 depends:
-  - rhino: v7.5.0
-  - rhino_arch: v7.5.0
-  - aos: v7.5.0
-  - cli: v7.5.0
-  - kv: v7.5.0
-  - ulog: v7.5.0
-  - d1_evb: v7.5.0
-  - chip_d1: v7.5.0
-  - csi: v7.5.0
-  - debug: v7.5.0
-  - aoshal: v7.5.0
-  - libc_stub: v7.5.0
-  - uservice: v7.5.0
-  - partition: v7.5.0
-  - key_mgr: v7.5.0
-  - sec_crypto: v7.5.0
-  - dbus: v7.5.0
-  - dbus_knife: v7.5.0
-  - lwip: v7.4.7
-  - select: v7.5.0
-  - aos_port: v7.5.0
-  - posix: v7.6.0
-  - vfs: v7.6.0
-  - mbedtls: v7.4.5
-  - zlib: v7.5.0
-  - lvgl: v7.4.3
+  - yoc_kernel_d1: v7.5.0
+  - d1_evb: v7.5.1
+  - chip_d1: v7.5.1

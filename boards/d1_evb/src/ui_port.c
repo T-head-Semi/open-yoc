@@ -174,7 +174,7 @@ static void __touchscreen_config(uint16_t *x, uint16_t *y)
     }
 }
 
-void touchscreen_event(touch_message_t msg)
+static void touchscreen_event(touch_message_t msg, void* arg)
 {
     uint16_t x, y;
     uinput_event_t tevent;
@@ -226,6 +226,25 @@ void touchscreen_event(touch_message_t msg)
 int uinput_service_init(event_notify_cb func)
 {
     touch_notify = func;
+    hal_touch_cb_register(touchscreen_event, NULL);
     return 0;
 }
 
+#include <aos/kernel.h>
+#ifndef CONFIG_UI_TASK_STACK_SIZE
+#define CONFIG_UI_TASK_STACK_SIZE 65536
+#endif
+static void ui_task(void *arg)
+{
+    extern int falcon_entry(int argc, char *argv[]);
+    printf("haasui entry here!\r\n");
+    printf("haasui build time: %s, %s\r\n", __DATE__, __TIME__);
+    hal_touch_init(NULL, NULL);
+    falcon_entry(0, NULL);
+}
+
+void ui_task_run(void)
+{
+    aos_task_t task;
+    aos_task_new_ext(&task, "ui-task", ui_task, NULL, CONFIG_UI_TASK_STACK_SIZE, AOS_DEFAULT_APP_PRI);
+}

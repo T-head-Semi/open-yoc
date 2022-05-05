@@ -18,13 +18,19 @@ extern "C"
 
 int softap_decrypt_password(const char *cipher, const uint8_t *random, char *passwd)
 {
-    uint8_t cipher_hex[AES128_KEY_LEN] = {0};
+    uint8_t cipher_hex[PLATFORM_MAX_PASSWD_LEN] = {0};
     uint8_t aes_key[SHA256_DIGEST_SIZE + 1] = {0};
     uint8_t iv[AES128_KEY_LEN] = {0};
     p_aes128_t aes_ctx = NULL;
 
+    if (strlen(cipher) == 0) //Passwd is empty
+    {
+        passwd = "";
+        return 0;
+    }
+
     /* get cipher hex */
-    utils_str_to_hex((char *)cipher, 32, cipher_hex, 16);
+    utils_str_to_hex((char *)cipher, PLATFORM_MAX_PASSWD_LEN * 2, cipher_hex, PLATFORM_MAX_PASSWD_LEN);
 
     /* setup iv */
     utils_str_to_hex((char *)random, RANDOM_MAX_LEN * 2, iv, RANDOM_MAX_LEN);

@@ -3,27 +3,26 @@
  */
 
 #include "aos/kernel.h"
-#include <aos/kv.h>
 #include <breeze_hal_os.h>
 
 int os_timer_new(os_timer_t *timer, os_timer_cb_t cb, void *arg, int ms)
 {
-    return aos_timer_new_ext((aos_timer_t *)timer, cb, arg, ms, 0, 0);
+    return aos_timer_new_ext(timer, cb, arg, ms, 0, 0);
 }
 
-int os_timer_start(os_timer_t *timer)
+int bz_os_timer_start(os_timer_t *timer)
 {
-    return aos_timer_start((aos_timer_t *)timer);
+    return aos_timer_start(timer);
 }
 
 int os_timer_stop(os_timer_t *timer)
 {
-    return aos_timer_stop((aos_timer_t *)timer);
+    return aos_timer_stop(timer);
 }
 
 void os_timer_free(os_timer_t *timer)
 {
-    aos_timer_free((aos_timer_t *)timer);
+    aos_timer_free(timer);
 }
 
 void os_reboot()
@@ -43,7 +42,7 @@ long long os_now_ms()
 
 int os_kv_set(const char *key, const void *value, int len, int sync)
 {
-    return aos_kv_set(key, (void *)value, len, sync);
+    return aos_kv_set(key, value, len, sync);
 }
 
 int os_kv_get(const char *key, void *buffer, int *buffer_len)

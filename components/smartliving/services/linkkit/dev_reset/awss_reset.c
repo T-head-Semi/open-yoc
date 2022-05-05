@@ -171,7 +171,7 @@ int awss_report_reset(iotx_vendor_dev_reset_type_t *reset_type)
         l_reset_type = *((iotx_vendor_dev_reset_type_t *)reset_type);
     }
 
-    if (l_reset_type < IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_ONLY || l_reset_type > IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_ALL_CLEAR)
+    if (l_reset_type < IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_ONLY || l_reset_type > IOTX_VENDOR_DEV_RESET_TYPE_GW_UNBIND_ALL_CLEAR)
     {
         l_reset_type = IOTX_VENDOR_DEV_RESET_TYPE_UNBIND_SHADOW_CLEAR;
     }
@@ -233,11 +233,11 @@ int awss_clear_reset(void)
 {
     int ret = 0;
     if (HAL_Kv_Del(AWSS_KV_RST) != 0) {
-        log_warning("[RST]", "KV_RST del fail");
+        log_err("[RST]", "KV_RST del fail");
         ret = -1;
     }
     if (HAL_Kv_Del(AWSS_KV_RST_TYPE) != 0) {
-        log_warning("[RST]", "KV_RST_TYPE del fail");
+        log_err("[RST]", "KV_RST_TYPE del fail");
         ret = -1;
     }
 

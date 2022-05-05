@@ -20,9 +20,10 @@
 #define CPU_USAGE_DEFAULT_PRI      7
 #define CPU_USAGE_STACK            4048
 
-ktask_t *cpuusage_task;
-int      sync_mode   = 0;
-ksem_t   sync_sem;
+static ktask_t *cpuusage_task;
+static int sync_mode;
+static ksem_t sync_sem;
+static int g_task_quit;
 
 struct statistics_param {
     uint32_t period;
@@ -224,7 +225,6 @@ uint32_t debug_total_cpu_usage_get(uint32_t cpuid)
 
 void cpuusage_statistics(void *arg)
 {
-    ktask_t *cur_task;
     kstat_t  status;
     uint32_t period     = 0;
     uint32_t total      = 0;
@@ -261,16 +261,14 @@ void cpuusage_statistics(void *arg)
     }
 
     debug_task_cpu_usage_stats();
-    status = krhino_task_sleep(period * RHINO_CONFIG_TICKS_PER_SECOND / 1000);
-    if (status == RHINO_TASK_CANCELED) {
-        //krhino_task_cancel_clr();
-    }
+    krhino_task_sleep(period * RHINO_CONFIG_TICKS_PER_SECOND / 1000);
 
     /* If total is 0, it will run continuously */
     while ((index < stat_count) || (total == 0)) {
-        if (krhino_task_cancel_chk() == RHINO_TRUE) {
-            cur_task = krhino_cur_task_get();
-            krhino_task_dyn_del(cur_task);
+        if (g_task_quit) {
+            /* FIXME: krhino_task_cancel had question. stop statics */
+            printf("====CPU utilization statistics interrupt====\r\n");
+            break;
         }
 
         debug_task_cpu_usage_stats();
@@ -377,10 +375,7 @@ void cpuusage_cmd(char *buf, int32_t len, int32_t argc, char **argv)
             param.record_to_file = 1;
             argv_index++;
         } else if (0 == strcmp(argv[argv_index], "-e")) {
-            if (cpuusage_task != NULL) {
-                krhino_task_cancel(cpuusage_task);
-            }
-            cpuusage_task = NULL;
+            g_task_quit = 1;
             return;
         } else if (0 == strcmp(argv[argv_index], "-s")) {
             if (sync_mode == 0) {
@@ -412,6 +407,7 @@ void cpuusage_cmd(char *buf, int32_t len, int32_t argc, char **argv)
         return;
     }
 
+    g_task_quit = 0;
     krhino_task_dyn_create(&cpuusage_task, "cpuusage", (void *)&param, (uint8_t)CPU_USAGE_DEFAULT_PRI, 0, CPU_USAGE_STACK,
                            cpuusage_statistics, 1);
 

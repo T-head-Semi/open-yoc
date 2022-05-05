@@ -35,7 +35,7 @@ typedef struct transport_s {
         uint8_t cmd;
         uint8_t total_frame;
         uint8_t frame_seq;
-        uint8_t zeroes_padded;
+        uint8_t pad_len;
         uint16_t pkt_req;
         uint16_t pkt_cfm;
         os_timer_t timer;
